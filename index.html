@@ -154,9 +154,9 @@
             const HIT_SCORE = 10, DESTROY_SCORE = 500, STAR_SCORE = 4;
             const BURST_STAR_SCORE = 7;
             const BURST_STAR_ATTRACT_DIST = 350;
-            const BURST_STAR_ATTR = 0.15;
+            const BURST_STAR_ATTR = 0.3; 
             const MIN_AST_RAD = 15, SAFE_ZONE = 250;
-            const NORMAL_STAR_COLORS = ['#a6b3ff', '#c3a6ff', '#f3a6ff', '#ffa6f8', '#ffa6c7', '#ff528e', '#d98cff'];
+            const NORMAL_STAR_COLORS = ['#a6b3ff', '#c3a6ff', '#f3a6ff', '#ffa6f8', '#ffa6c7', '#ff528e', '#d98cff', '#ff8c00'];
 
             // --- Game State ---
             let score = 0, currentWave = 0, gameState = 'START';
@@ -276,12 +276,15 @@
                     if (keys.up) {
                         this.vel.x += Math.cos(this.angle) * SHIP_THRUST;
                         this.vel.y += Math.sin(this.angle) * SHIP_THRUST;
-                        const rear = this.angle + Math.PI, dist = this.radius * 1.2, spread = this.radius * 0.6;
-                        const bx = this.x + Math.cos(rear) * dist, by = this.y + Math.sin(rear) * dist;
-                        const p1x = bx + Math.cos(rear + Math.PI / 2) * spread / 2, p1y = by + Math.sin(rear + Math.PI / 2) * spread / 2;
-                        const p2x = bx + Math.cos(rear - Math.PI / 2) * spread / 2, p2y = by + Math.sin(rear - Math.PI / 2) * spread / 2;
-                        particlePool.get(p1x, p1y, 'thrust', rear);
-                        particlePool.get(p2x, p2y, 'thrust', rear);
+                        const rear = this.angle + Math.PI, dist = this.radius * 1.2, spread = this.radius * 0.8;
+                        // Spawn more particles for a denser thrust effect
+                        for(let i=0; i<4; i++){
+                            const p_angle = rear + random(-0.3, 0.3);
+                            const p_dist = random(0, spread);
+                            const p_x = this.x + Math.cos(p_angle) * dist + Math.cos(p_angle + Math.PI/2) * p_dist;
+                            const p_y = this.y + Math.sin(p_angle) * dist + Math.sin(p_angle + Math.PI/2) * p_dist;
+                            particlePool.get(p_x, p_y, 'thrust', rear);
+                        }
                     } else if (keys.down) { this.vel.x *= SHIP_FRICTION * 0.95; this.vel.y *= SHIP_FRICTION * 0.95; }
                     else { this.vel.x *= SHIP_FRICTION; this.vel.y *= SHIP_FRICTION; }
                     
@@ -331,6 +334,13 @@
                     const off = Math.sin(this.life * 0.2) * this.waveAmp;
                     this.x += this.vel.x + Math.cos(perp) * off;
                     this.y += this.vel.y + Math.sin(perp) * off;
+
+                    // Spawn phantom trail
+                    if(this.life % 2 === 0) {
+                        const currentColor = `hsl(${this.life * 5 % 360}, 100%, 50%)`;
+                        particlePool.get(this.x, this.y, 'phantom', currentColor, this.radius);
+                    }
+
                     if (this.x < 0 || this.x > width || this.y < 0 || this.y > height) {
                         bulletPool.release(this);
                     }
@@ -436,6 +446,14 @@
                             this.life = 1;
                             break;
                         }
+                        case 'phantom': {
+                            const [color, radius] = args;
+                            this.color = color;
+                            this.radius = radius * 0.8;
+                            this.life = 0.5;
+                            this.vel = {x:0, y:0};
+                            break;
+                        }
                         case 'pickupPulse': {
                             this.life = 1; this.radius = 0; this.maxRadius = 30; this.color = 'white';
                             break;
@@ -448,6 +466,9 @@
                         case 'explosion':
                         case 'thrust':
                             this.x += this.vel.x; this.y += this.vel.y; this.life -= 0.02;
+                            break;
+                        case 'phantom':
+                            this.life -= 0.05; // Fades faster
                             break;
                         case 'playerExplosion':
                             this.life -= 0.02; this.radius = (1-this.life**2) * this.maxRadius;
@@ -464,6 +485,7 @@
                     switch(this.type) {
                         case 'explosion':
                         case 'thrust':
+                        case 'phantom':
                             ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI); ctx.fill();
                             break;
                         case 'playerExplosion':
@@ -500,7 +522,31 @@
             }
 
             class Star {
-                constructor(x, y, burst = false) { this.x=x||random(0,width);this.y=y||random(0,height); const sizeRoll=Math.pow(Math.random(),6); this.z=(1-sizeRoll)*4+0.5;this.radius=this.z;this.opacity=0; this.opacityOffset=Math.random()*Math.PI*2; this.twinkleSpeed=random(0.01,0.05); const shapes=['point','point','point','point','point','point','point','diamond','star4','star8','plus']; this.shape=shapes[Math.floor(Math.random()*shapes.length)]; this.points=Math.floor(random(4,7))*2;this.innerRadiusRatio=random(0.4,0.8); this.isBurst=burst;this.vel={x:0,y:0}; if(burst){const ang=random(0,2*Math.PI),spd=random(2,5);this.vel={x:Math.cos(ang)*spd,y:Math.sin(ang)*spd}; this.color = '#00ff7f';} else { this.color = NORMAL_STAR_COLORS[Math.floor(Math.random() * NORMAL_STAR_COLORS.length)];} }
+                constructor(x, y, burst = false) {
+                    this.x = x || random(0, width);
+                    this.y = y || random(0, height);
+                    const sizeRoll = Math.pow(Math.random(), 6);
+                    this.z = (1 - sizeRoll) * 4 + 0.5;
+                    this.radius = this.z;
+                    this.opacity = 0;
+                    this.opacityOffset = Math.random() * Math.PI * 2;
+                    this.twinkleSpeed = random(0.01, 0.05);
+                    const shapes = ['point', 'point', 'point', 'point', 'point', 'point', 'point', 'diamond', 'star4', 'star8', 'plus'];
+                    this.shape = shapes[Math.floor(Math.random() * shapes.length)];
+                    this.points = Math.floor(random(4, 7)) * 2;
+                    this.innerRadiusRatio = random(0.4, 0.8);
+                    this.isBurst = burst;
+                    this.vel = { x: 0, y: 0 };
+                    if (burst) {
+                        const ang = random(0, 2 * Math.PI), spd = random(2, 5);
+                        this.vel = { x: Math.cos(ang) * spd, y: Math.sin(ang) * spd };
+                        this.color = '#00ff7f';
+                        this.borderColor = '#ffd700';
+                    } else {
+                        this.color = NORMAL_STAR_COLORS[Math.floor(Math.random() * NORMAL_STAR_COLORS.length)];
+                        this.borderColor = NORMAL_STAR_COLORS[Math.floor(Math.random() * NORMAL_STAR_COLORS.length)];
+                    }
+                }
                 update(shipVel, playerPos) {
                     if (this.isBurst) {
                         this.vel.x *= STAR_FRIC;
@@ -508,7 +554,7 @@
                         this.x += this.vel.x;
                         this.y += this.vel.y;
                         this.opacity = 1;
-                        
+
                         const dx = playerPos.x - this.x, dy = playerPos.y - this.y, dist = Math.hypot(dx, dy);
                         if (player.active && dist < BURST_STAR_ATTRACT_DIST) {
                             this.x += (dx / dist) * BURST_STAR_ATTR * this.z;
@@ -523,42 +569,39 @@
                         this.opacityOffset += this.twinkleSpeed;
                         this.opacity = (Math.sin(this.opacityOffset) + 1) / 2 * 0.9 + 0.1;
                     }
-                    
+
                     this.x -= shipVel.x / (6 - this.z);
                     this.y -= shipVel.y / (6 - this.z);
                     wrap(this);
                 }
                 draw() {
                     ctx.save();
-                    ctx.translate(this.x,this.y);
-                    ctx.globalAlpha=this.opacity*(this.z/5);
-                    
-                    if (this.shape==='point'){
-                        if (this.isBurst) {
-                            ctx.fillStyle = '#ffd700'; // Yellow outline
-                            ctx.fillRect(-this.radius/2 - 1, -this.radius/2 - 1, this.radius + 2, this.radius + 2);
-                        }
+                    ctx.translate(this.x, this.y);
+                    ctx.globalAlpha = this.opacity * (this.z / 5);
+
+                    if (this.shape === 'point') {
+                        const borderSize = 1;
+                        ctx.fillStyle = this.borderColor;
+                        ctx.fillRect(-this.radius / 2 - borderSize, -this.radius / 2 - borderSize, this.radius + borderSize * 2, this.radius + borderSize * 2);
+                        
                         ctx.fillStyle = this.color;
-                        ctx.fillRect(-this.radius/2, -this.radius/2, this.radius, this.radius);
+                        ctx.fillRect(-this.radius / 2, -this.radius / 2, this.radius, this.radius);
                     } else {
-                        // Draw Path
                         ctx.beginPath();
-                        switch(this.shape){
-                            case 'diamond':ctx.moveTo(0,-this.radius);ctx.lineTo(this.radius*0.7,0);ctx.lineTo(0,this.radius);ctx.lineTo(-this.radius*0.7,0);ctx.closePath();break;
-                            case 'plus':ctx.moveTo(0,-this.radius);ctx.lineTo(0,this.radius);ctx.moveTo(-this.radius,0);ctx.lineTo(this.radius,0);break;
-                            case 'star4':for(let i=0;i<8;i++){const a=i*Math.PI/4,r=i%2===0?this.radius:this.radius*0.4;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);}ctx.closePath();break;
-                            case 'star8':for(let i=0;i<this.points*2;i++){const a=i*Math.PI/this.points,r=i%2===0?this.radius:this.innerRadiusRatio;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);}ctx.closePath();break;
-                            default:ctx.moveTo(-this.radius,-this.radius);ctx.lineTo(this.radius,this.radius);ctx.moveTo(this.radius,-this.radius);ctx.lineTo(-this.radius,this.radius);break;
+                        switch (this.shape) {
+                            case 'diamond': ctx.moveTo(0, -this.radius); ctx.lineTo(this.radius * 0.7, 0); ctx.lineTo(0, this.radius); ctx.lineTo(-this.radius * 0.7, 0); ctx.closePath(); break;
+                            case 'plus': ctx.moveTo(0, -this.radius); ctx.lineTo(0, this.radius); ctx.moveTo(-this.radius, 0); ctx.lineTo(this.radius, 0); break;
+                            case 'star4': for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, r = i % 2 === 0 ? this.radius : this.radius * 0.4; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); break;
+                            case 'star8': for (let i = 0; i < this.points * 2; i++) { const a = i * Math.PI / this.points, r = i % 2 === 0 ? this.radius : this.innerRadiusRatio; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); break;
+                            default: ctx.moveTo(-this.radius, -this.radius); ctx.lineTo(this.radius, this.radius); ctx.moveTo(this.radius, -this.radius); ctx.lineTo(-this.radius, this.radius); break;
                         }
-                        // Draw outline for burst stars
-                        if (this.isBurst) {
-                            ctx.strokeStyle = '#ffd700';
-                            ctx.lineWidth = 1;
-                            ctx.stroke();
-                        }
-                        // Draw main star
+                        
+                        ctx.strokeStyle = this.borderColor;
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+
                         ctx.strokeStyle = this.color;
-                        ctx.lineWidth = 0.5+this.z/5;
+                        ctx.lineWidth = 0.5 + this.z / 5;
                         ctx.stroke();
                     }
                     ctx.restore();
@@ -578,7 +621,7 @@
                 for(let i = 0; i < STAR_COUNT; i++) spawnStar();
 
                 bulletPool = new PoolManager(Bullet, 20);
-                particlePool = new PoolManager(Particle, 100);
+                particlePool = new PoolManager(Particle, 200); // Increased pool size for new particles
                 lineDebrisPool = new PoolManager(LineDebris, 100);
                 asteroidPool = new PoolManager(Asteroid, 20);
 
@@ -780,7 +823,8 @@
             }
 
             function draw() {
-                ctx.fillStyle = 'black';
+                // Motion Blur Effect
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
                 ctx.fillRect(0, 0, width, height);
 
                 stars.forEach(s => s.draw());
