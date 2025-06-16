@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Rainboids: Supercharged Asteroids</title>
     <!-- RIFFWAVE.js v0.03 - Audio encoder -->
     <script src="https://sfxr.me/riffwave.js"></script>
@@ -53,7 +53,7 @@
             align-items: center;
             color: white;
             z-index: 50;
-            pointer-events: none; /* Let clicks pass through */
+            pointer-events: none;
         }
         .message-title {
             font-size: 48px;
@@ -66,8 +66,8 @@
         }
         #pause-overlay {
             background-color: rgba(0, 0, 0, 0.7);
-            display: none; /* Initially hidden */
-            pointer-events: all; /* Capture clicks when visible */
+            display: none;
+            pointer-events: all;
         }
         #pause-controls {
             font-size: 16px;
@@ -93,6 +93,49 @@
             animation: scanline 10s linear infinite;
             z-index: 100;
         }
+        
+        /* --- Mobile Controls --- */
+        #mobile-controls {
+            display: none; /* Hidden by default on desktop */
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Main container doesn't block clicks */
+            z-index: 200;
+        }
+        .control-button {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 36px;
+            color: rgba(255, 255, 255, 0.6);
+            user-select: none;
+            -webkit-user-select: none; /* For Safari */
+            pointer-events: all; /* Buttons are interactive */
+        }
+        .control-button:active {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        #touch-left { bottom: 30px; left: 30px; }
+        #touch-right { bottom: 30px; left: 130px; }
+        #touch-thrust { bottom: 30px; right: 30px; }
+        #touch-fire { bottom: 130px; right: 30px; }
+
+        /* Media query to show controls only on touch devices or small screens */
+        @media (hover: none) and (pointer: coarse), (max-width: 768px) {
+            #mobile-controls {
+                display: block;
+            }
+        }
+
         @keyframes scanline {
             from { background-position: 0 0; }
             to { background-position: 0 -40px; }
@@ -109,14 +152,12 @@
     <div id="score" class="ui-element">SCORE: 0</div>
     <div id="wave-display" class="ui-element">WAVE: 1</div>
     
-    <!-- This overlay is used for all major game messages like GAME OVER, WAVE CLEARED etc -->
     <div id="game-message-overlay" class="ui-element">
         <h1 id="message-title" class="message-title" style="display: none;"></h1>
         <p id="message-subtitle" class="message-subtitle" style="display: none;"></p>
     </div>
 
-    <!-- This overlay is specifically for the pause menu -->
-    <div id="pause-overlay" class="ui-element" style="display: none; justify-content: center; align-items: center; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7);">
+    <div id="pause-overlay" class="ui-element" style="display: none; justify-content: center; align-items: center; width: 100%; height: 100%;">
         <div id="pause-controls">
             <h2>PAUSED</h2>
             <div>Left/Right Arrows: Rotate</div>
@@ -129,7 +170,14 @@
 
     <canvas id="gameCanvas"></canvas>
 
-    <!-- Add this audio element for background music -->
+    <!-- Mobile Touch Controls -->
+    <div id="mobile-controls">
+        <div id="touch-left" class="control-button">⟲</div>
+        <div id="touch-right" class="control-button">⟳</div>
+        <div id="touch-fire" class="control-button">⦿</div>
+        <div id="touch-thrust" class="control-button">▲</div>
+    </div>
+
     <audio id="background-music" loop>
         <source src="https://github.com/afeique/rainboids/raw/refs/heads/master/bgm.mp3" type="audio/mpeg">
         Your browser does not support the audio element.
@@ -145,7 +193,7 @@
             const messageTitle = document.getElementById('message-title');
             const messageSubtitle = document.getElementById('message-subtitle');
             const backgroundMusic = document.getElementById('background-music');
-            // backgroundMusic.volume = 0.5; // Optional: set volume to 50%
+            backgroundMusic.volume = 0.4;
 
             let width = window.innerWidth, height = window.innerHeight;
             canvas.width = width; canvas.height = height;
@@ -172,11 +220,16 @@
             
             // --- Input Handling ---
             const keys = { up: false, down: false, left: false, right: false, space: false };
+            
+            function initializeAudio() {
+                if (audioReady) return;
+                audioReady = true;
+                if (player) player.createThrustSound();
+                backgroundMusic.play().catch(error => console.error("Music playback failed:", error));
+            }
+
             document.addEventListener('keydown', e => {
-                if (!audioReady) { 
-                  audioReady = true; 
-                  backgroundMusic.play().catch(error => console.error("Music playback failed:", error));
-                }
+                initializeAudio();
                 
                 if (e.code === 'Enter' && gameState === 'GAME_OVER') {
                     init();
@@ -187,10 +240,13 @@
                     if (gameState === 'PLAYING' || gameState === 'WAVE_TRANSITION') {
                         gameState = 'PAUSED';
                         pauseOverlay.style.display = 'flex';
+                        if (player && player.thrustAudioElement) player.thrustAudioElement.pause();
                     } else if (gameState === 'PAUSED') {
                         gameState = 'PLAYING';
                         pauseOverlay.style.display = 'none';
-                        if (player && player.isThrusting) playSound(sounds.thruster);
+                        if (player && player.isThrusting && player.thrustAudioElement) {
+                           player.thrustAudioElement.play();
+                        }
                     }
                     return;
                 }
@@ -215,6 +271,37 @@
                     case 'Space': keys.space = false; break;
                 }
             });
+            
+            // --- Touch Controls Setup ---
+            function setupTouchControls() {
+                const touchLeft = document.getElementById('touch-left');
+                const touchRight = document.getElementById('touch-right');
+                const touchThrust = document.getElementById('touch-thrust');
+                const touchFire = document.getElementById('touch-fire');
+
+                const handleTouchStart = (e, key) => {
+                    e.preventDefault();
+                    initializeAudio();
+                    keys[key] = true;
+                };
+
+                const handleTouchEnd = (e, key) => {
+                    e.preventDefault();
+                    keys[key] = false;
+                };
+
+                touchLeft.addEventListener('touchstart', (e) => handleTouchStart(e, 'left'), false);
+                touchLeft.addEventListener('touchend', (e) => handleTouchEnd(e, 'left'), false);
+
+                touchRight.addEventListener('touchstart', (e) => handleTouchStart(e, 'right'), false);
+                touchRight.addEventListener('touchend', (e) => handleTouchEnd(e, 'right'), false);
+
+                touchThrust.addEventListener('touchstart', (e) => handleTouchStart(e, 'up'), false);
+                touchThrust.addEventListener('touchend', (e) => handleTouchEnd(e, 'up'), false);
+
+                touchFire.addEventListener('touchstart', (e) => handleTouchStart(e, 'space'), false);
+                touchFire.addEventListener('touchend', (e) => handleTouchEnd(e, 'space'), false);
+            }
 
             // --- Utility Functions ---
             const random = (a, b) => Math.random() * (b - a) + a;
@@ -269,13 +356,12 @@
                     this.activeObjects.forEach(obj => obj.draw());
                 }
             }
-
+            
             // --- Sound Definitions ---
             const sounds = {
                 shoot: sfxr.generate("laserShoot"),
                 hit: sfxr.generate("hitHurt"),
-                star: sfxr.generate("pickupCoin"),
-                burstStar: sfxr.generate("pickupCoin"),
+                coin: sfxr.generate("pickupCoin"),
                 explosion: sfxr.generate("explosion"),
                 playerExplosion: sfxr.generate("explosion"),
                 thruster: sfxr.generate("explosion")
@@ -286,31 +372,34 @@
             sounds.playerExplosion.startFrequency = 400;
             sounds.playerExplosion.minFrequency = 100;
 
-            sounds.thruster.wave_type = NOISE; // Noise for hiss
-            sounds.thruster.p_base_freq = 0.1; // Higher base frequency for a less deep rumble
-            sounds.thruster.p_freq_ramp = -0.1; // Gentle downward frequency slide for a bit of rumble
-            sounds.thruster.p_hpf_freq = 0.1; // High-pass filter to cut out the deepest rumble
-            sounds.thruster.p_lpf_freq = 0.5; // Let enough high frequencies through for the hiss
-            sounds.thruster.p_env_attack = 0.1; // Quick but not instant attack
-            sounds.thruster.p_env_sustain = 0.2; // Sustain for the loop
-            sounds.thruster.p_env_decay = 0.4; 
-            sounds.thruster.p_vib_strength = 0.3;
-            sounds.thruster.p_vib_speed = 0.3;
-            sounds.thruster.p_freq_lim = 0.01;
-            sounds.thruster.p_repeat_speed = 0.01;
-            sounds.thruster.sound_vol = 0.1;
-
-            masterVolume = 0.4;
-
-            function playSound(params) {
-                if (audioReady) {
-                    sfxr.toAudio(params).play();
-                }
-            }
+            // Refined thruster sound: Higher-pitched, gentle hiss like an airlock.
+            sounds.thruster.wave_type = 2; // Noise
+            sounds.thruster.p_env_attack = 0.1;
+            sounds.thruster.p_env_sustain = 0.3;
+            sounds.thruster.p_env_decay = 0.2;
+            sounds.thruster.p_base_freq = 0.8;
+            sounds.thruster.p_freq_ramp = -0.05;
+            sounds.thruster.p_hpf_freq = 0.4;
+            sounds.thruster.p_lpf_freq = 0.9;
+            sounds.thruster.sound_vol = 0.25;
 
             // --- Entity Classes ---
             class Player {
-                constructor() { this.reset(); }
+                constructor() {
+                    this.thrustAudioElement = null;
+                    this.isThrusting = false;
+                    this.active = false;
+                    this.reset();
+                }
+                
+                createThrustSound() {
+                    if (this.thrustAudioElement) return;
+                    const thrustSoundData = sfxr.toAudio(sounds.thruster);
+                    this.thrustAudioElement = new Audio(thrustSoundData.src);
+                    this.thrustAudioElement.loop = true;
+                    this.thrustAudioElement.volume = 0.35;
+                }
+
                 reset() {
                     this.x = width / 2; this.y = height / 2;
                     this.radius = SHIP_SIZE / 2;
@@ -318,18 +407,25 @@
                     this.vel = { x: 0, y: 0 };
                     this.canShoot = true;
                     this.active = true;
+                    this.isThrusting = false;
+                    if (this.thrustAudioElement) {
+                        this.thrustAudioElement.pause();
+                        this.thrustAudioElement.currentTime = 0;
+                    }
                 }
                 update() {
                     if (!this.active) return;
+                    
+                    const wasThrusting = this.isThrusting;
+                    this.isThrusting = keys.up;
+
                     if (keys.left) this.angle -= TURN_SPEED;
                     if (keys.right) this.angle += TURN_SPEED;
-                    this.isThrusting = keys.up;
+
                     if (this.isThrusting) {
-                        playSound(sounds.thruster);
                         this.vel.x += Math.cos(this.angle) * SHIP_THRUST;
                         this.vel.y += Math.sin(this.angle) * SHIP_THRUST;
                         const rear = this.angle + Math.PI, dist = this.radius * 1.2, spread = this.radius * 0.8;
-                        // Spawn more particles for a denser thrust effect
                         for(let i=0; i<4; i++){
                             const p_angle = rear + random(-0.3, 0.3);
                             const p_dist = random(0, spread);
@@ -337,12 +433,29 @@
                             const p_y = this.y + Math.sin(p_angle) * dist + Math.sin(p_angle + Math.PI/2) * p_dist;
                             particlePool.get(p_x, p_y, 'thrust', rear);
                         }
-                    } else if (keys.down) { this.vel.x *= SHIP_FRICTION * 0.95; this.vel.y *= SHIP_FRICTION * 0.95; }
-                    else { this.vel.x *= SHIP_FRICTION; this.vel.y *= SHIP_FRICTION; }
+                    } else if (keys.down) { 
+                        this.vel.x *= SHIP_FRICTION * 0.95; 
+                        this.vel.y *= SHIP_FRICTION * 0.95;
+                    } else { 
+                        this.vel.x *= SHIP_FRICTION; 
+                        this.vel.y *= SHIP_FRICTION;
+                    }
                     
+                    if (this.thrustAudioElement) {
+                        if (this.isThrusting && !this.thrustAudioElement.paused) {
+                             // Already playing, do nothing
+                        } else if(this.isThrusting) {
+                            this.thrustAudioElement.play().catch(e => {
+                                if (e.name !== "AbortError") console.error("Could not play thrust sound:", e)
+                            });
+                        }
+                        else if (!this.isThrusting && !this.thrustAudioElement.paused) {
+                            this.thrustAudioElement.pause();
+                        }
+                    }
+
                     const mag = Math.hypot(this.vel.x, this.vel.y);
                     if (mag > MAX_V) { this.vel.x = (this.vel.x / mag) * MAX_V; this.vel.y = (this.vel.y / mag) * MAX_V; }
-                    
                     this.x += this.vel.x; this.y += this.vel.y; wrap(this);
 
                     if (keys.space && this.canShoot) {
@@ -365,6 +478,9 @@
                 }
                 die() {
                     this.active = false;
+                    if (this.thrustAudioElement) {
+                        this.thrustAudioElement.pause();
+                    }
                     playSound(sounds.playerExplosion);
                     particlePool.get(this.x, this.y, 'playerExplosion');
                 }
@@ -387,7 +503,6 @@
                     this.x += this.vel.x + Math.cos(perp) * off;
                     this.y += this.vel.y + Math.sin(perp) * off;
 
-                    // Spawn phantom trail
                     if(this.life % 2 === 0) {
                         const currentColor = `hsl(${this.life * 5 % 360}, 100%, 50%)`;
                         particlePool.get(this.x, this.y, 'phantom', currentColor, this.radius);
@@ -520,7 +635,7 @@
                             this.x += this.vel.x; this.y += this.vel.y; this.life -= 0.02;
                             break;
                         case 'phantom':
-                            this.life -= 0.05; // Fades faster
+                            this.life -= 0.05; 
                             break;
                         case 'playerExplosion':
                             this.life -= 0.02; this.radius = (1-this.life**2) * this.maxRadius;
@@ -690,12 +805,15 @@
                 currentWave = 0;
                 
                 player = new Player();
+                if (audioReady) {
+                    player.createThrustSound();
+                }
                 
                 bulletPool = new PoolManager(Bullet, 20);
                 particlePool = new PoolManager(Particle, 200);
                 lineDebrisPool = new PoolManager(LineDebris, 100);
                 asteroidPool = new PoolManager(Asteroid, 20);
-                starPool = new PoolManager(Star, STAR_COUNT + 100); // Pool for normal and burst stars
+                starPool = new PoolManager(Star, STAR_COUNT + 100);
 
                 for(let i = 0; i < STAR_COUNT; i++) spawnStar();
 
@@ -775,7 +893,6 @@
             }
 
             function handleCollisions() {
-                // Player vs Asteroids
                 if (player.active) {
                     for (const ast of asteroidPool.activeObjects) {
                         if (collision(player, ast)) {
@@ -787,7 +904,6 @@
                     }
                 }
 
-                // Bullets vs asteroids
                 for (let i = bulletPool.activeObjects.length - 1; i >= 0; i--) {
                     const bullet = bulletPool.activeObjects[i];
                     for (let j = asteroidPool.activeObjects.length - 1; j >= 0; j--) {
@@ -836,7 +952,6 @@
                     }
                 }
 
-                // Asteroid-asteroid physics
                 const activeAsteroids = asteroidPool.activeObjects;
                 for (let i = 0; i < activeAsteroids.length; i++) {
                     for (let j = i + 1; j < activeAsteroids.length; j++) {
@@ -857,7 +972,6 @@
                     }
                 }
 
-                // Player vs Stars (Pickup)
                 for (let i = starPool.activeObjects.length - 1; i >= 0; i--) {
                     const star = starPool.activeObjects[i];
                     if (player.active && collision(player, star)) {
@@ -866,9 +980,9 @@
                         particlePool.get(star.x, star.y, 'pickupPulse');
                         
                         if (!star.isBurst) {
-                            spawnStar(); // Spawn a new star to replace the collected one
+                            spawnStar();
                         }
-                        starPool.release(star); // Release star back to the pool
+                        starPool.release(star);
                     }
                 }
             }
@@ -908,8 +1022,7 @@
             }
 
             function draw() {
-                // Motion Blur Effect
-                ctx.fillStyle = 'rgba(0,0,0,0.3)'; // Reduced blur
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
                 ctx.fillRect(0, 0, width, height);
 
                 starPool.drawActive();
@@ -926,15 +1039,19 @@
                 } else if (gameState === 'GAME_OVER') {
                     particlePool.updateActive();
                     lineDebrisPool.updateActive();
-                } else if (gameState === 'PAUSED') {
-                    // Do nothing
                 }
 
                 draw();
                 requestAnimationFrame(gameLoop);
             }
 
-            // --- Start Game ---
+            function playSound(params, volume = 1.0) {
+                if (audioReady) {
+                    params.sound_vol = volume;
+                    sfxr.toAudio(params).play();
+                }
+            }
+
             init();
             gameLoop();
         });
