@@ -144,6 +144,8 @@
             const pauseOverlay = document.getElementById('pause-overlay');
             const messageTitle = document.getElementById('message-title');
             const messageSubtitle = document.getElementById('message-subtitle');
+            const backgroundMusic = document.getElementById('background-music');
+            // backgroundMusic.volume = 0.5; // Optional: set volume to 50%
 
             let width = window.innerWidth, height = window.innerHeight;
             canvas.width = width; canvas.height = height;
@@ -171,7 +173,10 @@
             // --- Input Handling ---
             const keys = { up: false, down: false, left: false, right: false, space: false };
             document.addEventListener('keydown', e => {
-                if (!audioReady) { audioReady = true; }
+                if (!audioReady) { 
+                  audioReady = true; 
+                  backgroundMusic.play().catch(error => console.error("Music playback failed:", error));
+                }
                 
                 if (e.code === 'Enter' && gameState === 'GAME_OVER') {
                     init();
@@ -294,6 +299,8 @@
             sounds.thruster.p_freq_lim = 0.01;
             sounds.thruster.p_repeat_speed = 0.01;
             sounds.thruster.sound_vol = 0.1;
+
+            masterVolume = 0.4;
 
             function playSound(params) {
                 if (audioReady) {
