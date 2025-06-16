@@ -109,13 +109,11 @@
     <div id="score" class="ui-element">SCORE: 0</div>
     <div id="wave-display" class="ui-element">WAVE: 1</div>
     
-    <!-- This overlay is used for all major game messages like GAME OVER, WAVE CLEARED etc -->
     <div id="game-message-overlay" class="ui-element">
         <h1 id="message-title" class="message-title" style="display: none;"></h1>
         <p id="message-subtitle" class="message-subtitle" style="display: none;"></p>
     </div>
 
-    <!-- This overlay is specifically for the pause menu -->
     <div id="pause-overlay" class="ui-element" style="display: none; justify-content: center; align-items: center; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7);">
         <div id="pause-controls">
             <h2>PAUSED</h2>
@@ -277,7 +275,6 @@
                         this.vel.x += Math.cos(this.angle) * SHIP_THRUST;
                         this.vel.y += Math.sin(this.angle) * SHIP_THRUST;
                         const rear = this.angle + Math.PI, dist = this.radius * 1.2, spread = this.radius * 0.8;
-                        // Spawn more particles for a denser thrust effect
                         for(let i=0; i<4; i++){
                             const p_angle = rear + random(-0.3, 0.3);
                             const p_dist = random(0, spread);
@@ -335,11 +332,9 @@
                     this.x += this.vel.x + Math.cos(perp) * off;
                     this.y += this.vel.y + Math.sin(perp) * off;
 
-                    // Spawn phantom trail
-                    if(this.life % 2 === 0) {
-                        const currentColor = `hsl(${this.life * 5 % 360}, 100%, 50%)`;
-                        particlePool.get(this.x, this.y, 'phantom', currentColor, this.radius);
-                    }
+                    const currentColor = `hsl(${this.life * 5 % 360}, 100%, 50%)`;
+                    particlePool.get(this.x, this.y, 'phantom', currentColor, this.radius);
+                    
 
                     if (this.x < 0 || this.x > width || this.y < 0 || this.y > height) {
                         bulletPool.release(this);
@@ -450,7 +445,7 @@
                             const [color, radius] = args;
                             this.color = color;
                             this.radius = radius * 0.8;
-                            this.life = 0.5;
+                            this.life = 0.5; // Back to normal
                             this.vel = {x:0, y:0};
                             break;
                         }
@@ -468,7 +463,7 @@
                             this.x += this.vel.x; this.y += this.vel.y; this.life -= 0.02;
                             break;
                         case 'phantom':
-                            this.life -= 0.05; // Fades faster
+                            this.life -= 0.05; // Back to normal
                             break;
                         case 'playerExplosion':
                             this.life -= 0.02; this.radius = (1-this.life**2) * this.maxRadius;
@@ -823,16 +818,21 @@
             }
 
             function draw() {
-                // Motion Blur Effect
-                ctx.fillStyle = 'rgba(0,0,0,0.3)'; // Reduced blur
+                // Apply a motion blur effect only via the particle trails
+                ctx.fillStyle = 'rgba(0,0,0,0.6)'; // Increased blur for bullets
                 ctx.fillRect(0, 0, width, height);
-
+                
+                // Draw all elements that shouldn't have motion blur
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, width, height); // Clear for crisp elements
                 stars.forEach(s => s.draw());
                 lineDebrisPool.drawActive();
-                particlePool.drawActive();
                 asteroidPool.drawActive();
-                bulletPool.drawActive();
                 player.draw();
+                
+                // The particle pool (including bullet phantoms) is drawn last
+                particlePool.drawActive();
+                bulletPool.drawActive();
             }
 
             function gameLoop() {
