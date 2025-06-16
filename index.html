@@ -522,7 +522,11 @@
             }
 
             class Star {
-                constructor(x, y, burst = false) {
+                constructor() {
+                    this.active = false;
+                }
+
+                reset(x, y, burst = false) {
                     this.x = x || random(0, width);
                     this.y = y || random(0, height);
                     const sizeRoll = Math.pow(Math.random(), 6);
@@ -537,23 +541,38 @@
                     this.innerRadiusRatio = random(0.4, 0.8);
                     this.isBurst = burst;
                     this.vel = { x: 0, y: 0 };
+                    this.active = true;
+
                     if (burst) {
                         const ang = random(0, 2 * Math.PI), spd = random(2, 5);
                         this.vel = { x: Math.cos(ang) * spd, y: Math.sin(ang) * spd };
                         this.color = '#00ff7f';
                         this.borderColor = '#ffd700';
+                        this.life = 300; // 5 seconds at 60fps
                     } else {
                         this.color = NORMAL_STAR_COLORS[Math.floor(Math.random() * NORMAL_STAR_COLORS.length)];
                         this.borderColor = NORMAL_STAR_COLORS[Math.floor(Math.random() * NORMAL_STAR_COLORS.length)];
+                        this.life = -1; // Non-burst stars live forever unless collected
                     }
                 }
+
                 update(shipVel, playerPos) {
+                    if (!this.active) return;
+
                     if (this.isBurst) {
+                        this.life--;
+                        if (this.life <= 0) {
+                            starPool.release(this);
+                            return;
+                        }
+
                         this.vel.x *= STAR_FRIC;
                         this.vel.y *= STAR_FRIC;
                         this.x += this.vel.x;
                         this.y += this.vel.y;
-                        this.opacity = 1;
+
+                        // Fade out in the last 2 seconds (120 frames)
+                        this.opacity = Math.min(1, this.life / 120);
 
                         const dx = playerPos.x - this.x, dy = playerPos.y - this.y, dist = Math.hypot(dx, dy);
                         if (player.active && dist < BURST_STAR_ATTRACT_DIST) {
@@ -574,7 +593,9 @@
                     this.y -= shipVel.y / (6 - this.z);
                     wrap(this);
                 }
+
                 draw() {
+                    if (!this.active) return;
                     ctx.save();
                     ctx.translate(this.x, this.y);
                     ctx.globalAlpha = this.opacity * (this.z / 5);
@@ -609,7 +630,7 @@
             }
 
             // --- Game Objects and Pools ---
-            let player, stars, bulletPool, particlePool, lineDebrisPool, asteroidPool;
+            let player, bulletPool, particlePool, lineDebrisPool, asteroidPool, starPool;
             
             // --- Game Logic ---
             function init() {
@@ -617,13 +638,14 @@
                 currentWave = 0;
                 
                 player = new Player();
-                stars = [];
-                for(let i = 0; i < STAR_COUNT; i++) spawnStar();
-
+                
                 bulletPool = new PoolManager(Bullet, 20);
                 particlePool = new PoolManager(Particle, 200);
                 lineDebrisPool = new PoolManager(LineDebris, 100);
                 asteroidPool = new PoolManager(Asteroid, 20);
+                starPool = new PoolManager(Star, STAR_COUNT + 100); // Pool for normal and burst stars
+
+                for(let i = 0; i < STAR_COUNT; i++) spawnStar();
 
                 hideMessage();
                 gameState = 'PLAYING';
@@ -663,13 +685,24 @@
             }
 
             function spawnStar() {
-                let s, tooClose, attempts = 0;
+                let x, y, tooClose, attempts = 0;
                 do {
-                    tooClose = false; s = new Star();
-                    for(let o of stars){ if(Math.hypot(s.x-o.x,s.y-o.y)<MIN_STAR_DIST){tooClose=true;break;} }
-                    attempts++; if(attempts > 100) break;
+                    tooClose = false;
+                    x = random(0, width);
+                    y = random(0, height);
+                    for(let o of starPool.activeObjects){ 
+                        if(Math.hypot(x - o.x, y - o.y) < MIN_STAR_DIST){
+                            tooClose = true;
+                            break;
+                        } 
+                    }
+                    attempts++; 
+                    if(attempts > 100) break;
                 } while (tooClose);
-                stars.push(s);
+
+                if (!tooClose) {
+                    starPool.get(x, y, false);
+                }
             }
             
             function createDebris(ast) {
@@ -685,7 +718,7 @@
             function createStarBurst(x, y) {
                 const count = 20;
                 for (let i = 0; i < count; i++) {
-                    stars.push(new Star(x, y, true));
+                    starPool.get(x, y, true);
                 }
             }
 
@@ -773,17 +806,17 @@
                 }
 
                 // Player vs Stars (Pickup)
-                for (let i = stars.length - 1; i >= 0; i--) {
-                    const star = stars[i];
+                for (let i = starPool.activeObjects.length - 1; i >= 0; i--) {
+                    const star = starPool.activeObjects[i];
                     if (player.active && collision(player, star)) {
                         score += star.isBurst ? BURST_STAR_SCORE : STAR_SCORE;
-                        playSound(sounds.coin);
+                        playSound(star.isBurst ? sounds.burstStar : sounds.star);
                         particlePool.get(star.x, star.y, 'pickupPulse');
                         
                         if (!star.isBurst) {
-                            spawnStar();
+                            spawnStar(); // Spawn a new star to replace the collected one
                         }
-                        stars.splice(i, 1);
+                        starPool.release(star); // Release star back to the pool
                     }
                 }
             }
@@ -810,7 +843,7 @@
                 particlePool.updateActive();
                 lineDebrisPool.updateActive();
                 asteroidPool.updateActive();
-                stars.forEach(s => s.update(player.vel, player));
+                starPool.activeObjects.forEach(s => s.update(player.vel, player));
 
                 handleCollisions();
                 
@@ -827,7 +860,7 @@
                 ctx.fillStyle = 'rgba(0,0,0,0.3)'; // Reduced blur
                 ctx.fillRect(0, 0, width, height);
 
-                stars.forEach(s => s.draw());
+                starPool.drawActive();
                 lineDebrisPool.drawActive();
                 particlePool.drawActive();
                 asteroidPool.drawActive();
@@ -853,17 +886,20 @@
             const sounds = {
                 shoot: sfxr.generate("laserShoot"),
                 hit: sfxr.generate("hitHurt"),
-                coin: sfxr.generate("pickupCoin"),
+                star: sfxr.generate("pickupCoin"),
+                burstStar: sfxr.generate("pickupCoin"),
                 explosion: sfxr.generate("explosion"),
                 playerExplosion: sfxr.generate("explosion")
             };
+            
             sounds.playerExplosion.attackTime = 0.2;
             sounds.playerExplosion.sustainTime = 0.3;
             sounds.playerExplosion.startFrequency = 400;
             sounds.playerExplosion.minFrequency = 100;
 
-            function playSound(params) {
+            function playSound(params, volume = 1.0) {
                 if (audioReady) {
+                    params.sound_vol = volume;
                     sfxr.toAudio(params).play();
                 }
             }
