@@ -322,7 +322,7 @@
                         const v1 = this.projectedVertices[edge[0]];
                         const v2 = this.projectedVertices[edge[1]];
                         const avgDepth = (v1.depth + v2.depth) / 2;
-                        ctx.globalAlpha = Math.max(0.2, (this.fov - avgDepth) / this.fov);
+                        ctx.globalAlpha = Math.max(0.15, Math.pow(Math.max(0, (this.fov - avgDepth) / (this.fov + this.radius)), 1.5));
                         ctx.beginPath();
                         ctx.moveTo(v1.x, v1.y);
                         ctx.lineTo(v2.x, v2.y);
@@ -412,13 +412,13 @@
                 constructor() {
                     this.x = random(0, width);
                     this.y = random(0, height);
-                    const sizeRoll = Math.pow(Math.random(), 6);
+                    const sizeRoll = Math.pow(Math.random(), 8);
                     this.z = (1 - sizeRoll) * 4 + 0.5;
                     this.radius = this.z;
                     this.opacity = 0;
                     this.opacityOffset = Math.random() * Math.PI * 2;
                     this.twinkleSpeed = random(0.01, 0.05);
-                    const shapeTypes = ['cross', 'diamond', 'plus', 'star4', 'star8'];
+                    const shapeTypes = ['point', 'point', 'point', 'point', 'point', 'point', 'point', 'diamond', 'star4', 'star8', 'plus'];
                     this.shape = shapeTypes[Math.floor(Math.random() * shapeTypes.length)];
                     this.points = Math.floor(random(4, 7)) * 2; this.innerRadiusRatio = random(0.4, 0.8);
                 }
@@ -442,22 +442,31 @@
                 draw() {
                     ctx.save(); ctx.translate(this.x, this.y);
                     ctx.globalAlpha = this.opacity * (this.z / 5);
-                    ctx.strokeStyle = 'white'; ctx.lineWidth = 0.5 + (this.z / 5);
-                    ctx.beginPath();
-                    switch (this.shape) {
-                        case 'cross': ctx.moveTo(-this.radius, -this.radius); ctx.lineTo(this.radius, this.radius); ctx.moveTo(this.radius, -this.radius); ctx.lineTo(-this.radius, this.radius); break;
-                        case 'diamond': ctx.moveTo(0, -this.radius); ctx.lineTo(this.radius * 0.7, 0); ctx.lineTo(0, this.radius); ctx.lineTo(-this.radius * 0.7, 0); ctx.closePath(); break;
-                        case 'plus': ctx.moveTo(0, -this.radius); ctx.lineTo(0, this.radius); ctx.moveTo(-this.radius, 0); ctx.lineTo(this.radius, 0); break;
-                        case 'star4': for (let i = 0; i < 8; i++) { const angle = i * Math.PI / 4, r = i % 2 === 0 ? this.radius : this.radius * 0.4; ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r); } ctx.closePath(); break;
-                        case 'star8': for (let i = 0; i < this.points * 2; i++) { const angle = i * Math.PI / this.points, r = i % 2 === 0 ? this.radius : this.innerRadiusRatio; ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r); } ctx.closePath(); break;
+                    
+                    if (this.shape === 'point') {
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(-this.radius / 2, -this.radius / 2, this.radius, this.radius);
+                    } else {
+                        ctx.strokeStyle = 'white';
+                        ctx.lineWidth = 0.5 + (this.z / 5);
+                        ctx.beginPath();
+                        switch (this.shape) {
+                            case 'diamond': ctx.moveTo(0, -this.radius); ctx.lineTo(this.radius * 0.7, 0); ctx.lineTo(0, this.radius); ctx.lineTo(-this.radius * 0.7, 0); ctx.closePath(); break;
+                            case 'plus': ctx.moveTo(0, -this.radius); ctx.lineTo(0, this.radius); ctx.moveTo(-this.radius, 0); ctx.lineTo(this.radius, 0); break;
+                            case 'star4': for (let i = 0; i < 8; i++) { const angle = i * Math.PI / 4, r = i % 2 === 0 ? this.radius : this.radius * 0.4; ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r); } ctx.closePath(); break;
+                            case 'star8': for (let i = 0; i < this.points * 2; i++) { const angle = i * Math.PI / this.points, r = i % 2 === 0 ? this.radius : this.innerRadiusRatio; ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r); } ctx.closePath(); break;
+                            default: ctx.moveTo(-this.radius, -this.radius); ctx.lineTo(this.radius, this.radius); ctx.moveTo(this.radius, -this.radius); ctx.lineTo(-this.radius, this.radius); break;
+                        }
+                        ctx.stroke();
                     }
-                    ctx.stroke(); ctx.restore();
+                    ctx.restore();
                 }
             }
             
             function spawnStar() {
                 let newStar;
                 let tooClose;
+                let attempts = 0;
                 do {
                     tooClose = false;
                     newStar = new Star();
@@ -468,6 +477,10 @@
                             tooClose = true;
                             break;
                         }
+                    }
+                    attempts++;
+                    if(attempts > 100) {
+                        break;
                     }
                 } while (tooClose);
                 stars.push(newStar);
