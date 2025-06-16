@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vector Asteroids</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+            overflow: hidden;
+            font-family: 'Pixelify Sans', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+            background-color: #000;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.7);
+            font-size: 28px;
+            z-index: 10;
+        }
+        #scanline-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: linear-gradient(
+                to bottom,
+                rgba(18, 16, 16, 0) 50%,
+                rgba(0, 0, 0, 0.25) 50%
+            );
+            background-size: 100% 4px;
+            animation: scanline 10s linear infinite;
+            z-index: 100; /* Topmost visual layer */
+        }
+        @keyframes scanline {
+            from { background-position: 0 0; }
+            to { background-position: 0 -40px; }
+        }
+        #pause-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 50;
+        }
+        #pause-controls {
+            font-size: 24px;
+            line-height: 2;
+            text-align: left;
+            border: 2px solid white;
+            padding: 40px;
+            background-color: rgba(0,0,0,0.5);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+        #pause-controls h2 {
+            margin-top: 0;
+            font-size: 36px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="scanline-overlay"></div>
+    <div id="score" class="ui-element"></div>
+    <div id="pause-overlay">
+        <div id="pause-controls">
+            <h2>PAUSED</h2>
+            <div>Left/Right Arrows: Rotate</div>
+            <div>Up Arrow: Accelerate</div>
+            <div>Down Arrow: Decelerate</div>
+            <div>Spacebar: Fire</div>
+            <div>ESC: Resume</div>
+        </div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        function runGame() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const scoreElement = document.getElementById('score');
+            const pauseOverlay = document.getElementById('pause-overlay');
+
+            let width = window.innerWidth;
+            let height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+
+            window.addEventListener('resize', () => {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width;
+            });
+
+            const SHIP_SIZE = 30; 
+            const SHIP_THRUST = 0.15;
+            const SHIP_FRICTION = 0.985;
+            const MAX_VELOCITY = 6;
+            const TURN_SPEED = 0.06;
+            const BULLET_SPEED = 8;
+            const ASTEROID_COUNT = 4;
+            const ASTEROID_SPEED = 1.2;
+            const STAR_COUNT = 150;
+            const MIN_STAR_DISTANCE = 30;
+            const STAR_ATTRACTION = 0.05;
+            const HIT_SCORE = 100;
+            const DESTROY_SCORE = 500;
+            const STAR_SCORE = 10;
+            const MIN_ASTEROID_RADIUS = 15;
+            const SAFE_ZONE_RADIUS = 250;
+
+            let score = 0;
+            let isPaused = false;
+
+            const keys = {
+                up: false, down: false, left: false, right: false, space: false
+            };
+
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Escape') {
+                    isPaused = !isPaused;
+                    pauseOverlay.style.display = isPaused ? 'flex' : 'none';
+                    return;
+                }
+                if (isPaused) return;
+                
+                switch(e.code) {
+                    case 'ArrowUp': keys.up = true; break;
+                    case 'ArrowDown': keys.down = true; break;
+                    case 'ArrowLeft': keys.left = true; break;
+                    case 'ArrowRight': keys.right = true; break;
+                    case 'Space': keys.space = true; break;
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                if (isPaused) return;
+                switch(e.code) {
+                    case 'ArrowUp': keys.up = false; break;
+                    case 'ArrowDown': keys.down = false; break;
+                    case 'ArrowLeft': keys.left = false; break;
+                    case 'ArrowRight': keys.right = false; break;
+                    case 'Space': keys.space = false; break;
+                }
+            });
+
+            const random = (min, max) => Math.random() * (max - min) + min;
+
+            function wrapScreen(obj) {
+                if (obj.x < -obj.radius) obj.x = width + obj.radius;
+                if (obj.x > width + obj.radius) obj.x = -obj.radius;
+                if (obj.y < -obj.radius) obj.y = height + obj.radius;
+                if (obj.y > height + obj.radius) obj.y = -obj.radius;
+            }
+
+            function checkCollision(obj1, obj2) {
+                const dx = obj1.x - obj2.x;
+                const dy = obj1.y - obj2.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                return distance < obj1.radius + obj2.radius;
+            }
+
+            let player, asteroids, bullets, particles, lineDebris, stars;
+
+            class Player {
+                constructor() {
+                    this.x = width / 2; this.y = height / 2;
+                    this.radius = SHIP_SIZE / 2; this.angle = -Math.PI / 2;
+                    this.vel = { x: 0, y: 0 }; this.canShoot = true;
+                }
+                
+                update() {
+                    if (keys.left) this.angle -= TURN_SPEED; if (keys.right) this.angle += TURN_SPEED;
+                    if (keys.up) {
+                        this.vel.x += Math.cos(this.angle) * SHIP_THRUST; this.vel.y += Math.sin(this.angle) * SHIP_THRUST;
+                        const rearAngle = this.angle + Math.PI, thrustDistance = this.radius * 1.2, thrustSpread = this.radius * 0.6;
+                        const thrustBaseX = this.x + Math.cos(this.angle + Math.PI) * thrustDistance, thrustBaseY = this.y + Math.sin(this.angle + Math.PI) * thrustDistance;
+                        const p1_x = thrustBaseX + Math.cos(this.angle + Math.PI / 2) * thrustSpread / 2, p1_y = thrustBaseY + Math.sin(this.angle + Math.PI / 2) * thrustSpread / 2;
+                        const p2_x = thrustBaseX + Math.cos(this.angle - Math.PI / 2) * thrustSpread / 2, p2_y = thrustBaseY + Math.sin(this.angle - Math.PI / 2) * thrustSpread / 2;
+                        particles.push(new ThrustParticle(p1_x, p1_y, rearAngle)); particles.push(new ThrustParticle(p2_x, p2_y, rearAngle));
+                    } else if (keys.down) { this.vel.x *= SHIP_FRICTION * 0.95; } else { this.vel.x *= SHIP_FRICTION; this.vel.y *= SHIP_FRICTION; }
+                    const speed = Math.sqrt(this.vel.x**2 + this.vel.y**2);
+                    if (speed > MAX_VELOCITY) { this.vel.x = (this.vel.x / speed) * MAX_VELOCITY; this.vel.y = (this.vel.y / speed) * MAX_VELOCITY; }
+                    this.x += this.vel.x; this.y += this.vel.y;
+                    wrapScreen(this);
+                    if (keys.space && this.canShoot) {
+                        bullets.push(new Bullet(this.x, this.y, this.angle)); this.canShoot = false;
+                        setTimeout(() => { this.canShoot = true; }, 200);
+                    }
+                }
+
+                draw() {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.angle + Math.PI / 2);
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 2;
+                    const r = this.radius;
+                    const widthMultiplier = 1.15;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0, -r);
+                    ctx.lineTo(r * 0.96 * widthMultiplier, r * 0.9);
+                    ctx.lineTo(r * 0.6 * widthMultiplier, r * 0.9);
+                    ctx.lineTo(0, -r * 0.1);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(0, -r);
+                    ctx.lineTo(-r * 0.96 * widthMultiplier, r * 0.9);
+                    ctx.lineTo(-r * 0.6 * widthMultiplier, r * 0.9);
+                    ctx.lineTo(0, -r * 0.1);
+                    ctx.stroke();
+
+                    ctx.restore();
+                }
+            }
+            class Bullet {
+                constructor(x, y, angle) {
+                    this.x = x + Math.cos(angle) * SHIP_SIZE / 1.5; this.y = y + Math.sin(angle) * SHIP_SIZE / 1.5;
+                    this.radius = 3; this.angle = angle; this.vel = { x: Math.cos(angle) * BULLET_SPEED, y: Math.sin(angle) * BULLET_SPEED };
+                    this.life = 0; this.waveAmplitude = 4;
+                }
+                update() {
+                    this.life++; const perpAngle = this.angle + Math.PI / 2;
+                    const waveOffset = Math.sin(this.life * 0.2) * this.waveAmplitude;
+                    this.x += this.vel.x + Math.cos(perpAngle) * waveOffset;
+                    this.y += this.vel.y + Math.sin(perpAngle) * waveOffset;
+                }
+                draw() { ctx.fillStyle = `hsl(${this.life * 5 % 360}, 100%, 50%)`; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill(); }
+            }
+
+            class Asteroid {
+                constructor(x, y, baseRadius) {
+                    let spawnX, spawnY;
+                    if (x === undefined) {
+                        do {
+                            spawnX = random(0, width); spawnY = random(0, height);
+                        } while (Math.sqrt((spawnX - width/2)**2 + (spawnY - height/2)**2) < SAFE_ZONE_RADIUS);
+                    } else { spawnX = x; spawnY = y; }
+                    this.x = spawnX; this.y = spawnY;
+                    this.baseRadius = baseRadius || random(40, 60);
+                    this.vel = { x: random(-ASTEROID_SPEED, ASTEROID_SPEED) || 0.2, y: random(-ASTEROID_SPEED, ASTEROID_SPEED) || 0.2 };
+                    this.rotation3D = { x: 0, y: 0, z: 0 };
+                    this.rotationVel3D = { x: random(-0.02, 0.02), y: random(-0.02, 0.02), z: random(-0.02, 0.02) };
+                    this.fov = 300;
+                    this.projectedVertices = [];
+                    const t = (1 + Math.sqrt(5)) / 2;
+                    this.vertices3D = [ {x:-1, y:t, z:0}, {x:1, y:t, z:0}, {x:-1, y:-t, z:0}, {x:1, y:-t, z:0}, {x:0, y:-1, z:t}, {x:0, y:1, z:t}, {x:0, y:-1, z:-t}, {x:0, y:1, z:-t}, {x:t, y:0, z:-1}, {x:t, y:0, z:1}, {x:-t, y:0, z:-1}, {x:-t, y:0, z:1} ]
+                    .map(v => {
+                        const displacement = 1 + random(-0.25, 0.25);
+                        return { x: v.x * this.baseRadius * displacement, y: v.y * this.baseRadius * displacement, z: v.z * this.baseRadius * displacement };
+                    });
+                    this.edges = [ [0,1],[0,5],[0,7],[0,10],[0,11],[1,5],[1,7],[1,8],[1,9],[2,3],[2,4],[2,6],[2,10],[2,11],[3,4],[3,6],[3,8],[3,9],[4,5],[4,9],[4,11],[5,9],[5,11],[6,7],[6,8],[6,10],[7,8],[7,10],[8,9],[10,11] ];
+
+                    let minR = Infinity, maxR = 0;
+                    this.vertices3D.forEach(v => {
+                        const dist = Math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+                        if (dist < minR) minR = dist;
+                        if (dist > maxR) maxR = dist;
+                    });
+                    this.radius = (minR + maxR) / 2;
+                    this.mass = Math.PI * this.radius * this.radius;
+                }
+                
+                update() {
+                    this.x += this.vel.x; this.y += this.vel.y;
+                    this.rotation3D.x += this.rotationVel3D.x; this.rotation3D.y += this.rotationVel3D.y; this.rotation3D.z += this.rotationVel3D.z;
+                    wrapScreen(this);
+                }
+
+                draw() {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    
+                    const rotatedVertices = this.vertices3D.map(v => {
+                        let x = v.x, y = v.y, z = v.z;
+                        const cosX = Math.cos(this.rotation3D.x), sinX = Math.sin(this.rotation3D.x);
+                        const cosY = Math.cos(this.rotation3D.y), sinY = Math.sin(this.rotation3D.y);
+                        const cosZ = Math.cos(this.rotation3D.z), sinZ = Math.sin(this.rotation3D.z);
+                        let tempX = x * cosZ - y * sinZ, tempY = x * sinZ + y * cosZ;
+                        x = tempX; y = tempY;
+                        tempY = y * cosX - z * sinX; let tempZ = y * sinX + z * cosX;
+                        y = tempY; z = tempZ;
+                        tempX = x * cosY + z * sinY; tempZ = -x * sinY + z * cosY;
+                        x = tempX; z = tempZ;
+                        return { x, y, z };
+                    });
+                    
+                    this.projectedVertices = rotatedVertices.map(v => ({
+                        x: v.x * this.fov / (this.fov + v.z),
+                        y: v.y * this.fov / (this.fov + v.z),
+                        depth: v.z
+                    }));
+
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 1.5;
+                    this.edges.forEach(edge => {
+                        const v1 = this.projectedVertices[edge[0]];
+                        const v2 = this.projectedVertices[edge[1]];
+                        const avgDepth = (v1.depth + v2.depth) / 2;
+                        ctx.globalAlpha = Math.max(0.2, (this.fov - avgDepth) / this.fov);
+                        ctx.beginPath();
+                        ctx.moveTo(v1.x, v1.y);
+                        ctx.lineTo(v2.x, v2.y);
+                        ctx.stroke();
+                    });
+                    
+                    ctx.restore();
+                }
+            }
+
+            class Particle {
+                 constructor(x, y, color, vel, life) { this.x = x; this.y = y; this.radius = random(1, 3); this.vel = vel || { x: random(-3, 3), y: random(-3, 3) }; this.life = life || 1; this.color = color; }
+                update() { this.x += this.vel.x; this.y += this.vel.y; this.life -= 0.02; }
+                draw() {
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, this.life);
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+                    ctx.restore();
+                }
+            }
+            class ThrustParticle extends Particle {
+                constructor(x, y, angle) {
+                    const colors = ['#ff4500', '#ff8c00', '#ffa500'];
+                    super(x, y, colors[Math.floor(random(0, colors.length))]);
+                    const randomAngle = angle + random(-0.26, 0.26); const speed = random(1.5, 3);
+                    this.radius = random(1, 2.5); this.vel = { x: Math.cos(randomAngle) * speed + player.vel.x * 0.5, y: Math.sin(randomAngle) * speed + player.vel.y * 0.5 };
+                }
+                 update() { super.update(); this.life -= 0.02; }
+            }
+             class PickupPulse extends Particle {
+                constructor(x, y) {
+                    super(x, y, 'white', {x: 0, y: 0}, 1);
+                    this.maxRadius = 30;
+                }
+                update() {
+                    this.life -= 0.04;
+                    this.radius = (1 - this.life) * this.maxRadius;
+                }
+                draw() {
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, this.life);
+                    ctx.strokeStyle = this.color;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+             class LineDebris {
+                constructor(x, y, p1, p2) {
+                    this.x = x;
+                    this.y = y;
+                    this.p1 = p1;
+                    this.p2 = p2;
+                    const midX = (p1.x + p2.x) / 2;
+                    const midY = (p1.y + p2.y) / 2;
+                    const angle = Math.atan2(midY, midX);
+                    const speed = random(1, 3);
+                    this.vel = { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed };
+                    this.rot = 0;
+                    this.rotVel = random(-0.1, 0.1);
+                    this.life = 1;
+                }
+                update() {
+                    this.x += this.vel.x;
+                    this.y += this.vel.y;
+                    this.rot += this.rotVel;
+                    this.life -= 0.015;
+                }
+                draw() {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.rot);
+                    ctx.globalAlpha = Math.max(0, this.life);
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(this.p1.x, this.p1.y);
+                    ctx.lineTo(this.p2.x, this.p2.y);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+            class Star {
+                constructor() {
+                    this.x = random(0, width);
+                    this.y = random(0, height);
+                    const sizeRoll = Math.pow(Math.random(), 6);
+                    this.z = (1 - sizeRoll) * 4 + 0.5;
+                    this.radius = this.z;
+                    this.opacity = 0;
+                    this.opacityOffset = Math.random() * Math.PI * 2;
+                    this.twinkleSpeed = random(0.01, 0.05);
+                    const shapeTypes = ['cross', 'diamond', 'plus', 'star4', 'star8'];
+                    this.shape = shapeTypes[Math.floor(Math.random() * shapeTypes.length)];
+                    this.points = Math.floor(random(4, 7)) * 2; this.innerRadiusRatio = random(0.4, 0.8);
+                }
+
+                update(shipVel, playerPos) {
+                    const dx = playerPos.x - this.x;
+                    const dy = playerPos.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 150) {
+                        this.x += (dx / dist) * STAR_ATTRACTION * this.z;
+                        this.y += (dy / dist) * STAR_ATTRACTION * this.z;
+                    }
+
+                    this.x -= shipVel.x / (6 - this.z);
+                    this.y -= shipVel.y / (6 - this.z);
+                    wrapScreen(this);
+                    this.opacityOffset += this.twinkleSpeed;
+                    this.opacity = (Math.sin(this.opacityOffset) + 1) / 2 * 0.9 + 0.1;
+                }
+
+                draw() {
+                    ctx.save(); ctx.translate(this.x, this.y);
+                    ctx.globalAlpha = this.opacity * (this.z / 5);
+                    ctx.strokeStyle = 'white'; ctx.lineWidth = 0.5 + (this.z / 5);
+                    ctx.beginPath();
+                    switch (this.shape) {
+                        case 'cross': ctx.moveTo(-this.radius, -this.radius); ctx.lineTo(this.radius, this.radius); ctx.moveTo(this.radius, -this.radius); ctx.lineTo(-this.radius, this.radius); break;
+                        case 'diamond': ctx.moveTo(0, -this.radius); ctx.lineTo(this.radius * 0.7, 0); ctx.lineTo(0, this.radius); ctx.lineTo(-this.radius * 0.7, 0); ctx.closePath(); break;
+                        case 'plus': ctx.moveTo(0, -this.radius); ctx.lineTo(0, this.radius); ctx.moveTo(-this.radius, 0); ctx.lineTo(this.radius, 0); break;
+                        case 'star4': for (let i = 0; i < 8; i++) { const angle = i * Math.PI / 4, r = i % 2 === 0 ? this.radius : this.radius * 0.4; ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r); } ctx.closePath(); break;
+                        case 'star8': for (let i = 0; i < this.points * 2; i++) { const angle = i * Math.PI / this.points, r = i % 2 === 0 ? this.radius : this.innerRadiusRatio; ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r); } ctx.closePath(); break;
+                    }
+                    ctx.stroke(); ctx.restore();
+                }
+            }
+            
+            function spawnStar() {
+                let newStar;
+                let tooClose;
+                do {
+                    tooClose = false;
+                    newStar = new Star();
+                    for (const star of stars) {
+                        const dx = newStar.x - star.x;
+                        const dy = newStar.y - star.y;
+                        if (Math.sqrt(dx*dx + dy*dy) < MIN_STAR_DISTANCE) {
+                            tooClose = true;
+                            break;
+                        }
+                    }
+                } while (tooClose);
+                stars.push(newStar);
+            }
+
+            function init() {
+                score = 0; player = new Player();
+                bullets = []; asteroids = []; particles = []; lineDebris = []; stars = [];
+                for (let i = 0; i < STAR_COUNT; i++) spawnStar();
+                for (let i = 0; i < ASTEROID_COUNT; i++) asteroids.push(new Asteroid());
+            }
+
+            function spawnAsteroidOffscreen() {
+                let x, y, edge = Math.floor(random(0, 4)), radius = random(20, 50);
+                switch (edge) {
+                    case 0: x = random(0, width); y = -radius; break; 
+                    case 1: x = width + radius; y = random(0, height); break;
+                    case 2: x = random(0, width); y = height + radius; break;
+                    case 3: x = -radius; y = random(0, height); break;
+                }
+                const targetX = random(width * 0.2, width * 0.8), targetY = random(height * 0.2, height * 0.8);
+                const angle = Math.atan2(targetY - y, targetX - x), speed = random(0.5, ASTEROID_SPEED * 1.5);
+                const newAsteroid = new Asteroid(x, y, radius);
+                newAsteroid.vel = { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed };
+                asteroids.push(newAsteroid);
+            }
+
+            function createExplosion(x, y, count) { for (let i = 0; i < count; i++) particles.push(new Particle(x, y, `hsl(${random(0,360)}, 100%, 70%)`)); }
+            function createCollisionFlash(x, y) { for (let i = 0; i < 10; i++) { const angle = random(0, Math.PI * 2), speed = random(4, 7); particles.push(new Particle(x, y, 'white', { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed }, 0.5)); }}
+            
+            function createDebris(asteroid) {
+                particles.push(...Array(25).fill(0).map(() => new Particle(asteroid.x, asteroid.y, 'white')));
+                asteroid.edges.forEach(edge => {
+                    const v1 = asteroid.vertices3D[edge[0]];
+                    const v2 = asteroid.vertices3D[edge[1]];
+                    lineDebris.push(new LineDebris(asteroid.x, asteroid.y, v1, v2));
+                });
+            }
+
+            function handleCollisions() {
+                for (let i = stars.length - 1; i >= 0; i--) {
+                    if (checkCollision(player, stars[i])) {
+                        score += STAR_SCORE;
+                        particles.push(new PickupPulse(stars[i].x, stars[i].y));
+                        stars.splice(i, 1);
+                        spawnStar();
+                    }
+                }
+
+                for (let i = 0; i < asteroids.length; i++) {
+                    for (let j = i + 1; j < asteroids.length; j++) {
+                        const a1 = asteroids[i], a2 = asteroids[j];
+                        if (checkCollision(a1, a2)) {
+                            createCollisionFlash((a1.x + a2.x) / 2, (a1.y + a2.y) / 2);
+                            let dx = a2.x - a1.x, dy = a2.y - a1.y;
+                            let distance = Math.sqrt(dx**2 + dy**2);
+                            if (distance === 0) continue;
+                            let nx = dx / distance, ny = dy / distance, tx = -ny, ty = nx;
+                            let dpTan1 = a1.vel.x * tx + a1.vel.y * ty, dpTan2 = a2.vel.x * tx + a2.vel.y * ty;
+                            let dpNorm1 = a1.vel.x * nx + a1.vel.y * ny, dpNorm2 = a2.vel.x * nx + a2.vel.y * ny;
+                            let m1 = (dpNorm1 * (a1.mass - a2.mass) + 2 * a2.mass * dpNorm2) / (a1.mass + a2.mass);
+                            let m2 = (dpNorm2 * (a2.mass - a1.mass) + 2 * a1.mass * dpNorm1) / (a1.mass + a2.mass);
+                            a1.vel.x = tx * dpTan1 + nx * m1; a1.vel.y = ty * dpTan1 + ny * m1;
+                            a2.vel.x = tx * dpTan2 + nx * m2; a2.vel.y = ty * dpTan2 + ny * m2;
+                            const overlap = 0.5 * (a1.radius + a2.radius - distance + 1);
+                            a1.x -= overlap * nx; a1.y -= overlap * ny; a2.x += overlap * nx; a2.y += overlap * ny;
+                        }
+                    }
+                }
+            
+                for (let i = bullets.length - 1; i >= 0; i--) {
+                    for (let j = asteroids.length - 1; j >= 0; j--) {
+                        if (checkCollision(bullets[i], asteroids[j])) {
+                            const asteroid = asteroids[j]; score += HIT_SCORE;
+                            createExplosion(bullets[i].x, bullets[i].y, 15);
+                            setTimeout(spawnAsteroidOffscreen, random(30000, 120000));
+                            if (asteroid.baseRadius < MIN_ASTEROID_RADIUS * 1.5) {
+                                score += DESTROY_SCORE;
+                                createDebris(asteroid);
+                                asteroids.splice(j, 1);
+                            } else {
+                                const splitCount = Math.random() < 0.5 ? 2 : 3;
+                                const newBaseRadius = asteroid.baseRadius / Math.sqrt(splitCount);
+                                if (newBaseRadius >= MIN_ASTEROID_RADIUS) {
+                                    for(let k = 0; k < splitCount; k++) asteroids.push(new Asteroid(asteroid.x + random(-2, 2), asteroid.y + random(-2, 2), newBaseRadius));
+                                } else {
+                                    score += DESTROY_SCORE;
+                                    createDebris(asteroid);
+                                }
+                                asteroids.splice(j, 1);
+                            }
+                            bullets.splice(i, 1); break;
+                        }
+                    }
+                }
+            }
+
+            function update() {
+                player.update();
+                asteroids.forEach(a => a.update());
+                for (let i = bullets.length - 1; i >= 0; i--) { bullets[i].update(); if (bullets[i].x < 0 || bullets[i].x > width || bullets[i].y < 0 || bullets[i].y > height) bullets.splice(i, 1); }
+                for (let i = particles.length - 1; i >= 0; i--) { if (particles[i].life <= 0) particles.splice(i, 1); else particles[i].update(); }
+                for (let i = lineDebris.length - 1; i >= 0; i--) { if (lineDebris[i].life <= 0) lineDebris.splice(i, 1); else lineDebris[i].update(); }
+                stars.forEach(s => s.update(player.vel, player));
+                handleCollisions();
+                scoreElement.textContent = score;
+            }
+
+            function draw() {
+                ctx.fillStyle = 'black'; ctx.fillRect(0, 0, width, height);
+                stars.forEach(s => s.draw());
+                particles.forEach(p => p.draw());
+                lineDebris.forEach(d => d.draw());
+                asteroids.forEach(a => a.draw());
+                player.draw();
+                bullets.forEach(b => b.draw());
+            }
+
+            function gameLoop() {
+                if (!isPaused) {
+                    update();
+                }
+                draw();
+                window.requestAnimationFrame(gameLoop);
+            }
+            init();
+            window.requestAnimationFrame(gameLoop);
+        }
+        
+        window.addEventListener('DOMContentLoaded', runGame);
+    </script>
+</body>
+</html>
