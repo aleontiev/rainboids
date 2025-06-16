@@ -179,6 +179,7 @@
                     } else if (gameState === 'PAUSED') {
                         gameState = 'PLAYING';
                         pauseOverlay.style.display = 'none';
+                        if (player && player.isThrusting) playSound(sounds.thruster);
                     }
                     return;
                 }
@@ -258,6 +259,42 @@
                 }
             }
 
+            // --- Sound Definitions ---
+            const sounds = {
+                shoot: sfxr.generate("laserShoot"),
+                hit: sfxr.generate("hitHurt"),
+                star: sfxr.generate("pickupCoin"),
+                burstStar: sfxr.generate("pickupCoin"),
+                explosion: sfxr.generate("explosion"),
+                playerExplosion: sfxr.generate("explosion"),
+                thruster: sfxr.generate("explosion")
+            };
+            
+            sounds.playerExplosion.attackTime = 0.2;
+            sounds.playerExplosion.sustainTime = 0.3;
+            sounds.playerExplosion.startFrequency = 400;
+            sounds.playerExplosion.minFrequency = 100;
+
+            sounds.thruster.wave_type = NOISE; // Noise for hiss
+            sounds.thruster.p_base_freq = 0.1; // Higher base frequency for a less deep rumble
+            sounds.thruster.p_freq_ramp = -0.1; // Gentle downward frequency slide for a bit of rumble
+            sounds.thruster.p_hpf_freq = 0.1; // High-pass filter to cut out the deepest rumble
+            sounds.thruster.p_lpf_freq = 0.5; // Let enough high frequencies through for the hiss
+            sounds.thruster.p_env_attack = 0.1; // Quick but not instant attack
+            sounds.thruster.p_env_sustain = 0.2; // Sustain for the loop
+            sounds.thruster.p_env_decay = 0.4; 
+            sounds.thruster.p_vib_strength = 0.3;
+            sounds.thruster.p_vib_speed = 0.3;
+            sounds.thruster.p_freq_lim = 0.01;
+            sounds.thruster.p_repeat_speed = 0.01;
+            sounds.thruster.sound_vol = 0.1;
+
+            function playSound(params) {
+                if (audioReady) {
+                    sfxr.toAudio(params).play();
+                }
+            }
+
             // --- Entity Classes ---
             class Player {
                 constructor() { this.reset(); }
@@ -273,7 +310,9 @@
                     if (!this.active) return;
                     if (keys.left) this.angle -= TURN_SPEED;
                     if (keys.right) this.angle += TURN_SPEED;
-                    if (keys.up) {
+                    this.isThrusting = keys.up;
+                    if (this.isThrusting) {
+                        playSound(sounds.thruster);
                         this.vel.x += Math.cos(this.angle) * SHIP_THRUST;
                         this.vel.y += Math.sin(this.angle) * SHIP_THRUST;
                         const rear = this.angle + Math.PI, dist = this.radius * 1.2, spread = this.radius * 0.8;
@@ -880,28 +919,6 @@
 
                 draw();
                 requestAnimationFrame(gameLoop);
-            }
-
-            // --- Sound Definitions ---
-            const sounds = {
-                shoot: sfxr.generate("laserShoot"),
-                hit: sfxr.generate("hitHurt"),
-                star: sfxr.generate("pickupCoin"),
-                burstStar: sfxr.generate("pickupCoin"),
-                explosion: sfxr.generate("explosion"),
-                playerExplosion: sfxr.generate("explosion")
-            };
-            
-            sounds.playerExplosion.attackTime = 0.2;
-            sounds.playerExplosion.sustainTime = 0.3;
-            sounds.playerExplosion.startFrequency = 400;
-            sounds.playerExplosion.minFrequency = 100;
-
-            function playSound(params, volume = 1.0) {
-                if (audioReady) {
-                    params.sound_vol = volume;
-                    sfxr.toAudio(params).play();
-                }
             }
 
             // --- Start Game ---
