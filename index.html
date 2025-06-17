@@ -516,6 +516,19 @@
                     case 'Space': input.space = false; break;
                 }
             });
+
+            // BUGFIX: Added click and touch listeners to handle restarting the game on any device.
+            // These listeners only work when the game state is GAME_OVER.
+            window.addEventListener('click', () => {
+                if (game.state === 'GAME_OVER') {
+                    init();
+                }
+            });
+             window.addEventListener('touchstart', () => {
+                if (game.state === 'GAME_OVER') {
+                    init();
+                }
+            });
             
             function setupTouchControls() {
                 const touchThrust = document.getElementById('touch-thrust');
@@ -715,13 +728,18 @@
                     ctx.restore();
                 }
                 die() {
-                    this.active = false; 
+                    this.active = false;
+                    // BUGFIX: Set the game state to GAME_OVER so the input handlers know how to respond.
+                    game.state = 'GAME_OVER'; 
                     triggerHapticFeedback(100);
                     playSound(sounds.playerExplosion);
                     game.particlePool.get(this.x, this.y, 'playerExplosion');
                     triggerScreenShake(20, 15);
                     checkHighScore();
-                    const subtitle = `YOUR SCORE: ${game.score}\nHIGH SCORE: ${game.highScore}\n\nPress Enter to Restart`;
+                    // BUGFIX: Updated the prompt to work for both mobile and desktop.
+                    const isMobile = window.matchMedia("(any-pointer: coarse)").matches;
+                    const restartPrompt = isMobile ? "Tap Screen to Restart" : "Press Enter to Restart";
+                    const subtitle = `YOUR SCORE: ${game.score}\nHIGH SCORE: ${game.highScore}\n\n${restartPrompt}`;
                     showMessage('GAME OVER', subtitle);
                 }
             }
