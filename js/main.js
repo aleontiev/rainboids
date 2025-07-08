@@ -1,4 +1,5 @@
 // Main entry point for the Rainboids game
+import { AssetLoader } from './modules/asset-loader.js';
 import { AudioManager } from './modules/audio-manager.js';
 import { InputHandler } from './modules/input-handler.js';
 import { UIManager } from './modules/ui-manager.js';
@@ -11,6 +12,8 @@ class RainboidsGame {
         this.inputHandler = null;
         this.uiManager = null;
         this.gameEngine = null;
+        this.assetLoader = null;
+        this.loadingScreen = null;
     }
     
     async init() {
@@ -21,12 +24,52 @@ class RainboidsGame {
             });
         }
         
+        this.setupLoadingScreen();
+        await this.loadAssets();
+        this.hideLoadingScreen();
+        
         this.setupCanvas();
         this.setupAudio();
         this.setupManagers();
         this.setupGameEngine();
         this.setupStartHandlers();
         this.start();
+    }
+    
+    setupLoadingScreen() {
+        this.loadingScreen = document.getElementById('loading-screen');
+        this.assetLoader = new AssetLoader();
+        
+        // Set up progress callback
+        this.assetLoader.setProgressCallback((progress) => {
+            const progressBar = document.getElementById('loading-progress');
+            const loadingText = document.getElementById('loading-text');
+            
+            if (progressBar) {
+                progressBar.style.width = `${progress}%`;
+            }
+            
+            if (loadingText) {
+                loadingText.textContent = `Loading... ${Math.round(progress)}%`;
+            }
+        });
+    }
+    
+    async loadAssets() {
+        console.log('Loading assets...');
+        const success = await this.assetLoader.loadAllAssets();
+        
+        if (!success) {
+            console.warn('Some assets failed to load, but continuing...');
+        }
+        
+        console.log('Asset loading complete');
+    }
+    
+    hideLoadingScreen() {
+        if (this.loadingScreen) {
+            this.loadingScreen.style.display = 'none';
+        }
     }
     
     setupCanvas() {
