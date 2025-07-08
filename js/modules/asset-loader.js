@@ -19,48 +19,6 @@ export class AssetLoader {
         }
     }
 
-    // Load fonts with blocking behavior
-    async loadFonts() {
-        console.log('AssetLoader: Starting font loading...');
-        const fonts = [
-            {
-                family: 'Press Start 2P',
-                src: 'url(../fonts/PressStart2P-Regular.woff2) format("woff2")'
-            }
-        ];
-
-        this.totalAssets += fonts.length;
-        console.log(`AssetLoader: Total assets to load: ${this.totalAssets}`);
-
-        const fontPromises = fonts.map(font => {
-            return new Promise((resolve, reject) => {
-                console.log(`AssetLoader: Loading font: ${font.family} from ${font.src}`);
-                try {
-                    const fontFace = new FontFace(font.family, font.src);
-                    
-                    fontFace.load().then(() => {
-                        console.log(`AssetLoader: Font loaded successfully: ${font.family}`);
-                        document.fonts.add(fontFace);
-                        this.updateProgress();
-                        resolve(fontFace);
-                    }).catch((error) => {
-                        console.error('AssetLoader: Font loading failed:', error);
-                        this.updateProgress();
-                        resolve(null); // Resolve anyway to not block the game
-                    });
-                } catch (error) {
-                    console.error('AssetLoader: FontFace not supported:', error);
-                    this.updateProgress();
-                    resolve(null);
-                }
-            });
-        });
-
-        const results = await Promise.all(fontPromises);
-        console.log('AssetLoader: Font loading complete, results:', results);
-        return results;
-    }
-
     // Load audio with blocking behavior
     async loadAudio() {
         console.log('AssetLoader: Starting audio loading...');
@@ -112,20 +70,12 @@ export class AssetLoader {
         return results;
     }
 
-    // Load all assets
+    // Only load audio in loadAllAssets
     async loadAllAssets() {
         this.loadedAssets = 0;
         this.loadingProgress = 0;
 
         try {
-            // Load fonts first (blocking)
-            console.log('AssetLoader: Starting font loading...');
-            const fontResults = await this.loadFonts();
-            console.log('AssetLoader: Font loading results:', fontResults);
-            
-            // Verify font is actually loaded
-            await this.verifyFontLoaded();
-            
             // Load audio
             console.log('AssetLoader: Starting audio loading...');
             await this.loadAudio();
@@ -138,27 +88,6 @@ export class AssetLoader {
         } catch (error) {
             console.error('AssetLoader: Asset loading failed:', error);
             return false;
-        }
-    }
-
-    // Verify that the font is actually loaded and available
-    async verifyFontLoaded() {
-        console.log('AssetLoader: Verifying font is loaded...');
-        
-        // Wait for fonts to be ready
-        await document.fonts.ready;
-        console.log('AssetLoader: Document fonts ready');
-        
-        // Check if our font is loaded
-        const fontLoaded = document.fonts.check('12px "Press Start 2P"');
-        console.log('AssetLoader: Font check result:', fontLoaded);
-        
-        if (!fontLoaded) {
-            console.warn('AssetLoader: Font not loaded, waiting...');
-            // Wait a bit more and try again
-            await new Promise(resolve => setTimeout(resolve, 500));
-            const fontLoaded2 = document.fonts.check('12px "Press Start 2P"');
-            console.log('AssetLoader: Font check result after wait:', fontLoaded2);
         }
     }
 
