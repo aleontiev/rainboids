@@ -52,6 +52,20 @@ export class Particle {
                 this.maxRadius = 30;
                 this.color = 'white';
                 break;
+            case 'explosionPulse':
+                this.life = 0.5;
+                this.radius = 0;
+                this.maxRadius = args[0] || 60;
+                this.color = 'rgba(255,80,0,1)';
+                break;
+            case 'explosionRedOrange':
+                this.radius = random(2, 5);
+                this.vel = { x: random(-4, 4), y: random(-4, 4) };
+                this.life = random(0.3, 0.7);
+                this.hue = random(10, 40); // red-orange
+                this.sat = random(80, 100);
+                this.light = random(45, 65);
+                break;
         }
     }
     
@@ -61,9 +75,14 @@ export class Particle {
         switch (this.type) {
             case 'explosion':
             case 'thrust':
-                this.x += this.vel.x;
-                this.y += this.vel.y;
-                this.life -= 0.02;
+            case 'phantom':
+            case 'explosionRedOrange':
+                this.x += this.vel?.x || 0;
+                this.y += this.vel?.y || 0;
+                this.life -= 0.04;
+                if (this.type === 'explosionRedOrange') {
+                    this.hue += random(-2, 2); // animate color
+                }
                 break;
                 
             case 'phantom':
@@ -77,6 +96,10 @@ export class Particle {
                 
             case 'pickupPulse':
                 this.life -= 0.04;
+                this.radius = (1 - this.life) * this.maxRadius;
+                break;
+            case 'explosionPulse':
+                this.life -= 0.06;
                 this.radius = (1 - this.life) * this.maxRadius;
                 break;
         }
@@ -100,6 +123,19 @@ export class Particle {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
                 ctx.fill();
+                break;
+            case 'explosionRedOrange':
+                ctx.fillStyle = `hsl(${this.hue}, ${this.sat}%, ${this.light}%)`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+                ctx.fill();
+                break;
+            case 'explosionPulse':
+                ctx.strokeStyle = 'rgba(255,80,0,0.7)';
+                ctx.lineWidth = 6;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+                ctx.stroke();
                 break;
                 
             case 'playerExplosion':

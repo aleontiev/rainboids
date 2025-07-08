@@ -215,14 +215,22 @@ export class GameEngine {
                     this.game.score += GAME_CONFIG.HIT_SCORE;
                     triggerHapticFeedback(20);
                     this.audioManager.playHit();
+                    // Small explosion pulse and particles for hit
+                    this.particlePool.get(bullet.x, bullet.y, 'explosionPulse', ast.baseRadius * 0.7);
+                    for (let p = 0; p < 7; p++) {
+                        this.particlePool.get(bullet.x, bullet.y, 'explosionRedOrange');
+                    }
                     this.particlePool.get(bullet.x, bullet.y, 'explosion');
-                    
                     // Light screen shake for asteroid hits
                     this.triggerScreenShake(3, 2, ast.baseRadius * 0.3);
-                    
                     if (ast.baseRadius <= (GAME_CONFIG.MIN_AST_RAD + 5)) {
                         this.game.score += GAME_CONFIG.DESTROY_SCORE;
                         this.audioManager.playExplosion();
+                        // Large explosion pulse and many particles for destruction
+                        this.particlePool.get(ast.x, ast.y, 'explosionPulse', ast.baseRadius * 1.5);
+                        for (let p = 0; p < 24; p++) {
+                            this.particlePool.get(ast.x, ast.y, 'explosionRedOrange');
+                        }
                         this.createDebris(ast);
                         this.createStarBurst(ast.x, ast.y);
                         this.asteroidPool.release(ast);
@@ -237,6 +245,11 @@ export class GameEngine {
                         if (newR < GAME_CONFIG.MIN_AST_RAD) {
                             this.game.score += GAME_CONFIG.DESTROY_SCORE;
                             this.audioManager.playExplosion();
+                            // Large explosion pulse and many particles for destruction
+                            this.particlePool.get(ast.x, ast.y, 'explosionPulse', ast.baseRadius * 1.2);
+                            for (let p = 0; p < 18; p++) {
+                                this.particlePool.get(ast.x, ast.y, 'explosionRedOrange');
+                            }
                             this.createDebris(ast);
                             this.createStarBurst(ast.x, ast.y);
                             this.triggerScreenShake(12, 6, ast.baseRadius);
