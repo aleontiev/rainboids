@@ -9,6 +9,12 @@ import { Particle } from './entities/particle.js';
 import { Star } from './entities/star.js';
 import { LineDebris } from './entities/line-debris.js';
 
+export const PLAYER_STATES = {
+    NORMAL: 'normal',
+    CRITICAL: 'critical',
+    RAPID_RECHARGE: 'rapid_recharge',
+};
+
 export class GameEngine {
     constructor(canvas, uiManager, audioManager, inputHandler) {
         this.canvas = canvas;
@@ -33,6 +39,20 @@ export class GameEngine {
         this.setupEventListeners();
         this.playerCanFire = true;
         this.previousFire = false;
+        this.maxThrust = 100;
+        this.playerThrust = this.maxThrust;
+        this.thrustDepleteRate = this.maxThrust / 5 / 60; // 5 seconds to empty at 60fps
+        this.thrustRegenRate = this.maxThrust / 30 / 60;  // 30 seconds to full at 60fps
+        this.thrustDepleted = false;
+        this.thrustDepletedTimer = 0;
+        this.criticalTimer = 0;
+        this.criticalActive = false;
+        this.criticalJustActivated = false;
+        this.criticalAlarmCounter = 0;
+        this.energyRegenRapid = false;
+        this.energyRegenTarget = 99;
+        this.prevEnergyValue = 99;
+        this.playerState = PLAYER_STATES.NORMAL;
     }
     
     initializePools() {
@@ -96,22 +116,27 @@ export class GameEngine {
         this.game.score = 0;
         this.game.currentWave = 0;
         this.game.state = GAME_STATES.PLAYING;
-        
         // Reset player
         this.player = new Player();
-        
+        // Reset energy and CRITICAL state
+        this.playerThrust = this.maxThrust;
+        this.criticalActive = false;
+        this.criticalJustActivated = false;
+        this.criticalTimer = 0;
+        this.criticalAlarmCounter = 0;
+        this.energyRegenRapid = false;
+        this.thrustDepleted = false;
+        this.thrustDepletedTimer = 0;
         // Clear all pools
         this.bulletPool.activeObjects = [];
         this.particlePool.activeObjects = [];
         this.lineDebrisPool.activeObjects = [];
         this.asteroidPool.activeObjects = [];
         this.starPool.activeObjects = [];
-        
         // Spawn initial stars
         for (let i = 0; i < GAME_CONFIG.STAR_COUNT; i++) {
             this.spawnStar();
         }
-        
         this.startNextWave();
         this.uiManager.hideMessage();
     }
@@ -121,17 +146,28 @@ export class GameEngine {
         this.uiManager.updateWave(this.game.currentWave);
         this.uiManager.showMessage(`WAVE ${this.game.currentWave}`, '', 1500);
         this.game.state = GAME_STATES.WAVE_TRANSITION;
-        
+        // Always clear CRITICAL/rapid_recharge state at wave start
+        this.playerState = PLAYER_STATES.NORMAL;
+        this.criticalTimer = 0;
+        this.criticalAlarmCounter = 0;
+        this.hideCriticalOverlay();
+        this.energyRegenRapid = false;
         const numAsteroids = GAME_CONFIG.INITIAL_AST_COUNT + (this.game.currentWave - 1) * 2;
         for (let i = 0; i < numAsteroids; i++) {
             this.spawnAsteroidOffscreen();
         }
-        
         setTimeout(() => {
             if (this.game.state === GAME_STATES.WAVE_TRANSITION) {
                 this.game.state = GAME_STATES.PLAYING;
             }
         }, 1500);
+        // Only do rapid recharge for waves after the first
+        if (this.game.currentWave > 1) {
+            this.energyRegenRapid = true;
+            this.playerThrust = 0;
+        } else {
+            this.playerThrust = this.maxThrust;
+        }
     }
     
     spawnAsteroidOffscreen() {
@@ -332,6 +368,15 @@ export class GameEngine {
                     this.game.score += star.isBurst ? GAME_CONFIG.BURST_STAR_SCORE : GAME_CONFIG.STAR_SCORE;
                     this.audioManager.playCoin();
                     this.particlePool.get(star.x, star.y, 'pickupPulse');
+                    // Add 1 energy if not in CRITICAL, up to max 99
+                    if (this.playerState !== PLAYER_STATES.CRITICAL) {
+                        let percent = this.playerThrust / this.maxThrust;
+                        let value = Math.round(percent * 99);
+                        if (value < 99) {
+                            value = Math.min(99, value + 1);
+                            this.playerThrust = (value / 99) * this.maxThrust;
+                        }
+                    }
                     if (!star.isBurst) this.spawnStar();
                     this.starPool.release(star);
                 }
@@ -342,17 +387,115 @@ export class GameEngine {
     update() {
         if (this.game.state === GAME_STATES.PLAYING || this.game.state === GAME_STATES.WAVE_TRANSITION) {
             const input = this.inputHandler.getInput();
-            // Only fire if playerCanFire is true and input.fire is true
-            if (input.fire && this.playerCanFire) {
+            const energyBar = document.getElementById('energy-bar');
+            const energyValue = document.getElementById('energy-value');
+            let percent = this.playerThrust / this.maxThrust;
+            let value = Math.round(percent * 99);
+            if (value < 0) value = 0;
+            if (value > 99) value = 99;
+            // State transitions
+            // Only go CRITICAL if in PLAYING state
+            if (this.game.state === GAME_STATES.PLAYING && value === 0 && this.prevEnergyValue > 0 && this.playerState !== PLAYER_STATES.CRITICAL) {
+                this.playerState = PLAYER_STATES.CRITICAL;
+                this.criticalTimer = 300; // 5 seconds at 60fps
+                this.criticalAlarmCounter = 0;
+                this.showCriticalOverlay();
+            }
+            if (this.playerState === PLAYER_STATES.CRITICAL) {
+                this.criticalTimer--;
+                this.criticalAlarmCounter++;
+                if (this.criticalAlarmCounter % 120 === 1) {
+                    this.playCriticalAlarm();
+                }
+                if (this.criticalTimer <= 0) {
+                    this.playerState = PLAYER_STATES.RAPID_RECHARGE;
+                    this.hideCriticalOverlay();
+                }
+            }
+            if (this.playerState === PLAYER_STATES.RAPID_RECHARGE) {
+                this.energyRegenRapid = true;
+            }
+            // End rapid recharge when full
+            if (this.energyRegenRapid) {
+                this.playerThrust += 6;
+                if (this.playerThrust >= this.maxThrust) {
+                    this.playerThrust = this.maxThrust;
+                    this.energyRegenRapid = false;
+                    this.playerState = PLAYER_STATES.NORMAL;
+                }
+            }
+            this.prevEnergyValue = value;
+            let canAct = value > 0 && this.playerState === PLAYER_STATES.NORMAL;
+            let usingThrust = canAct && (input.up || (typeof input.joystickY === 'number' && input.joystickY < -0.3)) && this.playerThrust > 0;
+            // Energy logic
+            if (usingThrust && !this.thrustDepleted && this.playerState === PLAYER_STATES.NORMAL) {
+                this.playerThrust -= this.thrustDepleteRate;
+                if (this.playerThrust <= 0) {
+                    this.playerThrust = 0;
+                    this.thrustDepleted = true;
+                    this.thrustDepletedTimer = 300;
+                }
+            } else if (this.thrustDepleted) {
+                this.thrustDepletedTimer--;
+                if (this.thrustDepletedTimer <= 0) {
+                    this.thrustDepleted = false;
+                }
+            } else if (this.playerThrust < this.maxThrust && this.playerState === PLAYER_STATES.NORMAL) {
+                this.playerThrust += this.thrustRegenRate;
+                if (this.playerThrust > this.maxThrust) this.playerThrust = this.maxThrust;
+            }
+            // Update simple energy bar UI
+            if (energyBar && energyValue) {
+                percent = this.playerThrust / this.maxThrust;
+                value = Math.round(percent * 99);
+                if (value < 0) value = 0;
+                if (value > 99) value = 99;
+                energyBar.style.width = `${Math.max(0, percent * 180)}px`;
+                let color;
+                if (percent > 0.66) {
+                    const t = (percent - 0.66) / 0.34;
+                    color = `rgb(${255 * (1-t)},255,0)`;
+                } else if (percent > 0.33) {
+                    const t = (percent - 0.33) / 0.33;
+                    color = `rgb(255,${165 + 90*t},0)`;
+                } else {
+                    const t = percent / 0.33;
+                    color = `rgb(255,${t*165},0)`;
+                }
+                energyBar.style.background = color;
+                energyValue.style.color = color;
+                energyValue.textContent = value.toString().padStart(2, '0');
+                if (value === 0) {
+                    energyValue.classList.add('flashing-red');
+                } else {
+                    energyValue.classList.remove('flashing-red');
+                }
+            }
+            // Only fire if playerCanFire is true, input.fire is true, and in normal state
+            if (input.fire && this.playerCanFire && canAct) {
                 this.player.fire(this.bulletPool, this.audioManager);
+                this.playerThrust -= 2;
+                if (this.playerThrust < 0) this.playerThrust = 0;
                 this.playerCanFire = false;
             }
-            // Only re-enable firing when fire is released
             if (!input.fire && this.previousFire) {
                 this.playerCanFire = true;
             }
             this.previousFire = input.fire;
-            this.player.update(input, this.particlePool, this.bulletPool, this.audioManager);
+            // Prevent player from moving when not in normal state
+            if (this.playerState === PLAYER_STATES.NORMAL) {
+                this.player.update(input, this.particlePool, this.bulletPool, this.audioManager);
+            } else if (this.playerState === PLAYER_STATES.CRITICAL) {
+                // Allow only turning, preserve momentum, disable thrust/shoot
+                const turnOnlyInput = {
+                    ...input,
+                    up: false,
+                    down: false,
+                    fire: false,
+                    space: false,
+                };
+                this.player.update(turnOnlyInput, this.particlePool, this.bulletPool, this.audioManager);
+            }
             this.bulletPool.updateActive(this.particlePool, this.asteroidPool);
             this.particlePool.updateActive();
             this.lineDebrisPool.updateActive();
@@ -368,6 +511,11 @@ export class GameEngine {
             
             this.uiManager.updateScore(this.game.score);
         } else if (this.game.state === GAME_STATES.GAME_OVER || this.game.state === GAME_STATES.PAUSED) {
+            // Remove CRITICAL overlay if still active
+            if (this.playerState === PLAYER_STATES.CRITICAL || this.playerState === PLAYER_STATES.RAPID_RECHARGE) {
+                this.hideCriticalOverlay();
+                this.playerState = PLAYER_STATES.NORMAL;
+            }
             this.particlePool.updateActive();
             this.lineDebrisPool.updateActive();
         }
@@ -478,5 +626,51 @@ export class GameEngine {
         this.inputHandler.setupTouchControls();
         this.uiManager.loadCustomControls();
         this.gameLoop();
+    }
+
+    showCriticalOverlay() {
+        let overlay = document.getElementById('critical-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'critical-overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
+            overlay.style.background = 'rgba(255,0,0,0.18)';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.zIndex = '9999';
+            overlay.style.pointerEvents = 'none';
+            overlay.innerHTML = '<span class="critical-flash-text">CRITICAL</span>';
+            document.body.appendChild(overlay);
+        } else {
+            overlay.style.display = 'flex';
+        }
+    }
+    playCriticalAlarm() {
+        // Play a simple alarm sound using the AudioManager or a beep
+        if (this.audioManager && this.audioManager.playAlarm) {
+            this.audioManager.playAlarm();
+        } else {
+            // Fallback: use Web Audio API beep
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = 'square';
+                o.frequency.value = 440;
+                g.gain.value = 0.15;
+                o.connect(g); g.connect(ctx.destination);
+                o.start();
+                setTimeout(() => { o.stop(); ctx.close(); }, 180);
+            } catch (e) {}
+        }
+    }
+    hideCriticalOverlay() {
+        const overlay = document.getElementById('critical-overlay');
+        if (overlay) overlay.style.display = 'none';
     }
 } 
