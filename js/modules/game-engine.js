@@ -352,13 +352,6 @@ export class GameEngine {
             this.asteroidPool.drawActive(this.ctx);
             this.bulletPool.drawActive(this.ctx);
             this.player.draw(this.ctx);
-        } else {
-            // Debug: Draw something to show the canvas is working
-            this.ctx.fillStyle = 'rgba(255,255,255,0.3)';
-            this.ctx.fillRect(0, 0, 200, 200);
-            this.ctx.fillStyle = 'rgba(255,0,0,0.5)';
-            this.ctx.fillRect(50, 50, 100, 100);
-            console.log('GameEngine: Debug rectangles drawn for title screen');
         }
     }
     
