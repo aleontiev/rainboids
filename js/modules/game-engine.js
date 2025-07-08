@@ -11,16 +11,22 @@ import { LineDebris } from './entities/line-debris.js';
 
 export class GameEngine {
     constructor(canvas, uiManager, audioManager, inputHandler) {
+        console.log('GameEngine: Initializing...');
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
+        console.log('GameEngine: Canvas context created:', this.ctx);
+        
         this.uiManager = uiManager;
         this.audioManager = audioManager;
         this.inputHandler = inputHandler;
         
         this.width = window.innerWidth;
         this.height = window.innerHeight;
+        console.log('GameEngine: Window dimensions:', this.width, 'x', this.height);
+        
         this.canvas.width = this.width;
         this.canvas.height = this.height;
+        console.log('GameEngine: Canvas resized to:', this.canvas.width, 'x', this.canvas.height);
         
         this.game = {
             score: 0,
@@ -33,7 +39,9 @@ export class GameEngine {
         };
         
         this.initializePools();
+        console.log('GameEngine: Pools initialized');
         this.setupEventListeners();
+        console.log('GameEngine: Event listeners setup complete');
     }
     
     initializePools() {
@@ -333,6 +341,7 @@ export class GameEngine {
     }
     
     draw() {
+        // Clear with semi-transparent black for trail effect
         this.ctx.fillStyle = 'rgba(0,0,0,0.3)';
         this.ctx.fillRect(0, 0, this.width, this.height);
         
@@ -343,6 +352,13 @@ export class GameEngine {
             this.asteroidPool.drawActive();
             this.bulletPool.drawActive();
             this.player.draw(this.ctx);
+        } else {
+            // Debug: Draw something to show the canvas is working
+            this.ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            this.ctx.fillRect(0, 0, 200, 200);
+            this.ctx.fillStyle = 'rgba(255,0,0,0.5)';
+            this.ctx.fillRect(50, 50, 100, 100);
+            console.log('GameEngine: Debug rectangles drawn for title screen');
         }
     }
     
@@ -428,12 +444,28 @@ export class GameEngine {
     }
     
     start() {
+        console.log('GameEngine: Starting game...');
         this.loadHighScore();
+        console.log('GameEngine: High score loaded:', this.game.highScore);
+        
         this.uiManager.checkOrientation();
+        console.log('GameEngine: Orientation checked');
+        
         this.uiManager.setupTitleScreen();
+        console.log('GameEngine: Title screen setup');
+        
+        // Ensure title screen is visible
+        this.uiManager.showTitleScreen();
+        console.log('GameEngine: Title screen shown');
+        
         this.uiManager.updateHighScore(this.game.highScore);
         this.inputHandler.setupTouchControls();
+        console.log('GameEngine: Touch controls setup');
+        
         this.uiManager.loadCustomControls();
+        console.log('GameEngine: Custom controls loaded');
+        
+        console.log('GameEngine: Starting game loop...');
         this.gameLoop();
     }
 } 

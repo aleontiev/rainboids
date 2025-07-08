@@ -17,23 +17,43 @@ class RainboidsGame {
     }
     
     async init() {
+        console.log('RainboidsGame: Starting initialization...');
+        
         // Wait for DOM to be ready
         if (document.readyState === 'loading') {
+            console.log('RainboidsGame: DOM still loading, waiting...');
             await new Promise(resolve => {
                 document.addEventListener('DOMContentLoaded', resolve);
             });
         }
+        console.log('RainboidsGame: DOM ready, readyState:', document.readyState);
         
         this.setupLoadingScreen();
+        console.log('RainboidsGame: Loading screen setup complete');
+        
         await this.loadAssets();
+        console.log('RainboidsGame: Asset loading complete');
+        
         this.hideLoadingScreen();
+        console.log('RainboidsGame: Loading screen hidden');
         
         this.setupCanvas();
+        console.log('RainboidsGame: Canvas setup complete');
+        
         this.setupAudio();
+        console.log('RainboidsGame: Audio setup complete');
+        
         this.setupManagers();
+        console.log('RainboidsGame: Managers setup complete');
+        
         this.setupGameEngine();
+        console.log('RainboidsGame: Game engine setup complete');
+        
         this.setupStartHandlers();
+        console.log('RainboidsGame: Start handlers setup complete');
+        
         this.start();
+        console.log('RainboidsGame: Game started');
     }
     
     setupLoadingScreen() {
@@ -56,14 +76,25 @@ class RainboidsGame {
     }
     
     async loadAssets() {
-        console.log('Loading assets...');
+        console.log('RainboidsGame: Loading assets...');
         const success = await this.assetLoader.loadAllAssets();
         
         if (!success) {
-            console.warn('Some assets failed to load, but continuing...');
+            console.warn('RainboidsGame: Some assets failed to load, but continuing...');
         }
         
-        console.log('Asset loading complete');
+        console.log('RainboidsGame: Asset loading complete');
+        
+        // Debug: Check if canvas exists and is visible
+        const canvas = document.getElementById('gameCanvas');
+        if (canvas) {
+            console.log('RainboidsGame: Canvas found after asset loading');
+            console.log('RainboidsGame: Canvas dimensions:', canvas.width, 'x', canvas.height);
+            console.log('RainboidsGame: Canvas style:', canvas.style.display, canvas.style.visibility);
+            console.log('RainboidsGame: Canvas offset:', canvas.offsetWidth, 'x', canvas.offsetHeight);
+        } else {
+            console.error('RainboidsGame: Canvas not found after asset loading!');
+        }
     }
     
     hideLoadingScreen() {
@@ -73,10 +104,12 @@ class RainboidsGame {
     }
     
     setupCanvas() {
+        console.log('RainboidsGame: Setting up canvas...');
         this.canvas = document.getElementById('gameCanvas');
         if (!this.canvas) {
             throw new Error('Canvas element not found');
         }
+        console.log('RainboidsGame: Canvas found, dimensions:', this.canvas.width, 'x', this.canvas.height);
     }
     
     setupAudio() {
