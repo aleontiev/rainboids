@@ -108,6 +108,7 @@ class RainboidsGame {
             this.audioManager,
             this.inputHandler
         );
+        window.gameEngine = this.gameEngine;
     }
     
     setupStartHandlers() {

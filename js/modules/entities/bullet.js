@@ -24,7 +24,7 @@ export class Bullet {
         this.mass = 1;
     }
     
-    update(particlePool) {
+    update(particlePool, asteroidPool) {
         if (!this.active) return;
         
         this.life++;
@@ -36,24 +36,52 @@ export class Bullet {
         this.x += this.vel.x + Math.cos(perp) * off;
         this.y += this.vel.y + Math.sin(perp) * off;
         
+        // Homing effect: curve toward nearest asteroid if close
+        if (asteroidPool && asteroidPool.activeObjects && asteroidPool.activeObjects.length > 0) {
+            let nearest = null;
+            let minDist = 99999;
+            for (const ast of asteroidPool.activeObjects) {
+                if (!ast.active) continue;
+                const dx = ast.x - this.x;
+                const dy = ast.y - this.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < minDist && dist < 120) {
+                    minDist = dist;
+                    nearest = ast;
+                }
+            }
+            if (nearest) {
+                const dx = nearest.x - this.x;
+                const dy = nearest.y - this.y;
+                const angleToAst = Math.atan2(dy, dx);
+                // Interpolate current velocity angle toward target, but clamp max turn
+                const curAngle = Math.atan2(this.vel.y, this.vel.x);
+                let angleDiff = angleToAst - curAngle;
+                // Normalize angleDiff to [-PI, PI]
+                angleDiff = ((angleDiff + Math.PI) % (2 * Math.PI)) - Math.PI;
+                // Clamp to max 30 degrees (PI/6 radians) per frame
+                const maxTurn = Math.PI / 6;
+                if (angleDiff > maxTurn) angleDiff = maxTurn;
+                if (angleDiff < -maxTurn) angleDiff = -maxTurn;
+                const newAngle = curAngle + angleDiff * 0.5; // still interpolate, but limited
+                const speed = Math.hypot(this.vel.x, this.vel.y);
+                this.vel.x = Math.cos(newAngle) * speed;
+                this.vel.y = Math.sin(newAngle) * speed;
+            }
+        }
+        
         // Create phantom particles
         if (this.life % 2 === 0) {
             const currentColor = `hsl(${this.life * 5 % 360}, 100%, 50%)`;
             particlePool.get(this.x, this.y, 'phantom', currentColor, this.radius);
         }
-        
-        // Check bounds
-        if (this.x < 0 || this.x > this.width || this.y < 0 || this.y > this.height) {
-            this.active = false;
-        }
     }
-    
+
     draw(ctx) {
         if (!this.active) return;
-        
         ctx.fillStyle = `hsl(${this.life * 5 % 360}, 100%, 50%)`;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
         ctx.fill();
     }
-} 
+}

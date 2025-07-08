@@ -135,4 +135,11 @@ export class Player {
         const subtitle = `YOUR SCORE: ${game.score}\nHIGH SCORE: ${game.highScore}\n\n${restartPrompt}`;
         uiManager.showMessage('GAME OVER', subtitle);
     }
+
+    fire(bulletPool, audioManager) {
+        if (!this.active) return;
+        // Just spawn a bullet, no cooldown logic
+        bulletPool.get(this.x, this.y, this.angle);
+        audioManager.playShoot();
+    }
 } 

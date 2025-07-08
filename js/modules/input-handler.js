@@ -42,7 +42,7 @@ export class InputHandler {
                 this.input.rotation = 1;
                 break;
             case 'Space':
-                this.input.space = true;
+                if (window.gameEngine) window.gameEngine.fireQueued = true;
                 break;
         }
     }
