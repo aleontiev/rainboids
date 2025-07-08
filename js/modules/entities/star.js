@@ -2,6 +2,10 @@
 import { GAME_CONFIG, NORMAL_STAR_COLORS, STAR_SHAPES } from '../constants.js';
 import { random, wrap } from '../utils.js';
 
+function isMobile() {
+    return window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse), (max-width: 768px)').matches;
+}
+
 export class Star {
     constructor() {
         this.width = window.innerWidth;
@@ -14,8 +18,9 @@ export class Star {
         this.y = y || random(0, this.height);
         
         const sizeRoll = Math.pow(Math.random(), 6);
+        let scale = isMobile() ? GAME_CONFIG.MOBILE_SCALE : 1;
         this.z = (1 - sizeRoll) * 4 + 0.5;
-        this.radius = this.z;
+        this.radius = this.z * scale;
         this.opacity = 0;
         this.opacityOffset = Math.random() * Math.PI * 2;
         this.twinkleSpeed = random(0.01, 0.05);
@@ -34,7 +39,7 @@ export class Star {
             this.vel = { x: Math.cos(ang) * spd, y: Math.sin(ang) * spd };
             this.color = '#00ff7f';
             this.borderColor = '#ffd700';
-            this.life = 300;
+            this.life = 900;
         } else {
             this.color = NORMAL_STAR_COLORS[Math.floor(Math.random() * NORMAL_STAR_COLORS.length)];
             this.borderColor = NORMAL_STAR_COLORS[Math.floor(Math.random() * NORMAL_STAR_COLORS.length)];
@@ -65,18 +70,23 @@ export class Star {
             const dist = Math.hypot(dx, dy);
             
             if (playerPos.active && dist < GAME_CONFIG.BURST_STAR_ATTRACT_DIST) {
-                this.x += (dx / dist) * GAME_CONFIG.BURST_STAR_ATTR * this.z;
-                this.y += (dy / dist) * GAME_CONFIG.BURST_STAR_ATTR * this.z;
+                // Strong linear attraction for burst stars
+                const strength = GAME_CONFIG.BURST_STAR_ATTR * this.z;
+                this.x += (dx / dist) * strength;
+                this.y += (dy / dist) * strength;
             }
         } else {
             // Normal star behavior
             const dx = playerPos.x - this.x;
             const dy = playerPos.y - this.y;
             const dist = Math.hypot(dx, dy);
-            
-            if (playerPos.active && dist < 150) {
-                this.x += (dx / dist) * GAME_CONFIG.STAR_ATTR * this.z;
-                this.y += (dy / dist) * GAME_CONFIG.STAR_ATTR * this.z;
+            if (playerPos.active && dist < GAME_CONFIG.STAR_ATTRACT_DIST) {
+                // Linear attraction, but much stronger when very close
+                let strength = GAME_CONFIG.STAR_ATTR * this.z;
+                if (dist < 50) strength *= 4;
+                if (playerPos.space) strength *= 3;
+                this.x += (dx / dist) * strength;
+                this.y += (dy / dist) * strength;
             }
             
             this.opacityOffset += this.twinkleSpeed;

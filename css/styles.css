@@ -143,9 +143,11 @@ canvas {
     transition: transform 0.05s ease-out;
 }
 
-.control-button:active {
-    background-color: rgba(255, 255, 255, 0.3);
-    transform: scale(0.95);
+.control-button:active,
+.control-button.pressed {
+    background-color: #eee !important;
+    color: #333 !important;
+    border-color: #bbb !important;
 }
 
 .control-symbol {
@@ -186,8 +188,8 @@ canvas {
 
 #touch-fire {
     position: absolute;
-    right: 5%;
-    bottom: 5%;
+    right: 18%;
+    bottom: 18%;
     width: 16vmin;
     height: 16vmin;
     background-color: rgba(255, 255, 255, 0.15);
@@ -205,14 +207,10 @@ canvas {
     transition: transform 0.05s ease-out;
     z-index: 201;
 }
-#touch-fire:active {
-    background-color: rgba(255, 255, 255, 0.3);
-    transform: scale(0.95);
-}
 #touch-thrust {
     position: absolute;
-    right: 18%;
-    bottom: 18%;
+    right: 5%;
+    bottom: 5%;
     width: 16vmin;
     height: 16vmin;
     background-color: rgba(255, 255, 255, 0.15);
@@ -230,9 +228,41 @@ canvas {
     transition: transform 0.05s ease-out;
     z-index: 201;
 }
+#touch-fire:active {
+    background-color: rgba(255, 255, 255, 0.3);
+    transform: scale(0.95);
+}
 #touch-thrust:active {
     background-color: rgba(255, 255, 255, 0.3);
     transform: scale(0.95);
+}
+
+#touch-tractor {
+    position: absolute;
+    right: 5%;
+    bottom: 28%;
+    width: 16vmin;
+    height: 16vmin;
+    background-color: rgba(255, 255, 255, 0.15);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 8vmin;
+    color: rgba(255, 255, 255, 0.8);
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: all;
+    box-sizing: border-box;
+    transition: transform 0.05s ease-out;
+    z-index: 201;
+}
+#touch-tractor:active,
+#touch-tractor.pressed {
+    background-color: #eee !important;
+    color: #333 !important;
+    border-color: #bbb !important;
 }
 
 #mobile-pause-button {

@@ -16,7 +16,15 @@ export class AudioManager {
             coin: sfxr.generate("pickupCoin"),
             explosion: sfxr.generate("explosion"),
             playerExplosion: sfxr.generate("explosion"),
-            thruster: sfxr.generate("explosion")
+            thruster: sfxr.generate("explosion"),
+            tractorBeam: sfxr.generate("tone", {
+                wave_type: 2, // Sine
+                p_env_attack: 0.05,
+                p_env_sustain: 0.5,
+                p_env_decay: 0.3,
+                p_base_freq: 0.15, // Low frequency
+                sound_vol: 0.18
+            })
         };
         
         // Customize specific sounds
@@ -80,5 +88,9 @@ export class AudioManager {
     
     playThruster() {
         this.playSound('thruster');
+    }
+
+    playTractorBeam() {
+        this.playSound('tractorBeam');
     }
 } 

@@ -7,14 +7,18 @@ export class InputHandler {
             up: false,
             down: false,
             fire: false,
+            firePressed: false,
             rotation: 0,
             joystickX: 0,
-            joystickY: 0
+            joystickY: 0,
+            space: false
         };
         
         this.joystickActive = false;
         this.joystickMaxDist = 0;
+        
         this.setupKeyboardControls();
+        this.setupTouchControls();
     }
     
     setupKeyboardControls() {
@@ -42,7 +46,13 @@ export class InputHandler {
                 this.input.rotation = 1;
                 break;
             case 'KeyZ':
+                if (!this.input.fire) {
+                    this.input.firePressed = true;
+                }
                 this.input.fire = true;
+                break;
+            case 'Space':
+                this.input.space = true;
                 break;
         }
     }
@@ -64,6 +74,9 @@ export class InputHandler {
             case 'KeyZ':
                 this.input.fire = false;
                 break;
+            case 'Space':
+                this.input.space = false;
+                break;
         }
     }
     
@@ -76,16 +89,27 @@ export class InputHandler {
         const handleTouchStart = (e, key) => {
             e.preventDefault();
             triggerHapticFeedback();
+            if (key === 'fire' && !this.input.fire) {
+                this.input.firePressed = true;
+            }
             this.input[key] = true;
+            // Add .pressed class for visual feedback
+            if (key === 'fire') touchFire.classList.add('pressed');
+            if (key === 'up') touchThrust.classList.add('pressed');
+            if (key === 'space') touchTractor.classList.add('pressed');
         };
         
         const handleTouchEnd = (e, key) => {
             e.preventDefault();
             this.input[key] = false;
+            // Remove .pressed class
+            if (key === 'fire') touchFire.classList.remove('pressed');
+            if (key === 'up') touchThrust.classList.remove('pressed');
+            if (key === 'space') touchTractor.classList.remove('pressed');
         };
         
-        touchFire.addEventListener('touchstart', (e) => handleTouchStart(e, 'fire'), false);
-        touchFire.addEventListener('touchend', (e) => handleTouchEnd(e, 'fire'), false);
+        touchFire.addEventListener('touchstart', (e) => handleTouchStart(e, 'fire'), { passive: false });
+        touchFire.addEventListener('touchend', (e) => handleTouchEnd(e, 'fire'), { passive: false });
         
         // Enhanced joystick handlers for movement and rotation
         joystickArea.addEventListener('touchstart', e => {
@@ -93,7 +117,7 @@ export class InputHandler {
             triggerHapticFeedback(20);
             this.joystickActive = true;
             this.joystickMaxDist = joystickArea.clientWidth / 2.5;
-        }, false);
+        }, { passive: false });
         
         joystickArea.addEventListener('touchend', e => {
             e.preventDefault();
@@ -103,7 +127,7 @@ export class InputHandler {
             this.input.joystickY = 0;
             this.input.up = false;
             joystickHandle.style.transform = `translate(0px, 0px) translate(-50%, -50%)`;
-        }, false);
+        }, { passive: false });
         
         // Remove thrust from joystick: only set rotation
         joystickArea.addEventListener('touchmove', e => {
@@ -130,15 +154,21 @@ export class InputHandler {
             this.input.rotation = Math.max(-1, Math.min(1, normalizedX));
             this.input.joystickX = normalizedX;
             this.input.joystickY = normalizedY;
-        }, false);
+        }, { passive: false });
         // Thrust button handlers
         const touchThrust = document.getElementById('touch-thrust');
-        touchThrust.addEventListener('touchstart', (e) => handleTouchStart(e, 'up'), false);
-        touchThrust.addEventListener('touchend', (e) => handleTouchEnd(e, 'up'), false);
+        const touchTractor = document.getElementById('touch-tractor');
+        touchThrust.addEventListener('touchstart', (e) => handleTouchStart(e, 'up'), { passive: false });
+        touchThrust.addEventListener('touchend', (e) => handleTouchEnd(e, 'up'), { passive: false });
+        // Tractor button handlers
+        touchTractor.addEventListener('touchstart', (e) => handleTouchStart(e, 'space'), { passive: false });
+        touchTractor.addEventListener('touchend', (e) => handleTouchEnd(e, 'space'), { passive: false });
     }
     
     getInput() {
-        return this.input;
+        const inputCopy = { ...this.input };
+        this.input.firePressed = false;
+        return inputCopy;
     }
     
     reset() {

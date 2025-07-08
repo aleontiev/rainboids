@@ -2,6 +2,10 @@
 import { GAME_CONFIG } from '../constants.js';
 import { random } from '../utils.js';
 
+function isMobile() {
+    return window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse), (max-width: 768px)').matches;
+}
+
 export class Asteroid {
     constructor() {
         this.width = window.innerWidth;
@@ -39,7 +43,8 @@ export class Asteroid {
     }
     
     rescale(newBaseRadius) {
-        this.baseRadius = newBaseRadius;
+        let scale = isMobile() ? GAME_CONFIG.MOBILE_SCALE : 1;
+        this.baseRadius = newBaseRadius * scale;
         
         // Create dodecahedron vertices
         const t = (1 + Math.sqrt(5)) / 2;

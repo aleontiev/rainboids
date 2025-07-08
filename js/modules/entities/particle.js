@@ -85,6 +85,44 @@ export class Particle {
                 this.sat = random(95, 100);     // more saturated
                 this.light = random(55, 70);    // lighter
                 break;
+            case 'tractorBeamRing':
+                this.life = 1;
+                this.radius = args[0] || 80;
+                this.maxRadius = this.radius;
+                this.color = 'rgba(0,255,255,0.7)';
+                break;
+            case 'tractorCircle':
+                this.life = 1;
+                this.radius = args[0] || 120;
+                this.maxRadius = this.radius;
+                this.colorStart = 'rgba(80,255,80,0.7)';
+                this.colorEnd = 'rgba(0,80,0,0.2)';
+                break;
+            case 'tractorBeamParticle': {
+                // args: targetX, targetY
+                const [targetX, targetY] = args;
+                this.targetX = targetX;
+                this.targetY = targetY;
+                this.radius = random(1, 3);
+                this.baseRadius = this.radius;
+                this.life = 1;
+                this.maxLife = 1;
+                // Blue palette for richer neon effect
+                const bluePalette = [
+                    'rgba(0,200,255,1)', // neon blue
+                    'rgba(0,120,255,1)', // deep blue
+                    'rgba(0,180,255,1)', // cyan blue
+                    'rgba(0,80,200,1)',  // rich blue
+                    'rgba(40,120,255,1)', // electric blue
+                    'rgba(0,255,255,1)'  // light blue
+                ];
+                this.color = bluePalette[Math.floor(random(0, bluePalette.length))];
+                this.glowColor = this.color.replace(',1)', ',0.7)');
+                this.neonColor = this.color.replace(',1)', ',0.5)');
+                // Decrease speed: lower velocity multiplier
+                this.vel = { x: (targetX - this.x) * random(0.02, 0.045), y: (targetY - this.y) * random(0.02, 0.045) };
+                break;
+            }
         }
     }
     
@@ -133,6 +171,23 @@ export class Particle {
                 this.radius = (1 - this.life) * this.maxRadius;
                 this.life -= 0.025;
                 break;
+            case 'tractorBeamRing':
+                this.radius = this.maxRadius * this.life;
+                this.life -= 0.06;
+                break;
+            case 'tractorCircle':
+                this.radius = this.maxRadius * this.life;
+                this.life -= 0.04;
+                break;
+            case 'tractorBeamParticle': {
+                this.x += this.vel.x;
+                this.y += this.vel.y;
+                // Fade out as it nears the ship
+                this.life -= 0.04 + 0.02 * Math.random();
+                // Shrink as it fades
+                this.radius = this.baseRadius * this.life;
+                break;
+            }
         }
         
         if (this.life <= 0) {
@@ -197,6 +252,47 @@ export class Particle {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
                 ctx.stroke();
+                ctx.restore();
+                break;
+            }
+            case 'tractorBeamRing':
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.life * 1.2);
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 4 + 8 * this.life;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+                ctx.stroke();
+                ctx.restore();
+                break;
+            case 'tractorCircle': {
+                ctx.save();
+                // Interpolate color from bright to dark green
+                const t = 1 - this.life;
+                const r1 = 80 + (0 - 80) * t;
+                const g1 = 255 + (80 - 255) * t;
+                const b1 = 80 + (0 - 80) * t;
+                const a1 = 0.7 * this.life;
+                ctx.shadowColor = `rgba(80,255,80,0.7)`;
+                ctx.shadowBlur = 18 * this.life;
+                ctx.strokeStyle = `rgba(${r1},${g1},${b1},${a1})`;
+                ctx.lineWidth = 6 + 10 * this.life;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+                ctx.stroke();
+                ctx.restore();
+                break;
+            }
+            case 'tractorBeamParticle': {
+                // Draw main glowing particle only (no trail)
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.shadowColor = this.glowColor;
+                ctx.shadowBlur = 32;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+                ctx.fill();
                 ctx.restore();
                 break;
             }

@@ -2,6 +2,10 @@
 import { GAME_CONFIG } from '../constants.js';
 import { wrap } from '../utils.js';
 
+function isMobile() {
+    return window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse), (max-width: 768px)').matches;
+}
+
 export class Bullet {
     constructor() {
         this.width = window.innerWidth;
@@ -10,9 +14,10 @@ export class Bullet {
     }
     
     reset(x, y, angle) {
-        this.x = x + Math.cos(angle) * (GAME_CONFIG.SHIP_SIZE / 1.5);
-        this.y = y + Math.sin(angle) * (GAME_CONFIG.SHIP_SIZE / 1.5);
-        this.radius = 3;
+        let scale = isMobile() ? GAME_CONFIG.MOBILE_SCALE : 1;
+        this.x = x + Math.cos(angle) * (GAME_CONFIG.SHIP_SIZE * scale / 1.5);
+        this.y = y + Math.sin(angle) * (GAME_CONFIG.SHIP_SIZE * scale / 1.5);
+        this.radius = 3 * scale;
         this.angle = angle;
         this.vel = {
             x: Math.cos(angle) * GAME_CONFIG.BULLET_SPEED,
@@ -45,7 +50,7 @@ export class Bullet {
                 const dx = ast.x - this.x;
                 const dy = ast.y - this.y;
                 const dist = Math.hypot(dx, dy);
-                if (dist < minDist && dist < 120) {
+                if (dist < minDist && dist < 60) {
                     minDist = dist;
                     nearest = ast;
                 }
@@ -59,11 +64,14 @@ export class Bullet {
                 let angleDiff = angleToAst - curAngle;
                 // Normalize angleDiff to [-PI, PI]
                 angleDiff = ((angleDiff + Math.PI) % (2 * Math.PI)) - Math.PI;
-                // Clamp to max 30 degrees (PI/6 radians) per frame
-                const maxTurn = Math.PI / 6;
+                // Clamp to max 20 degrees (PI/9 radians) per frame
+                const maxTurn = Math.PI / 9;
                 if (angleDiff > maxTurn) angleDiff = maxTurn;
                 if (angleDiff < -maxTurn) angleDiff = -maxTurn;
-                const newAngle = curAngle + angleDiff * 0.5; // still interpolate, but limited
+                // Make homing much stronger the closer the bullet is
+                let homingStrength = 1 - (minDist / 60);
+                homingStrength = Math.max(0.5, Math.min(1, homingStrength));
+                const newAngle = curAngle + angleDiff * homingStrength;
                 const speed = Math.hypot(this.vel.x, this.vel.y);
                 this.vel.x = Math.cos(newAngle) * speed;
                 this.vel.y = Math.sin(newAngle) * speed;

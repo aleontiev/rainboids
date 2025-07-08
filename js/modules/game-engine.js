@@ -39,12 +39,12 @@ export class GameEngine {
         this.setupEventListeners();
         this.playerCanFire = true;
         this.previousFire = false;
-        this.maxThrust = 100;
-        this.playerThrust = this.maxThrust;
-        this.thrustDepleteRate = this.maxThrust / 5 / 60; // 5 seconds to empty at 60fps
-        this.thrustRegenRate = this.maxThrust / 30 / 60;  // 30 seconds to full at 60fps
-        this.thrustDepleted = false;
-        this.thrustDepletedTimer = 0;
+        this.maxEnergy = 100;
+        this.playerEnergy = this.maxEnergy;
+        this.energyDepleteRate = this.maxEnergy / 5 / 60; // 5 seconds to empty at 60fps
+        this.energyRegenRate = this.maxEnergy / 30 / 60;  // 30 seconds to full at 60fps
+        this.energyDepleted = false;
+        this.energyDepletedTimer = 0;
         this.criticalTimer = 0;
         this.criticalActive = false;
         this.criticalJustActivated = false;
@@ -118,14 +118,14 @@ export class GameEngine {
         // Reset player
         this.player = new Player();
         // Reset energy and CRITICAL state
-        this.playerThrust = this.maxThrust;
+        this.playerEnergy = this.maxEnergy;
         this.criticalActive = false;
         this.criticalJustActivated = false;
         this.criticalTimer = 0;
         this.criticalAlarmCounter = 0;
         this.energyRegenRapid = false;
-        this.thrustDepleted = false;
-        this.thrustDepletedTimer = 0;
+        this.energyDepleted = false;
+        this.energyDepletedTimer = 0;
         // Clear all pools
         this.bulletPool.activeObjects = [];
         this.particlePool.activeObjects = [];
@@ -163,9 +163,9 @@ export class GameEngine {
         // Only do rapid recharge for waves after the first
         if (this.game.currentWave > 1) {
             this.energyRegenRapid = true;
-            this.playerThrust = 0;
+            this.playerEnergy = 0;
         } else {
-            this.playerThrust = this.maxThrust;
+            this.playerEnergy = this.maxEnergy;
         }
     }
     
@@ -232,7 +232,7 @@ export class GameEngine {
     }
     
     createStarBurst(x, y) {
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 5; i++) {
             this.starPool.get(x, y, true);
         }
     }
@@ -372,13 +372,19 @@ export class GameEngine {
                     this.game.score += star.isBurst ? GAME_CONFIG.BURST_STAR_SCORE : GAME_CONFIG.STAR_SCORE;
                     this.audioManager.playCoin();
                     this.particlePool.get(star.x, star.y, 'pickupPulse');
-                    // Add 1 energy if not in CRITICAL, up to max 99
+                    // Add energy if not in CRITICAL, up to max 99
                     if (this.playerState !== PLAYER_STATES.CRITICAL) {
-                        let percent = this.playerThrust / this.maxThrust;
+                        let percent = this.playerEnergy / this.maxEnergy;
                         let value = Math.round(percent * 99);
                         if (value < 99) {
-                            value = Math.min(99, value + 1);
-                            this.playerThrust = (value / 99) * this.maxThrust;
+                            let addAmount = star.isBurst ? GAME_CONFIG.BURST_STAR_ENERGY : GAME_CONFIG.STAR_ENERGY;
+                            let newEnergy = this.playerEnergy + (this.maxEnergy / 99) * addAmount;
+                            let newPercent = newEnergy / this.maxEnergy;
+                            let newValue = Math.round(newPercent * 99);
+                            if (newValue > 99) {
+                                newEnergy = this.maxEnergy;
+                            }
+                            this.playerEnergy = Math.min(newEnergy, this.maxEnergy);
                         }
                     }
                     if (!star.isBurst) this.spawnStar();
@@ -393,7 +399,7 @@ export class GameEngine {
             const input = this.inputHandler.getInput();
             const energyBar = document.getElementById('energy-bar');
             const energyValue = document.getElementById('energy-value');
-            let percent = this.playerThrust / this.maxThrust;
+            let percent = this.playerEnergy / this.maxEnergy;
             let value = Math.round(percent * 99);
             if (value < 0) value = 0;
             if (value > 99) value = 99;
@@ -421,36 +427,39 @@ export class GameEngine {
             }
             // End rapid recharge when full
             if (this.energyRegenRapid) {
-                this.playerThrust += 6;
-                if (this.playerThrust >= this.maxThrust) {
-                    this.playerThrust = this.maxThrust;
+                this.playerEnergy += 6;
+                if (this.playerEnergy >= this.maxEnergy) {
+                    this.playerEnergy = this.maxEnergy;
                     this.energyRegenRapid = false;
                     this.playerState = PLAYER_STATES.NORMAL;
                 }
             }
             this.prevEnergyValue = value;
             let canAct = value > 0 && this.playerState === PLAYER_STATES.NORMAL;
-            let usingThrust = canAct && (input.up || (typeof input.joystickY === 'number' && input.joystickY < -0.3)) && this.playerThrust > 0;
+            let usingThrust = canAct && (input.up || (typeof input.joystickY === 'number' && input.joystickY < -0.3)) && this.playerEnergy > 0;
             // Energy logic
-            if (usingThrust && !this.thrustDepleted && this.playerState === PLAYER_STATES.NORMAL) {
-                this.playerThrust -= this.thrustDepleteRate;
-                if (this.playerThrust <= 0) {
-                    this.playerThrust = 0;
-                    this.thrustDepleted = true;
-                    this.thrustDepletedTimer = 300;
+            if (usingThrust && !this.energyDepleted && this.playerState === PLAYER_STATES.NORMAL) {
+                const prevEnergy = this.playerEnergy;
+                this.playerEnergy -= this.energyDepleteRate;
+                let used = prevEnergy - this.playerEnergy;
+                if (used > 0) this.game.score += used * 99 / this.maxEnergy; // 1 point per 1 energy used
+                if (this.playerEnergy <= 0) {
+                    this.playerEnergy = 0;
+                    this.energyDepleted = true;
+                    this.energyDepletedTimer = 300;
                 }
-            } else if (this.thrustDepleted) {
-                this.thrustDepletedTimer--;
-                if (this.thrustDepletedTimer <= 0) {
-                    this.thrustDepleted = false;
+            } else if (this.energyDepleted) {
+                this.energyDepletedTimer--;
+                if (this.energyDepletedTimer <= 0) {
+                    this.energyDepleted = false;
                 }
-            } else if (this.playerThrust < this.maxThrust && this.playerState === PLAYER_STATES.NORMAL) {
-                this.playerThrust += this.thrustRegenRate;
-                if (this.playerThrust > this.maxThrust) this.playerThrust = this.maxThrust;
+            } else if (this.playerEnergy < this.maxEnergy && this.playerState === PLAYER_STATES.NORMAL) {
+                this.playerEnergy += this.energyRegenRate;
+                if (this.playerEnergy > this.maxEnergy) this.playerEnergy = this.maxEnergy;
             }
             // Update simple energy bar UI
             if (energyBar && energyValue) {
-                percent = this.playerThrust / this.maxThrust;
+                percent = this.playerEnergy / this.maxEnergy;
                 value = Math.round(percent * 99);
                 if (value < 0) value = 0;
                 if (value > 99) value = 99;
@@ -468,24 +477,23 @@ export class GameEngine {
                 }
                 energyBar.style.background = color;
                 energyValue.style.color = color;
-                energyValue.textContent = value.toString().padStart(2, '0');
+                // Always display as integer, no decimals
+                energyValue.textContent = Math.round(value).toString().padStart(2, '0');
                 if (value === 0) {
                     energyValue.classList.add('flashing-red');
                 } else {
                     energyValue.classList.remove('flashing-red');
                 }
             }
-            // Only fire if playerCanFire is true, input.fire is true, and in normal state
-            if (input.fire && this.playerCanFire && canAct) {
-                this.player.fire(this.bulletPool, this.audioManager);
-                this.playerThrust -= 2;
-                if (this.playerThrust < 0) this.playerThrust = 0;
-                this.playerCanFire = false;
+            // Remove firing logic from here. Player handles firing in its update method.
+            // Only fire if input.firePressed is true and in normal state
+            if (input.firePressed && canAct) {
+                const prevEnergy = this.playerEnergy;
+                this.playerEnergy -= 2;
+                let used = prevEnergy - this.playerEnergy;
+                if (used > 0) this.game.score += used;
+                if (this.playerEnergy < 0) this.playerEnergy = 0;
             }
-            if (!input.fire && this.previousFire) {
-                this.playerCanFire = true;
-            }
-            this.previousFire = input.fire;
             // Prevent player from moving when not in normal state
             if (this.playerState === PLAYER_STATES.NORMAL) {
                 this.player.update(input, this.particlePool, this.bulletPool, this.audioManager);
@@ -504,7 +512,26 @@ export class GameEngine {
             this.particlePool.updateActive();
             this.lineDebrisPool.updateActive();
             this.asteroidPool.updateActive();
-            this.starPool.activeObjects.forEach(s => s.update(this.player.vel, this.player));
+            // Tractor beam visual and sound feedback
+            if (input.space && canAct) {
+                // Only trigger if not already recently triggered (avoid spamming)
+                if (!this.tractorBeamActive) {
+                    this.tractorBeamActive = true;
+                }
+                // Spawn multiple neon-blue particles in a radius around the ship
+                for (let i = 0; i < 2; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = 60 + Math.random() * 40;
+                    const px = this.player.x + Math.cos(angle) * dist;
+                    const py = this.player.y + Math.sin(angle) * dist;
+                    this.particlePool.get(px, py, 'tractorBeamParticle', this.player.x, this.player.y);
+                }
+                // Tractor beam sound disabled
+            } else {
+                this.tractorBeamActive = false;
+            }
+            // Pass input.space to stars as playerPos.space
+            this.starPool.activeObjects.forEach(s => s.update(this.player.vel, { ...this.player, space: input.space }));
             
             this.handleCollisions();
             

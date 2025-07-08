@@ -31,7 +31,7 @@ export class UIManager {
     }
     
     updateScore(score) {
-        this.elements.score.textContent = score;
+        this.elements.score.textContent = Math.floor(score);
     }
     
     updateWave(wave) {

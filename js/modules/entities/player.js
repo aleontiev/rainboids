@@ -2,6 +2,10 @@
 import { GAME_CONFIG } from '../constants.js';
 import { random, wrap } from '../utils.js';
 
+function isMobile() {
+    return window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse), (max-width: 768px)').matches;
+}
+
 export class Player {
     constructor() {
         this.width = window.innerWidth;
@@ -14,7 +18,8 @@ export class Player {
     reset() {
         this.x = this.width / 2;
         this.y = this.height / 2;
-        this.radius = GAME_CONFIG.SHIP_SIZE / 2;
+        let scale = isMobile() ? GAME_CONFIG.MOBILE_SCALE : 1;
+        this.radius = (GAME_CONFIG.SHIP_SIZE * scale) / 2;
         this.angle = -Math.PI / 2;
         this.vel = { x: 0, y: 0 };
         this.canShoot = true;
@@ -77,10 +82,10 @@ export class Player {
         this.y += this.vel.y;
         wrap(this, this.width, this.height);
         
-        // Handle shooting
-        if (input.space && this.canShoot) {
-            audioManager.playShoot();
+        // Handle shooting (only with input.firePressed and cooldown)
+        if (input.firePressed && this.canShoot) {
             bulletPool.get(this.x, this.y, this.angle);
+            audioManager.playShoot();
             this.canShoot = false;
             setTimeout(() => this.canShoot = true, 200);
         }
@@ -137,14 +142,9 @@ export class Player {
         // Show game over message
         const isMobile = window.matchMedia("(any-pointer: coarse)").matches;
         const restartPrompt = isMobile ? "Tap Screen to Restart" : "Press Enter to Restart";
-        const subtitle = `YOUR SCORE: ${game.score}\nHIGH SCORE: ${game.highScore}\n\n${restartPrompt}`;
+        const roundedScore = Math.round(game.score);
+        const roundedHighScore = Math.round(game.highScore);
+        const subtitle = `YOUR SCORE: ${roundedScore}\nHIGH SCORE: ${roundedHighScore}\n\n${restartPrompt}`;
         uiManager.showMessage('GAME OVER', subtitle);
-    }
-
-    fire(bulletPool, audioManager) {
-        if (!this.active) return;
-        // Just spawn a bullet, no cooldown logic
-        bulletPool.get(this.x, this.y, this.angle);
-        audioManager.playShoot();
     }
 } 
