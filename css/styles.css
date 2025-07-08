@@ -10,6 +10,9 @@ body {
     align-items: center;
     height: 100vh;
 }
+h2 {
+    margin-bottom: 0;
+}
 
 canvas {
     display: block;
