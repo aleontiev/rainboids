@@ -12,8 +12,8 @@ export const GAME_CONFIG = {
     MIN_STAR_DIST: 30,
     STAR_ATTR: 0.05,
     STAR_FRIC: 0.98,
-    HIT_SCORE: 10,
-    DESTROY_SCORE: 100,
+    HIT_SCORE: 50,
+    DESTROY_SCORE: 500,
     STAR_SCORE: 7,
     BURST_STAR_SCORE: 4,
     BURST_STAR_ATTRACT_DIST: 600,
@@ -23,7 +23,13 @@ export const GAME_CONFIG = {
     MOBILE_SCALE: 0.65,
     STAR_ENERGY: 2,
     BURST_STAR_ENERGY: 1,
-    STAR_ATTRACT_DIST: 350
+    STAR_ATTRACT_DIST: 350,
+    // Energy depletion rate of thrusters
+    // Higher is slower, lower means energy depletes faster
+    TIME_TO_ENERGY_EMPTY: 7, 
+    // Energy regeneration time when not thrusting
+    // Higher is slower
+    TIME_TO_ENERGY_FULL: 23, 
 };
 
 export const NORMAL_STAR_COLORS = [

@@ -40,4 +40,14 @@ export class PoolManager {
     drawActive(ctx) {
         this.activeObjects.forEach(obj => obj.draw(ctx));
     }
+
+    cleanupInactive() {
+        for (let i = this.activeObjects.length - 1; i >= 0; i--) {
+            const obj = this.activeObjects[i];
+            if (!obj.active) {
+                this.activeObjects.splice(i, 1);
+                this.pool.push(obj);
+            }
+        }
+    }
 } 

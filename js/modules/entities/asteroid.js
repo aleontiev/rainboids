@@ -119,6 +119,27 @@ export class Asteroid {
         this.x += this.vel.x;
         this.y += this.vel.y;
         
+        // --- Begin impulse logic for border correction ---
+        const deg30 = Math.PI / 6;
+        const centerX = this.width / 2;
+        const centerY = this.height / 2;
+        const impulseStrength = 0.7; // tweak as needed
+        // Horizontal check (top/bottom)
+        const horizontalAngle = Math.abs(Math.atan2(this.vel.y, this.vel.x));
+        if ((this.y < this.baseRadius * 2 || this.y > this.height - this.baseRadius * 2) && (horizontalAngle < deg30 || horizontalAngle > Math.PI - deg30)) {
+            // Moving mostly horizontally near top or bottom
+            const dir = this.y < centerY ? 1 : -1; // push down if near top, up if near bottom
+            this.vel.y += dir * impulseStrength;
+        }
+        // Vertical check (left/right)
+        const verticalAngle = Math.abs(Math.atan2(this.vel.x, this.vel.y));
+        if ((this.x < this.baseRadius * 2 || this.x > this.width - this.baseRadius * 2) && (verticalAngle < deg30 || verticalAngle > Math.PI - deg30)) {
+            // Moving mostly vertically near left or right
+            const dir = this.x < centerX ? 1 : -1; // push right if near left, left if near right
+            this.vel.x += dir * impulseStrength;
+        }
+        // --- End impulse logic ---
+        
         // Wrap around screen with buffer
         const wrapBuffer = this.baseRadius * 4;
         if (this.x < -wrapBuffer) this.x = this.width + wrapBuffer;

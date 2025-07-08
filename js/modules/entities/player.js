@@ -83,7 +83,7 @@ export class Player {
         wrap(this, this.width, this.height);
         
         // Handle shooting (only with input.firePressed and cooldown)
-        if (input.firePressed && this.canShoot) {
+        if (input.firePressed && this.canShoot && this.playerState !== 'CRITICAL') {
             bulletPool.get(this.x, this.y, this.angle);
             audioManager.playShoot();
             this.canShoot = false;
@@ -123,6 +123,98 @@ export class Player {
         ctx.lineTo(0, -r * 0.1);
         ctx.closePath();
         ctx.stroke();
+        
+        // Draw visual-only direction triangle (guillemet/raquo) at the head (blue)
+        ctx.save();
+        ctx.shadowColor = '#3399ff';
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = '#3399ff'; // blue
+        ctx.lineWidth = 3;
+        const triangleOffset = -r; // tip of ship
+        const triangleLength = r * 1.5;
+        const tip = triangleOffset - triangleLength; // tip of triangle
+        const base = triangleOffset - triangleLength * 0.45; // base closer to tip
+        const side = r * 0.37;
+        ctx.beginPath();
+        ctx.moveTo(0, tip);
+        ctx.lineTo(side, base);
+        ctx.lineTo(-side, base);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+
+        // Draw visual-only thruster triangles (at the base/rear of the ship, red)
+        const thrusterAngle = Math.PI / 5; // angle outward from rear
+        const thrusterDistance = r * 0.7; // how far from center (rear)
+        const thrusterLength = r * 1.2; // length of thruster triangle
+        const thrusterBase = r * 0.35; // base width of thruster triangle
+        // Left thruster
+        ctx.save();
+        ctx.shadowColor = '#ff3333';
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#ff3333'; // red
+        ctx.lineWidth = 2.5;
+        ctx.rotate(Math.PI + thrusterAngle); // rear left
+        ctx.beginPath();
+        ctx.moveTo(0, -thrusterDistance - thrusterLength); // tip
+        ctx.lineTo(-thrusterBase, -thrusterDistance - thrusterLength * 0.45); // left base
+        ctx.lineTo(thrusterBase, -thrusterDistance - thrusterLength * 0.45); // right base
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+        // Right thruster
+        ctx.save();
+        ctx.shadowColor = '#ff3333';
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#ff3333'; // red
+        ctx.lineWidth = 2.5;
+        ctx.rotate(Math.PI - thrusterAngle); // rear right
+        ctx.beginPath();
+        ctx.moveTo(0, -thrusterDistance - thrusterLength); // tip
+        ctx.lineTo(-thrusterBase, -thrusterDistance - thrusterLength * 0.45); // left base
+        ctx.lineTo(thrusterBase, -thrusterDistance - thrusterLength * 0.45); // right base
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+
+        // Draw long blue wing triangles pointing downward/outward from the sides
+        const wingAngle = Math.PI / 1.5; // steeper angle, about 120 degrees from forward
+        const wingDistance = r * 0.2; // how far from center (side)
+        const wingLength = r * 2.2; // long wing triangle
+        const wingBase = r * 0.32; // base width of wing triangle
+        // Left wing
+        ctx.save();
+        ctx.shadowColor = '#a259ff';
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = '#a259ff'; // purple
+        ctx.lineWidth = 2.2;
+        ctx.rotate(-wingAngle);
+        ctx.beginPath();
+        ctx.moveTo(0, -wingDistance - wingLength); // tip
+        ctx.lineTo(-wingBase, -wingDistance - wingLength * 0.45); // left base
+        ctx.lineTo(wingBase, -wingDistance - wingLength * 0.45); // right base
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+        // Right wing
+        ctx.save();
+        ctx.shadowColor = '#a259ff';
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = '#a259ff'; // purple
+        ctx.lineWidth = 2.2;
+        ctx.rotate(wingAngle);
+        ctx.beginPath();
+        ctx.moveTo(0, -wingDistance - wingLength); // tip
+        ctx.lineTo(-wingBase, -wingDistance - wingLength * 0.45); // left base
+        ctx.lineTo(wingBase, -wingDistance - wingLength * 0.45); // right base
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
         
         ctx.restore();
     }

@@ -39,10 +39,10 @@ export class GameEngine {
         this.setupEventListeners();
         this.playerCanFire = true;
         this.previousFire = false;
-        this.maxEnergy = 100;
+        this.maxEnergy = 99;
         this.playerEnergy = this.maxEnergy;
-        this.energyDepleteRate = this.maxEnergy / 5 / 60; // 5 seconds to empty at 60fps
-        this.energyRegenRate = this.maxEnergy / 30 / 60;  // 30 seconds to full at 60fps
+        this.energyDepleteRate = this.maxEnergy / GAME_CONFIG.TIME_TO_ENERGY_EMPTY / 60; // 5 seconds to empty at 60fps
+        this.energyRegenRate = this.maxEnergy / GAME_CONFIG.TIME_TO_ENERGY_FULL / 60;  // 30 seconds to full at 60fps
         this.energyDepleted = false;
         this.energyDepletedTimer = 0;
         this.criticalTimer = 0;
@@ -50,8 +50,8 @@ export class GameEngine {
         this.criticalJustActivated = false;
         this.criticalAlarmCounter = 0;
         this.energyRegenRapid = false;
-        this.energyRegenTarget = 99;
-        this.prevEnergyValue = 99;
+        this.energyRegenTarget = this.maxEnergy;
+        this.prevEnergyValue = this.maxEnergy;
         this.playerState = PLAYER_STATES.NORMAL;
     }
     
@@ -141,6 +141,12 @@ export class GameEngine {
     }
     
     startNextWave() {
+        // Clean up inactive objects in all pools before starting the next wave
+        this.bulletPool.cleanupInactive();
+        this.particlePool.cleanupInactive();
+        this.lineDebrisPool.cleanupInactive();
+        this.asteroidPool.cleanupInactive();
+        this.starPool.cleanupInactive();
         this.game.currentWave++;
         this.uiManager.updateWave(this.game.currentWave);
         this.uiManager.showMessage(`WAVE ${this.game.currentWave}`, '', 1500);
@@ -256,7 +262,7 @@ export class GameEngine {
                 const ast = this.asteroidPool.activeObjects[j];
                 if (!ast.active) continue;
                 if (collision(bullet, ast)) {
-                    this.game.score += GAME_CONFIG.HIT_SCORE;
+                    this.game.score += 50; // 50 points for hit
                     triggerHapticFeedback(20);
                     this.audioManager.playHit();
                     // More pronounced explosion for hit
@@ -268,7 +274,7 @@ export class GameEngine {
                     // Light screen shake for asteroid hits
                     this.triggerScreenShake(3, 2, ast.baseRadius * 0.3);
                     if (ast.baseRadius <= (GAME_CONFIG.MIN_AST_RAD + 5)) {
-                        this.game.score += GAME_CONFIG.DESTROY_SCORE;
+                        this.game.score += 100; // 100 points for destroy
                         this.audioManager.playExplosion();
                         // Multiple fiery shockwave pulses for destruction
                         const pulseCount = 4;
@@ -293,7 +299,7 @@ export class GameEngine {
                         const v_com_y = (ast.vel.y * ast.mass + bullet.vel.y * bullet.mass) / totalMass;
                         
                         if (newR < GAME_CONFIG.MIN_AST_RAD) {
-                            this.game.score += GAME_CONFIG.DESTROY_SCORE;
+                            this.game.score += 100; // 100 points for destroy
                             this.audioManager.playExplosion();
                             // Large explosion pulse and many particles for destruction
                             this.particlePool.get(ast.x, ast.y, 'explosionPulse', ast.baseRadius * 1.2);
