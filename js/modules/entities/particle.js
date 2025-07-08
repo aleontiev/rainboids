@@ -59,19 +59,31 @@ export class Particle {
                 this.color = 'rgba(255,80,0,1)';
                 break;
             case 'explosionRedOrange':
-                this.radius = random(2, 5);
-                this.vel = { x: random(-4, 4), y: random(-4, 4) };
-                this.life = random(0.3, 0.7);
-                this.hue = random(10, 40); // red-orange
-                this.sat = random(80, 100);
-                this.light = random(45, 65);
+                this.radius = random(4, 8); // larger
+                this.vel = { x: random(-5, 5), y: random(-5, 5) };
+                this.life = random(0.7, 1.2); // longer-lived
+                this.hue = random(10, 45); // wider fiery range
+                this.sat = random(95, 100); // more saturated
+                this.light = random(55, 70); // lighter
                 break;
             case 'asteroidCollisionDebris':
-                this.radius = random(2, 5);
-                this.vel = { x: random(-3, 3), y: random(-3, 3) };
-                this.life = random(0.3, 0.7);
+                this.radius = random(2, 8); // More size variation
+                const debrisSpeed = random(2, 6); // Initial speed
+                const debrisAngle = random(0, Math.PI * 2);
+                this.vel = { x: Math.cos(debrisAngle) * debrisSpeed, y: Math.sin(debrisAngle) * debrisSpeed };
+                this.life = random(0.4, 0.8);
                 const gray = Math.floor(random(80, 180));
                 this.color = `rgb(${gray},${gray},${gray})`;
+                break;
+            case 'fieryExplosionRing':
+                this.life = 0.9; // longer visible
+                this.radius = 0;
+                this.maxRadius = args[0] || 60;
+                // Randomize start and end colors in red-orange range
+                this.startHue = random(10, 20); // deeper red-orange
+                this.endHue = random(25, 45);   // more orange
+                this.sat = random(95, 100);     // more saturated
+                this.light = random(55, 70);    // lighter
                 break;
         }
     }
@@ -112,7 +124,14 @@ export class Particle {
             case 'asteroidCollisionDebris':
                 this.x += this.vel.x;
                 this.y += this.vel.y;
+                // Apply velocity dampening to slow down
+                this.vel.x *= 0.92;
+                this.vel.y *= 0.92;
                 this.life -= 0.03;
+                break;
+            case 'fieryExplosionRing':
+                this.radius = (1 - this.life) * this.maxRadius;
+                this.life -= 0.025;
                 break;
         }
         
@@ -167,6 +186,20 @@ export class Particle {
                 ctx.fill();
                 ctx.restore();
                 break;
+            case 'fieryExplosionRing': {
+                ctx.save();
+                // Animate hue from start to end
+                const t = 1 - this.life / 0.9;
+                const hue = this.startHue + (this.endHue - this.startHue) * t;
+                ctx.globalAlpha = Math.max(0, this.life * 1.7); // higher alpha
+                ctx.strokeStyle = `hsl(${hue}, ${this.sat}%, ${this.light}%)`;
+                ctx.lineWidth = 12 * (this.life + 0.2); // thicker ring
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+                ctx.stroke();
+                ctx.restore();
+                break;
+            }
         }
         
         ctx.restore();

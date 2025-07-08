@@ -217,9 +217,9 @@ export class GameEngine {
                     this.game.score += GAME_CONFIG.HIT_SCORE;
                     triggerHapticFeedback(20);
                     this.audioManager.playHit();
-                    // Small explosion pulse and particles for hit
-                    this.particlePool.get(bullet.x, bullet.y, 'explosionPulse', ast.baseRadius * 0.7);
-                    for (let p = 0; p < 7; p++) {
+                    // More pronounced explosion for hit
+                    this.particlePool.get(bullet.x, bullet.y, 'explosionPulse', ast.baseRadius * 1.0);
+                    for (let p = 0; p < 14; p++) {
                         this.particlePool.get(bullet.x, bullet.y, 'explosionRedOrange');
                     }
                     this.particlePool.get(bullet.x, bullet.y, 'explosion');
@@ -228,9 +228,15 @@ export class GameEngine {
                     if (ast.baseRadius <= (GAME_CONFIG.MIN_AST_RAD + 5)) {
                         this.game.score += GAME_CONFIG.DESTROY_SCORE;
                         this.audioManager.playExplosion();
-                        // Large explosion pulse and many particles for destruction
-                        this.particlePool.get(ast.x, ast.y, 'explosionPulse', ast.baseRadius * 1.5);
-                        for (let p = 0; p < 24; p++) {
+                        // Multiple fiery shockwave pulses for destruction
+                        const pulseCount = 4;
+                        for (let n = 0; n < pulseCount; n++) {
+                            setTimeout(() => {
+                                this.particlePool.get(ast.x, ast.y, 'explosionPulse', ast.baseRadius * (1.2 + n * 0.5));
+                                this.particlePool.get(ast.x, ast.y, 'fieryExplosionRing', ast.baseRadius * (1.1 + n * 0.2));
+                            }, n * 80);
+                        }
+                        for (let p = 0; p < 54; p++) {
                             this.particlePool.get(ast.x, ast.y, 'explosionRedOrange');
                         }
                         this.createDebris(ast);
