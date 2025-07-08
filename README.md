@@ -16,10 +16,10 @@ This is an asteroids clone with its own interesting mechanics and visual aesthet
 - A tractor beam to pickup things and recharge energy
 - Interesting particle and pseudo-3d visual effects
 
-It features countless enhancements and tweaks over the original  
+It features countless enhancements and tweaks over the original 
 [Monolithic Rainboids](https://github.com/afeique/rainboids-monolithic).
 
-Most importantly, the underlying JavaScript code has been modularized for  
+Most importantly, the underlying JavaScript code has been modularized for 
 easier maintenance.
 
 ---
