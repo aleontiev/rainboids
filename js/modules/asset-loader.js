@@ -25,7 +25,7 @@ export class AssetLoader {
         const fonts = [
             {
                 family: 'Press Start 2P',
-                src: 'url(../fonts/PressStart2P-Regular.ttf) format("truetype")'
+                src: 'url(../fonts/PressStart2P-Regular.woff2) format("woff2")'
             }
         ];
 
