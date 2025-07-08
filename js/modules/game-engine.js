@@ -203,7 +203,7 @@ export class GameEngine {
         if (this.player.active) {
             for (const ast of this.asteroidPool.activeObjects) {
                 if (collision(this.player, ast)) {
-                    this.player.die(this.particlePool, this.audioManager, this.uiManager, this.game);
+                    this.player.die(this.particlePool, this.audioManager, this.uiManager, this.game, this.triggerScreenShake.bind(this));
                     return;
                 }
             }
@@ -220,13 +220,16 @@ export class GameEngine {
                     this.audioManager.playHit();
                     this.particlePool.get(bullet.x, bullet.y, 'explosion');
                     
+                    // Light screen shake for asteroid hits
+                    this.triggerScreenShake(3, 2, ast.baseRadius * 0.3);
+                    
                     if (ast.baseRadius <= (GAME_CONFIG.MIN_AST_RAD + 5)) {
                         this.game.score += GAME_CONFIG.DESTROY_SCORE;
                         this.audioManager.playExplosion();
                         this.createDebris(ast);
                         this.createStarBurst(ast.x, ast.y);
                         this.asteroidPool.release(ast);
-                        this.triggerScreenShake(10, 5);
+                        this.triggerScreenShake(15, 8, ast.baseRadius);
                     } else {
                         const count = Math.random() < 0.5 ? 2 : 3;
                         const newR = ast.baseRadius / Math.sqrt(count);
@@ -239,8 +242,11 @@ export class GameEngine {
                             this.audioManager.playExplosion();
                             this.createDebris(ast);
                             this.createStarBurst(ast.x, ast.y);
-                            this.triggerScreenShake(10, 5);
+                            this.triggerScreenShake(12, 6, ast.baseRadius);
                         } else {
+                            // Additional screen shake for asteroid splitting
+                            this.triggerScreenShake(8, 4, ast.baseRadius * 0.5);
+                            
                             for (let k = 0; k < count; k++) {
                                 const newAst = this.asteroidPool.get(
                                     ast.x + random(-2, 2),
@@ -345,11 +351,25 @@ export class GameEngine {
         
         this.ctx.save();
         if (this.game.screenShakeDuration > 0) {
-            const dx = (Math.random() - 0.5) * this.game.screenShakeMagnitude;
-            const dy = (Math.random() - 0.5) * this.game.screenShakeMagnitude;
+            // Enhanced shake algorithm with multiple frequencies and smooth decay
+            const time = Date.now() * 0.01;
+            const shakeIntensity = this.game.screenShakeMagnitude * (this.game.screenShakeDuration / this.game.originalShakeMagnitude);
+            
+            // Combine multiple sine waves for more natural shake
+            const dx = Math.sin(time * 15) * shakeIntensity * 0.3 + 
+                      Math.sin(time * 7) * shakeIntensity * 0.2 + 
+                      (Math.random() - 0.5) * shakeIntensity * 0.5;
+            const dy = Math.cos(time * 13) * shakeIntensity * 0.3 + 
+                      Math.cos(time * 5) * shakeIntensity * 0.2 + 
+                      (Math.random() - 0.5) * shakeIntensity * 0.5;
+            
             this.ctx.translate(dx, dy);
             this.game.screenShakeDuration--;
-            if (this.game.screenShakeDuration <= 0) {
+            
+            // Smooth decay of shake magnitude
+            if (this.game.screenShakeDuration > 0) {
+                this.game.screenShakeMagnitude = Math.max(0, this.game.screenShakeMagnitude - this.game.shakeDecayRate);
+            } else {
                 this.game.screenShakeMagnitude = 0;
             }
         }
@@ -378,9 +398,22 @@ export class GameEngine {
         }
     }
     
-    triggerScreenShake(duration, magnitude) {
-        this.game.screenShakeDuration = duration;
-        this.game.screenShakeMagnitude = magnitude;
+    triggerScreenShake(duration, magnitude, asteroidSize = 0) {
+        // Enhanced screen shake based on asteroid size
+        const baseMagnitude = magnitude;
+        const sizeMultiplier = Math.max(1, asteroidSize / 30); // Larger asteroids = more shake
+        const enhancedMagnitude = baseMagnitude * sizeMultiplier;
+        
+        // Add some randomness to make it feel more natural
+        const randomDuration = duration + Math.floor(Math.random() * 5);
+        const randomMagnitude = enhancedMagnitude + Math.random() * 3;
+        
+        this.game.screenShakeDuration = randomDuration;
+        this.game.screenShakeMagnitude = randomMagnitude;
+        
+        // Store the original values for smooth decay
+        this.game.originalShakeMagnitude = randomMagnitude;
+        this.game.shakeDecayRate = randomMagnitude / randomDuration;
     }
     
     loadHighScore() {

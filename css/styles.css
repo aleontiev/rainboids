@@ -131,15 +131,15 @@ canvas {
 
 .control-button {
     position: absolute;
-    width: 13vmin;
-    height: 13vmin;
+    width: 16vmin;
+    height: 16vmin;
     background-color: rgba(255, 255, 255, 0.15);
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 7vmin;
+    font-size: 8vmin;
     color: rgba(255, 255, 255, 0.6);
     user-select: none;
     -webkit-user-select: none;
@@ -155,8 +155,8 @@ canvas {
 
 #joystick-area {
     position: absolute;
-    width: 30vmin;
-    height: 30vmin;
+    width: 35vmin;
+    height: 35vmin;
     pointer-events: all;
 }
 
@@ -171,10 +171,10 @@ canvas {
 
 #joystick-handle {
     position: absolute;
-    width: 14vmin;
-    height: 14vmin;
-    top: 8vmin;
-    left: 8vmin;
+    width: 16vmin;
+    height: 16vmin;
+    top: 9.5vmin;
+    left: 9.5vmin;
     background: rgba(255, 255, 255, 0.2);
     border: 2px solid rgba(255, 255, 255, 0.4);
     border-radius: 50%;
@@ -182,9 +182,7 @@ canvas {
 }
 
 #joystick-area { top: 65%; left: 5%; }
-#touch-decelerate { top: 80%; left: 35%; }
-#touch-thrust { top: 80%; left: 80%; }
-#touch-fire { top: 65%; left: 65%; }
+#touch-fire { top: 65%; right: 5%; }
 
 #mobile-pause-button {
     position: fixed;

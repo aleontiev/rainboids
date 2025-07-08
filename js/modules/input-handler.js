@@ -7,7 +7,9 @@ export class InputHandler {
             up: false,
             down: false,
             space: false,
-            rotation: 0
+            rotation: 0,
+            joystickX: 0,
+            joystickY: 0
         };
         
         this.joystickActive = false;
@@ -66,9 +68,7 @@ export class InputHandler {
     }
     
     setupTouchControls() {
-        const touchThrust = document.getElementById('touch-thrust');
         const touchFire = document.getElementById('touch-fire');
-        const touchDecelerate = document.getElementById('touch-decelerate');
         const joystickArea = document.getElementById('joystick-area');
         const joystickHandle = document.getElementById('joystick-handle');
         
@@ -84,14 +84,10 @@ export class InputHandler {
             this.input[key] = false;
         };
         
-        touchThrust.addEventListener('touchstart', (e) => handleTouchStart(e, 'up'), false);
-        touchThrust.addEventListener('touchend', (e) => handleTouchEnd(e, 'up'), false);
         touchFire.addEventListener('touchstart', (e) => handleTouchStart(e, 'space'), false);
         touchFire.addEventListener('touchend', (e) => handleTouchEnd(e, 'space'), false);
-        touchDecelerate.addEventListener('touchstart', (e) => handleTouchStart(e, 'down'), false);
-        touchDecelerate.addEventListener('touchend', (e) => handleTouchEnd(e, 'down'), false);
         
-        // Joystick handlers
+        // Enhanced joystick handlers for movement and rotation
         joystickArea.addEventListener('touchstart', e => {
             e.preventDefault();
             triggerHapticFeedback(20);
@@ -103,6 +99,9 @@ export class InputHandler {
             e.preventDefault();
             this.joystickActive = false;
             this.input.rotation = 0;
+            this.input.joystickX = 0;
+            this.input.joystickY = 0;
+            this.input.up = false;
             joystickHandle.style.transform = `translate(0px, 0px)`;
         }, false);
         
@@ -125,7 +124,18 @@ export class InputHandler {
             }
             
             joystickHandle.style.transform = `translate(${dx}px, ${dy}px)`;
-            this.input.rotation = Math.max(-1, Math.min(1, dx / this.joystickMaxDist));
+            
+            // Normalize joystick values
+            const normalizedX = dx / this.joystickMaxDist;
+            const normalizedY = dy / this.joystickMaxDist;
+            
+            // Set rotation based on X-axis
+            this.input.rotation = Math.max(-1, Math.min(1, normalizedX));
+            
+            // Set thrust based on Y-axis (negative Y = up/thrust)
+            this.input.joystickX = normalizedX;
+            this.input.joystickY = normalizedY;
+            this.input.up = normalizedY < -0.3; // Thrust when joystick is pushed up
         }, false);
     }
     
@@ -138,5 +148,7 @@ export class InputHandler {
         this.input.down = false;
         this.input.space = false;
         this.input.rotation = 0;
+        this.input.joystickX = 0;
+        this.input.joystickY = 0;
     }
 } 

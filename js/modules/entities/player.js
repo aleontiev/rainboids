@@ -25,8 +25,11 @@ export class Player {
     update(input, particlePool, bulletPool, audioManager) {
         if (!this.active) return;
         
-        this.isThrusting = input.up;
+        // Handle rotation
         this.angle += GAME_CONFIG.TURN_SPEED * input.rotation;
+        
+        // Handle thrust - use joystick Y-axis for thrust control
+        this.isThrusting = input.up;
         
         if (this.isThrusting) {
             this.vel.x += Math.cos(this.angle) * GAME_CONFIG.SHIP_THRUST;
@@ -45,9 +48,11 @@ export class Player {
                 particlePool.get(p_x, p_y, 'thrust', rear);
             }
         } else if (input.down) {
+            // Deceleration (still available for keyboard controls)
             this.vel.x *= GAME_CONFIG.SHIP_FRICTION * 0.95;
             this.vel.y *= GAME_CONFIG.SHIP_FRICTION * 0.95;
         } else {
+            // Natural friction
             this.vel.x *= GAME_CONFIG.SHIP_FRICTION;
             this.vel.y *= GAME_CONFIG.SHIP_FRICTION;
         }
@@ -112,12 +117,17 @@ export class Player {
         ctx.restore();
     }
     
-    die(particlePool, audioManager, uiManager, game) {
+    die(particlePool, audioManager, uiManager, game, triggerScreenShake) {
         this.active = false;
         game.state = 'GAME_OVER';
         
         audioManager.playPlayerExplosion();
         particlePool.get(this.x, this.y, 'playerExplosion');
+        
+        // Dramatic screen shake for player death
+        if (triggerScreenShake) {
+            triggerScreenShake(25, 15, 50); // Much more intense than asteroid destruction
+        }
         
         // Show game over message
         const isMobile = window.matchMedia("(any-pointer: coarse)").matches;
