@@ -285,9 +285,20 @@ export class GameEngine {
         for (let i = 0; i < activeAsteroids.length; i++) {
             for (let j = i + 1; j < activeAsteroids.length; j++) {
                 let a1 = activeAsteroids[i], a2 = activeAsteroids[j];
+                if (!a1.active || !a2.active) continue;
                 if (collision(a1, a2)) {
                     let dx = a2.x - a1.x, dy = a2.y - a1.y, dist = Math.hypot(dx, dy);
                     if (dist === 0) continue;
+                    
+                    // Play explosion sound
+                    this.audioManager.playExplosion();
+                    // Spawn rocky debris particles at collision point
+                    const debrisCount = Math.floor(random(10, 18));
+                    const cx = (a1.x + a2.x) / 2;
+                    const cy = (a1.y + a2.y) / 2;
+                    for (let d = 0; d < debrisCount; d++) {
+                        this.particlePool.get(cx, cy, 'asteroidCollisionDebris');
+                    }
                     
                     let nx = dx / dist, ny = dy / dist, tx = -ny, ty = nx;
                     let dpTan1 = a1.vel.x * tx + a1.vel.y * ty, dpTan2 = a2.vel.x * tx + a2.vel.y * ty;

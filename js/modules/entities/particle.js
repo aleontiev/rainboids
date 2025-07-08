@@ -66,6 +66,13 @@ export class Particle {
                 this.sat = random(80, 100);
                 this.light = random(45, 65);
                 break;
+            case 'asteroidCollisionDebris':
+                this.radius = random(2, 5);
+                this.vel = { x: random(-3, 3), y: random(-3, 3) };
+                this.life = random(0.3, 0.7);
+                const gray = Math.floor(random(80, 180));
+                this.color = `rgb(${gray},${gray},${gray})`;
+                break;
         }
     }
     
@@ -101,6 +108,11 @@ export class Particle {
             case 'explosionPulse':
                 this.life -= 0.06;
                 this.radius = (1 - this.life) * this.maxRadius;
+                break;
+            case 'asteroidCollisionDebris':
+                this.x += this.vel.x;
+                this.y += this.vel.y;
+                this.life -= 0.03;
                 break;
         }
         
@@ -145,6 +157,15 @@ export class Particle {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
                 ctx.stroke();
+                break;
+            case 'asteroidCollisionDebris':
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.restore();
                 break;
         }
         
