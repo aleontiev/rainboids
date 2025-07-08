@@ -346,11 +346,11 @@ export class GameEngine {
         this.ctx.fillRect(0, 0, this.width, this.height);
         
         if (this.game.state !== GAME_STATES.TITLE_SCREEN) {
-            this.starPool.drawActive();
-            this.lineDebrisPool.drawActive();
-            this.particlePool.drawActive();
-            this.asteroidPool.drawActive();
-            this.bulletPool.drawActive();
+            this.starPool.drawActive(this.ctx);
+            this.lineDebrisPool.drawActive(this.ctx);
+            this.particlePool.drawActive(this.ctx);
+            this.asteroidPool.drawActive(this.ctx);
+            this.bulletPool.drawActive(this.ctx);
             this.player.draw(this.ctx);
         } else {
             // Debug: Draw something to show the canvas is working

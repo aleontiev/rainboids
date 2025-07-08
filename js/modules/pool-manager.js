@@ -37,7 +37,7 @@ export class PoolManager {
         }
     }
     
-    drawActive() {
-        this.activeObjects.forEach(obj => obj.draw());
+    drawActive(ctx) {
+        this.activeObjects.forEach(obj => obj.draw(ctx));
     }
 } 
