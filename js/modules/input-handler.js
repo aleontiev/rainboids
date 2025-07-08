@@ -129,10 +129,8 @@ export class InputHandler {
             const normalizedX = dx / this.joystickMaxDist;
             const normalizedY = dy / this.joystickMaxDist;
             
-            // Set rotation based on X-axis
+            // Always set both rotation and thrust at the same time
             this.input.rotation = Math.max(-1, Math.min(1, normalizedX));
-            
-            // Set thrust based on Y-axis (negative Y = up/thrust)
             this.input.joystickX = normalizedX;
             this.input.joystickY = normalizedY;
             this.input.up = normalizedY < -0.3; // Thrust when joystick is pushed up
