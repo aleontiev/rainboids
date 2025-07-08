@@ -1,5 +1,10 @@
 # Rainboids - Modular JavaScript Refactor
 
+<img width="928" alt="image" src="https://github.com/user-attachments/assets/f85765c7-a5ab-43eb-b239-cb8b67c861a1" />
+
+<img width="1506" alt="image" src="https://github.com/user-attachments/assets/28b95aa1-11f1-429e-bb72-60c3aa264ea0" />
+
+
 This is a refactored version of the Rainboids game, broken down into modular JavaScript components for better maintainability and organization.
 
 ## Project Structure
