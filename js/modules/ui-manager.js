@@ -82,20 +82,16 @@ export class UIManager {
     }
     
     showTitleScreen() {
-        console.log('UIManager: Showing title screen');
         this.elements.titleScreen.style.display = 'flex';
     }
     
     hideTitleScreen() {
-        console.log('UIManager: Hiding title screen');
         this.elements.titleScreen.style.display = 'none';
     }
     
     setupTitleScreen() {
-        console.log('UIManager: Setting up title screen...');
         const titleText = "RAINBOIDS";
         this.elements.gameTitle.innerHTML = '';
-        
         titleText.split('').forEach((char, index) => {
             const span = document.createElement('span');
             span.textContent = char;
@@ -103,7 +99,6 @@ export class UIManager {
             span.style.animationDelay = `${index * 0.1}s`;
             this.elements.gameTitle.appendChild(span);
         });
-        console.log('UIManager: Title screen setup complete');
     }
     
     updateHighScore(highScore) {
