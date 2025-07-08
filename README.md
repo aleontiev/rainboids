@@ -6,7 +6,7 @@
 
 ## Synopsis
 
-This game can be played at: https://rainboids.cat.computer
+This mobile-friendly game can be played at: https://rainboids.cat.computer
 
 This is an asteroids clone with its own interesting mechanics and visual aesthetics. It includes:
 
@@ -15,6 +15,7 @@ This is an asteroids clone with its own interesting mechanics and visual aesthet
 - Pickups in the form of stars and goodies from asteroids
 - A tractor beam to pickup things and recharge energy
 - Interesting particle and pseudo-3d visual effects
+- Mobile controls and support
 
 It features countless enhancements and tweaks over the original 
 [Monolithic Rainboids](https://github.com/afeique/rainboids-monolithic).
@@ -67,15 +68,6 @@ easier maintenance.
 - **Thrusting** drains your energy bar (configurable in `game-engine.js`)
 - **Collecting stars** restores energy
 - **No firing allowed** when in CRITICAL state (energy depleted)
-
----
-
-## ✨ Visual Features
-- **Direction triangle** (blue) at the ship's nose
-- **Long purple wing triangles** for orientation
-- **Red thruster triangles** at the ship's base
-- **Asteroids are nudged back to center** if they travel near the screen edge
-- **Mobile controls** with visual feedback
 
 ---
 
