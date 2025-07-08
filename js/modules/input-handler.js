@@ -102,39 +102,39 @@ export class InputHandler {
             this.input.joystickX = 0;
             this.input.joystickY = 0;
             this.input.up = false;
-            joystickHandle.style.transform = `translate(0px, 0px)`;
+            joystickHandle.style.transform = `translate(0px, 0px) translate(-50%, -50%)`;
         }, false);
         
+        // Remove thrust from joystick: only set rotation
         joystickArea.addEventListener('touchmove', e => {
             if (!this.joystickActive) return;
             e.preventDefault();
-            
             const rect = joystickArea.getBoundingClientRect();
             const touch = e.targetTouches[0];
-            const centerX = joystickArea.clientWidth / 2;
-            const centerY = joystickArea.clientHeight / 2;
-            
+            // Always use current width/height for center
+            const centerX = joystickArea.offsetWidth / 2;
+            const centerY = joystickArea.offsetHeight / 2;
             let dx = touch.clientX - rect.left - centerX;
             let dy = touch.clientY - rect.top - centerY;
             const dist = Math.hypot(dx, dy);
-            
             if (dist > this.joystickMaxDist) {
                 dx = (dx / dist) * this.joystickMaxDist;
                 dy = (dy / dist) * this.joystickMaxDist;
             }
-            
-            joystickHandle.style.transform = `translate(${dx}px, ${dy}px)`;
-            
+            // Move the handle, keeping it centered
+            joystickHandle.style.transform = `translate(${dx}px, ${dy}px) translate(-50%, -50%)`;
             // Normalize joystick values
             const normalizedX = dx / this.joystickMaxDist;
             const normalizedY = dy / this.joystickMaxDist;
-            
-            // Always set both rotation and thrust at the same time
+            // Only set rotation, not thrust
             this.input.rotation = Math.max(-1, Math.min(1, normalizedX));
             this.input.joystickX = normalizedX;
             this.input.joystickY = normalizedY;
-            this.input.up = true; // Always thrust with joystick
         }, false);
+        // Thrust button handlers
+        const touchThrust = document.getElementById('touch-thrust');
+        touchThrust.addEventListener('touchstart', (e) => handleTouchStart(e, 'up'), false);
+        touchThrust.addEventListener('touchend', (e) => handleTouchEnd(e, 'up'), false);
     }
     
     getInput() {

@@ -73,7 +73,6 @@ export class GameEngine {
             this.canvas.width = this.width;
             this.canvas.height = this.height;
             this.uiManager.checkOrientation();
-            this.uiManager.loadCustomControls();
         });
         
         // Handle orientation change
@@ -629,7 +628,6 @@ export class GameEngine {
         this.uiManager.showTitleScreen();
         this.uiManager.updateHighScore(this.game.highScore);
         this.inputHandler.setupTouchControls();
-        this.uiManager.loadCustomControls();
         this.gameLoop();
     }
 

@@ -16,32 +16,17 @@ export class UIManager {
             messageTitle: document.getElementById('message-title'),
             messageSubtitle: document.getElementById('message-subtitle'),
             mobilePauseButton: document.getElementById('mobile-pause-button'),
-            customizeButton: document.getElementById('customize-button'),
-            customizationOverlay: document.getElementById('customization-overlay'),
-            saveLayoutButton: document.getElementById('save-layout-button'),
             mobileControls: document.getElementById('mobile-controls'),
             titleScreen: document.getElementById('title-screen'),
             gameTitle: document.getElementById('game-title'),
             orientationOverlay: document.getElementById('orientation-overlay'),
             highScoreDisplay: document.getElementById('high-score-display')
         };
-        
-        this.setupEventListeners();
     }
     
     setupEventListeners() {
-        // Mobile pause button
         this.elements.mobilePauseButton.addEventListener('click', () => {
             // Let the game handle pause
-        });
-        
-        // Customization controls
-        this.elements.customizeButton.addEventListener('click', () => {
-            this.enableCustomization();
-        });
-        
-        this.elements.saveLayoutButton.addEventListener('click', () => {
-            this.disableCustomization(true);
         });
     }
     
@@ -113,125 +98,6 @@ export class UIManager {
         } else {
             this.elements.orientationOverlay.style.display = 'none';
             return false;
-        }
-    }
-    
-    enableCustomization() {
-        this.elements.customizationOverlay.style.display = 'flex';
-        const draggableControls = this.elements.mobileControls.querySelectorAll('[data-control-id]');
-        
-        draggableControls.forEach(el => {
-            el.classList.add('draggable');
-        });
-        
-        this.setupDraggableControls();
-    }
-    
-    disableCustomization(save = false) {
-        if (save) {
-            this.saveControlLayout();
-        } else {
-            this.loadCustomControls();
-        }
-        
-        this.elements.customizationOverlay.style.display = 'none';
-        const draggableControls = this.elements.mobileControls.querySelectorAll('[data-control-id]');
-        draggableControls.forEach(el => {
-            el.classList.remove('draggable');
-        });
-        
-        this.removeDraggableControls();
-    }
-    
-    setupDraggableControls() {
-        const draggableControls = this.elements.mobileControls.querySelectorAll('[data-control-id]');
-        let activeControl = null;
-        let offsetX = 0;
-        let offsetY = 0;
-        
-        const onDragStart = (e) => {
-            e.preventDefault();
-            activeControl = e.currentTarget;
-            const touch = e.type === 'touchstart' ? e.touches[0] : e;
-            const rect = activeControl.getBoundingClientRect();
-            offsetX = touch.clientX - rect.left;
-            offsetY = touch.clientY - rect.top;
-        };
-        
-        const onDragMove = (e) => {
-            if (!activeControl) return;
-            e.preventDefault();
-            const touch = e.type === 'touchmove' ? e.touches[0] : e;
-            let newX = touch.clientX - offsetX;
-            let newY = touch.clientY - offsetY;
-            
-            newX = Math.max(0, Math.min(newX, window.innerWidth - activeControl.clientWidth));
-            newY = Math.max(0, Math.min(newY, window.innerHeight - activeControl.clientHeight));
-            
-            activeControl.style.left = `${newX}px`;
-            activeControl.style.top = `${newY}px`;
-        };
-        
-        const onDragEnd = () => {
-            activeControl = null;
-        };
-        
-        draggableControls.forEach(el => {
-            el.addEventListener('mousedown', onDragStart, false);
-            el.addEventListener('touchstart', onDragStart, false);
-        });
-        
-        document.addEventListener('mousemove', onDragMove, false);
-        document.addEventListener('touchmove', onDragMove, { passive: false });
-        document.addEventListener('mouseup', onDragEnd, false);
-        document.addEventListener('touchend', onDragEnd, false);
-        
-        // Store references for cleanup
-        this.dragHandlers = { onDragStart, onDragMove, onDragEnd };
-    }
-    
-    removeDraggableControls() {
-        if (!this.dragHandlers) return;
-        
-        const draggableControls = this.elements.mobileControls.querySelectorAll('[data-control-id]');
-        draggableControls.forEach(el => {
-            el.removeEventListener('mousedown', this.dragHandlers.onDragStart, false);
-            el.removeEventListener('touchstart', this.dragHandlers.onDragStart, false);
-        });
-        
-        document.removeEventListener('mousemove', this.dragHandlers.onDragMove, false);
-        document.removeEventListener('touchmove', this.dragHandlers.onDragMove);
-        document.removeEventListener('mouseup', this.dragHandlers.onDragEnd, false);
-        document.removeEventListener('touchend', this.dragHandlers.onDragEnd, false);
-        
-        this.dragHandlers = null;
-    }
-    
-    saveControlLayout() {
-        const layout = {};
-        const draggableControls = this.elements.mobileControls.querySelectorAll('[data-control-id]');
-        
-        draggableControls.forEach(el => {
-            const id = el.dataset.controlId;
-            const x = (el.offsetLeft / window.innerWidth) * 100;
-            const y = (el.offsetTop / window.innerHeight) * 100;
-            layout[id] = { top: `${y}%`, left: `${x}%` };
-        });
-        
-        localStorage.setItem('rainboidsControlLayout', JSON.stringify(layout));
-    }
-    
-    loadCustomControls() {
-        const savedLayout = localStorage.getItem('rainboidsControlLayout');
-        if (savedLayout) {
-            const layout = JSON.parse(savedLayout);
-            for (const id in layout) {
-                const el = document.querySelector(`[data-control-id="${id}"]`);
-                if (el) {
-                    el.style.top = layout[id].top;
-                    el.style.left = layout[id].left;
-                }
-            }
         }
     }
 } 
