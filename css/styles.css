@@ -359,6 +359,14 @@ canvas {
     margin-bottom: 20px;
 }
 
+/* Hide .mobile-only by default */
+.mobile-only { display: none; }
+
+/* Show .mobile-only on mobile devices */
+@media (pointer: coarse) {
+  .mobile-only { display: inline-block; }
+}
+
 @media (hover: none) and (pointer: coarse), (max-width: 768px) {
     #mobile-controls, #mobile-pause-button {
         display: block;

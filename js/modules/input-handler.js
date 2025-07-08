@@ -6,7 +6,7 @@ export class InputHandler {
         this.input = {
             up: false,
             down: false,
-            space: false,
+            fire: false,
             rotation: 0,
             joystickX: 0,
             joystickY: 0
@@ -41,8 +41,8 @@ export class InputHandler {
             case 'ArrowRight':
                 this.input.rotation = 1;
                 break;
-            case 'Space':
-                if (window.gameEngine) window.gameEngine.fireQueued = true;
+            case 'KeyZ':
+                this.input.fire = true;
                 break;
         }
     }
@@ -61,8 +61,8 @@ export class InputHandler {
             case 'ArrowRight':
                 if (this.input.rotation > 0) this.input.rotation = 0;
                 break;
-            case 'Space':
-                this.input.space = false;
+            case 'KeyZ':
+                this.input.fire = false;
                 break;
         }
     }
@@ -84,8 +84,8 @@ export class InputHandler {
             this.input[key] = false;
         };
         
-        touchFire.addEventListener('touchstart', (e) => handleTouchStart(e, 'space'), false);
-        touchFire.addEventListener('touchend', (e) => handleTouchEnd(e, 'space'), false);
+        touchFire.addEventListener('touchstart', (e) => handleTouchStart(e, 'fire'), false);
+        touchFire.addEventListener('touchend', (e) => handleTouchEnd(e, 'fire'), false);
         
         // Enhanced joystick handlers for movement and rotation
         joystickArea.addEventListener('touchstart', e => {
@@ -146,7 +146,7 @@ export class InputHandler {
     reset() {
         this.input.up = false;
         this.input.down = false;
-        this.input.space = false;
+        this.input.fire = false;
         this.input.rotation = 0;
         this.input.joystickX = 0;
         this.input.joystickY = 0;

@@ -29,10 +29,10 @@ export class GameEngine {
             screenShakeDuration: 0,
             screenShakeMagnitude: 0
         };
-        this.firePressedLastFrame = false;
-        this.fireQueued = false;
         this.initializePools();
         this.setupEventListeners();
+        this.playerCanFire = true;
+        this.previousFire = false;
     }
     
     initializePools() {
@@ -342,11 +342,16 @@ export class GameEngine {
     update() {
         if (this.game.state === GAME_STATES.PLAYING || this.game.state === GAME_STATES.WAVE_TRANSITION) {
             const input = this.inputHandler.getInput();
-            // Only fire on queued press, not held
-            if (this.fireQueued) {
+            // Only fire if playerCanFire is true and input.fire is true
+            if (input.fire && this.playerCanFire) {
                 this.player.fire(this.bulletPool, this.audioManager);
-                this.fireQueued = false;
+                this.playerCanFire = false;
             }
+            // Only re-enable firing when fire is released
+            if (!input.fire && this.previousFire) {
+                this.playerCanFire = true;
+            }
+            this.previousFire = input.fire;
             this.player.update(input, this.particlePool, this.bulletPool, this.audioManager);
             this.bulletPool.updateActive(this.particlePool, this.asteroidPool);
             this.particlePool.updateActive();
