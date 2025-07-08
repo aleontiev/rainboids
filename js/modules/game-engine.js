@@ -193,11 +193,17 @@ export class GameEngine {
     
     spawnStar() {
         let x, y, tooClose, attempts = 0;
+        // On mobile, always use landscape dimensions for star spawning
+        let spawnWidth = this.width;
+        let spawnHeight = this.height;
+        if (window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse), (max-width: 768px)').matches) {
+            spawnWidth = Math.max(window.innerWidth, window.innerHeight);
+            spawnHeight = Math.max(window.innerWidth, window.innerHeight);
+        }
         do {
             tooClose = false;
-            x = random(0, this.width);
-            y = random(0, this.height);
-            
+            x = random(0, spawnWidth);
+            y = random(0, spawnHeight);
             if (this.starPool && this.starPool.activeObjects) {
                 for (let o of this.starPool.activeObjects) {
                     if (Math.hypot(x - o.x, y - o.y) < GAME_CONFIG.MIN_STAR_DIST) {
@@ -209,7 +215,6 @@ export class GameEngine {
             attempts++;
             if (attempts > 100) break;
         } while (tooClose);
-        
         if (!tooClose) {
             this.starPool.get(x, y, false);
         }
