@@ -133,7 +133,7 @@ export class InputHandler {
             this.input.rotation = Math.max(-1, Math.min(1, normalizedX));
             this.input.joystickX = normalizedX;
             this.input.joystickY = normalizedY;
-            this.input.up = normalizedY < -0.3; // Thrust when joystick is pushed up
+            this.input.up = true; // Always thrust with joystick
         }, false);
     }
     
