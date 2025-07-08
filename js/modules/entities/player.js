@@ -24,9 +24,14 @@ export class Player {
     
     update(input, particlePool, bulletPool, audioManager) {
         if (!this.active) return;
-        
-        // Handle rotation
-        this.angle += GAME_CONFIG.TURN_SPEED * input.rotation;
+        // On mobile, instantly set angle to joystick direction if joystick is active
+        if ((typeof input.joystickX === 'number' && typeof input.joystickY === 'number') && (input.joystickX !== 0 || input.joystickY !== 0)) {
+            // Joystick Y is negative up, so flip for screen coordinates
+            this.angle = Math.atan2(input.joystickY, input.joystickX);
+        } else {
+            // Handle rotation (desktop/keyboard)
+            this.angle += GAME_CONFIG.TURN_SPEED * input.rotation;
+        }
         
         // Handle thrust - use joystick Y-axis for thrust control
         this.isThrusting = input.up;
