@@ -209,8 +209,10 @@ export class GameEngine {
         // Bullets vs Asteroids
         for (let i = this.bulletPool.activeObjects.length - 1; i >= 0; i--) {
             const bullet = this.bulletPool.activeObjects[i];
+            if (!bullet.active) continue;
             for (let j = this.asteroidPool.activeObjects.length - 1; j >= 0; j--) {
                 const ast = this.asteroidPool.activeObjects[j];
+                if (!ast.active) continue;
                 if (collision(bullet, ast)) {
                     this.game.score += GAME_CONFIG.HIT_SCORE;
                     triggerHapticFeedback(20);
