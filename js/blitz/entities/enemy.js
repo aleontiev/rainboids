@@ -276,91 +276,462 @@ export class Enemy {
 
         switch (this.type) {
             case 'straight':
-                // Simple triangle (default)
+                // Fighter - sleek triangular fighter with wings
                 ctx.beginPath();
                 ctx.moveTo(this.size, 0);
-                ctx.lineTo(-this.size * 0.8, -this.size * 0.6);
-                ctx.lineTo(-this.size * 0.5, 0);
-                ctx.lineTo(-this.size * 0.8, this.size * 0.6);
+                ctx.lineTo(-this.size * 0.6, -this.size * 0.4);
+                ctx.lineTo(-this.size * 0.8, -this.size * 0.7);
+                ctx.lineTo(-this.size * 0.9, -this.size * 0.7);
+                ctx.lineTo(-this.size * 0.4, -this.size * 0.2);
+                ctx.lineTo(-this.size * 0.4, 0);
+                ctx.lineTo(-this.size * 0.4, this.size * 0.2);
+                ctx.lineTo(-this.size * 0.9, this.size * 0.7);
+                ctx.lineTo(-this.size * 0.8, this.size * 0.7);
+                ctx.lineTo(-this.size * 0.6, this.size * 0.4);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
+                
+                // Cockpit detail
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(this.size * 0.3, 0, this.size * 0.15, 0, Math.PI * 2);
+                ctx.fill();
                 break;
+                
             case 'sine':
-                // Diamond shape
+                // Interceptor - diamond-shaped with side fins
                 ctx.beginPath();
-                ctx.moveTo(0, -this.size);
-                ctx.lineTo(this.size, 0);
-                ctx.lineTo(0, this.size);
-                ctx.lineTo(-this.size, 0);
+                ctx.moveTo(this.size * 0.8, 0);
+                ctx.lineTo(this.size * 0.2, -this.size * 0.8);
+                ctx.lineTo(-this.size * 0.2, -this.size * 0.5);
+                ctx.lineTo(-this.size * 0.8, -this.size * 0.3);
+                ctx.lineTo(-this.size * 0.8, this.size * 0.3);
+                ctx.lineTo(-this.size * 0.2, this.size * 0.5);
+                ctx.lineTo(this.size * 0.2, this.size * 0.8);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
+                
+                // Wing stripes
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(this.size * 0.1, -this.size * 0.4);
+                ctx.lineTo(-this.size * 0.1, -this.size * 0.2);
+                ctx.moveTo(this.size * 0.1, this.size * 0.4);
+                ctx.lineTo(-this.size * 0.1, this.size * 0.2);
+                ctx.stroke();
                 break;
+                
             case 'zigzag':
-                // Arrowhead shape
+                // Assault Ship - angular predator design
                 ctx.beginPath();
                 ctx.moveTo(this.size, 0);
-                ctx.lineTo(-this.size * 0.5, -this.size * 0.8);
-                ctx.lineTo(-this.size * 0.2, 0);
-                ctx.lineTo(-this.size * 0.5, this.size * 0.8);
+                ctx.lineTo(this.size * 0.3, -this.size * 0.5);
+                ctx.lineTo(-this.size * 0.2, -this.size * 0.9);
+                ctx.lineTo(-this.size * 0.6, -this.size * 0.6);
+                ctx.lineTo(-this.size * 0.9, -this.size * 0.2);
+                ctx.lineTo(-this.size * 0.5, 0);
+                ctx.lineTo(-this.size * 0.9, this.size * 0.2);
+                ctx.lineTo(-this.size * 0.6, this.size * 0.6);
+                ctx.lineTo(-this.size * 0.2, this.size * 0.9);
+                ctx.lineTo(this.size * 0.3, this.size * 0.5);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
+                
+                // Weapon ports
+                ctx.fillStyle = '#ff4444';
+                ctx.beginPath();
+                ctx.arc(this.size * 0.1, -this.size * 0.3, this.size * 0.1, 0, Math.PI * 2);
+                ctx.arc(this.size * 0.1, this.size * 0.3, this.size * 0.1, 0, Math.PI * 2);
+                ctx.fill();
                 break;
+                
             case 'circle':
-                // Circle with a small triangle
+                // Orbital Ship - circular main body with rotating elements
                 ctx.beginPath();
-                ctx.arc(0, 0, this.size * 0.8, 0, Math.PI * 2);
+                ctx.arc(0, 0, this.size * 0.6, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
+                
+                // Rotating orbital rings
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.moveTo(this.size * 0.8, 0);
-                ctx.lineTo(this.size * 0.5, -this.size * 0.3);
-                ctx.lineTo(this.size * 0.5, this.size * 0.3);
-                ctx.closePath();
-                ctx.fill();
+                ctx.arc(0, 0, this.size * 0.9, 0, Math.PI * 2);
                 ctx.stroke();
+                
+                // Directional thrusters
+                const thrusterAngle = this.frameCount * 0.1;
+                for (let i = 0; i < 3; i++) {
+                    const angle = (i * Math.PI * 2 / 3) + thrusterAngle;
+                    const x = Math.cos(angle) * this.size * 0.9;
+                    const y = Math.sin(angle) * this.size * 0.9;
+                    ctx.fillStyle = '#00ddff';
+                    ctx.beginPath();
+                    ctx.arc(x, y, this.size * 0.15, 0, Math.PI * 2);
+                    ctx.fill();
+                }
                 break;
+                
             case 'dive':
-                // Upside-down triangle
+                // Bomber - heavy triangular craft with bomb bay
                 ctx.beginPath();
-                ctx.moveTo(0, this.size);
-                ctx.lineTo(-this.size * 0.8, -this.size * 0.6);
+                ctx.moveTo(this.size * 0.2, this.size * 0.8);
+                ctx.lineTo(-this.size * 0.9, -this.size * 0.3);
+                ctx.lineTo(-this.size * 0.5, -this.size * 0.6);
                 ctx.lineTo(this.size * 0.8, -this.size * 0.6);
+                ctx.lineTo(this.size * 0.9, -this.size * 0.3);
                 ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
+                
+                // Bomb bay doors
+                ctx.fillStyle = '#444444';
+                ctx.beginPath();
+                ctx.rect(-this.size * 0.3, this.size * 0.1, this.size * 0.6, this.size * 0.4);
+                ctx.fill();
+                ctx.stroke();
+                
+                // Wing details
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-this.size * 0.6, -this.size * 0.1);
+                ctx.lineTo(-this.size * 0.3, -this.size * 0.3);
+                ctx.moveTo(this.size * 0.6, -this.size * 0.1);
+                ctx.lineTo(this.size * 0.3, -this.size * 0.3);
+                ctx.stroke();
                 break;
+                
             case 'laser':
-                // Rectangle with a line
+                // Battleship - elongated heavy cruiser
                 ctx.beginPath();
-                ctx.rect(-this.size * 0.8, -this.size * 0.4, this.size * 1.6, this.size * 0.8);
+                ctx.rect(-this.size * 0.9, -this.size * 0.3, this.size * 1.8, this.size * 0.6);
                 ctx.fill();
                 ctx.stroke();
+                
+                // Command bridge
+                ctx.fillStyle = '#ffffff';
                 ctx.beginPath();
-                ctx.moveTo(this.size * 0.8, 0);
-                ctx.lineTo(this.size * 1.2, 0);
+                ctx.rect(-this.size * 0.2, -this.size * 0.5, this.size * 0.6, this.size * 1.0);
+                ctx.fill();
+                ctx.stroke();
+                
+                // Main cannon
+                ctx.fillStyle = '#ff4444';
+                ctx.beginPath();
+                ctx.rect(this.size * 0.9, -this.size * 0.1, this.size * 0.4, this.size * 0.2);
+                ctx.fill();
+                ctx.stroke();
+                
+                // Hull details
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-this.size * 0.7, -this.size * 0.2);
+                ctx.lineTo(this.size * 0.7, -this.size * 0.2);
+                ctx.moveTo(-this.size * 0.7, this.size * 0.2);
+                ctx.lineTo(this.size * 0.7, this.size * 0.2);
                 ctx.stroke();
                 break;
+                
             case 'pulse':
-                // Square with a dot
+                // Destroyer - square main body with weapon arrays
                 ctx.beginPath();
-                ctx.rect(-this.size * 0.5, -this.size * 0.5, this.size, this.size);
+                ctx.rect(-this.size * 0.4, -this.size * 0.4, this.size * 0.8, this.size * 0.8);
                 ctx.fill();
                 ctx.stroke();
+                
+                // Weapon arrays on corners
+                ctx.fillStyle = '#ffaa00';
+                const weaponSize = this.size * 0.25;
+                ctx.beginPath();
+                ctx.rect(-this.size * 0.7, -this.size * 0.7, weaponSize, weaponSize);
+                ctx.rect(this.size * 0.45, -this.size * 0.7, weaponSize, weaponSize);
+                ctx.rect(-this.size * 0.7, this.size * 0.45, weaponSize, weaponSize);
+                ctx.rect(this.size * 0.45, this.size * 0.45, weaponSize, weaponSize);
+                ctx.fill();
+                ctx.stroke();
+                
+                // Central power core
+                ctx.fillStyle = '#00ff88';
                 ctx.beginPath();
                 ctx.arc(0, 0, this.size * 0.2, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
+                
+                // Pulse indicator
+                if (this.pulseCharge > 0.5) {
+                    ctx.strokeStyle = '#00ff88';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.size * 0.3 + (this.pulseCharge * this.size * 0.3), 0, Math.PI * 2);
+                    ctx.stroke();
+                }
                 break;
         }
 
-        // Draw engine glow (common to all)
+        // Draw engine glow (common to all, but varied by ship type)
+        ctx.fillStyle = '#ffaa00';
+        switch (this.type) {
+            case 'straight':
+                // Twin engines
+                ctx.beginPath();
+                ctx.arc(-this.size * 0.6, -this.size * 0.3, this.size * 0.2, 0, Math.PI * 2);
+                ctx.arc(-this.size * 0.6, this.size * 0.3, this.size * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            case 'laser':
+                // Multiple engine ports
+                ctx.beginPath();
+                ctx.arc(-this.size * 0.9, -this.size * 0.15, this.size * 0.15, 0, Math.PI * 2);
+                ctx.arc(-this.size * 0.9, this.size * 0.15, this.size * 0.15, 0, Math.PI * 2);
+                ctx.arc(-this.size * 0.9, 0, this.size * 0.1, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+            default:
+                // Single main engine
+                ctx.beginPath();
+                ctx.arc(-this.size * 0.6, 0, this.size * 0.25, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+        }
+    }
+}
+
+export class MiniBoss {
+    constructor(x, y, type, isPortrait) {
+        this.x = x;
+        this.y = y;
+        this.type = type; // 'alpha' or 'beta'
+        this.isPortrait = isPortrait;
+        this.size = 60; // Much larger than regular enemies
+        this.speed = 1;
+        this.maxHealth = 100;
+        this.health = this.maxHealth;
+        this.frameCount = 0;
+        
+        // Movement pattern
+        this.movePattern = 'patrol';
+        this.patrolDirection = 1;
+        this.patrolRange = 200;
+        this.startY = y;
+        
+        // Weapons
+        this.primaryWeaponTimer = 0;
+        this.secondaryWeaponTimer = 0;
+        this.primaryWeaponCooldown = 60; // 1 second at 60fps
+        this.secondaryWeaponCooldown = 180; // 3 seconds at 60fps
+        
+        // Visual effects
+        this.hitFlash = 0;
+        this.chargingSecondary = 0;
+    }
+    
+    update() {
+        this.frameCount++;
+        
+        // Movement - patrol up and down
+        if (this.movePattern === 'patrol') {
+            this.y += this.patrolDirection * this.speed;
+            if (Math.abs(this.y - this.startY) > this.patrolRange) {
+                this.patrolDirection *= -1;
+            }
+        }
+        
+        // Weapon timers
+        this.primaryWeaponTimer++;
+        this.secondaryWeaponTimer++;
+        
+        // Reduce hit flash
+        if (this.hitFlash > 0) {
+            this.hitFlash--;
+        }
+        
+        // Secondary weapon charging effect
+        if (this.secondaryWeaponTimer > this.secondaryWeaponCooldown - 60) {
+            this.chargingSecondary = Math.min(this.chargingSecondary + 0.1, 1);
+        } else {
+            this.chargingSecondary = 0;
+        }
+    }
+    
+    takeDamage(damage) {
+        this.health -= damage;
+        this.hitFlash = 10;
+        if (this.health <= 0) {
+            return 'destroyed';
+        }
+        return 'damaged';
+    }
+    
+    canFirePrimary() {
+        return this.primaryWeaponTimer >= this.primaryWeaponCooldown;
+    }
+    
+    canFireSecondary() {
+        return this.secondaryWeaponTimer >= this.secondaryWeaponCooldown;
+    }
+    
+    firePrimary() {
+        this.primaryWeaponTimer = 0;
+        // Return bullet data for the main game to create
+        return {
+            x: this.x - this.size * 0.5,
+            y: this.y,
+            vx: -4,
+            vy: 0,
+            type: 'miniBossPrimary'
+        };
+    }
+    
+    fireSecondary() {
+        this.secondaryWeaponTimer = 0;
+        this.chargingSecondary = 0;
+        // Return multiple bullets for spread shot
+        const bullets = [];
+        for (let i = -2; i <= 2; i++) {
+            bullets.push({
+                x: this.x - this.size * 0.3,
+                y: this.y + i * 15,
+                vx: -3,
+                vy: i * 0.5,
+                type: 'miniBossSecondary'
+            });
+        }
+        return bullets;
+    }
+    
+    render(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // Hit flash effect
+        if (this.hitFlash > 0) {
+            ctx.fillStyle = '#ffffff';
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.size + 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+        
+        // Draw mini-boss ship based on type
+        if (this.type === 'alpha') {
+            this.drawAlphaShip(ctx);
+        } else {
+            this.drawBetaShip(ctx);
+        }
+        
+        // Draw health bar
+        this.drawHealthBar(ctx);
+        
+        // Secondary weapon charging effect
+        if (this.chargingSecondary > 0) {
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 3;
+            ctx.globalAlpha = this.chargingSecondary;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.size + 10, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+        
+        ctx.restore();
+    }
+    
+    drawAlphaShip(ctx) {
+        // Alpha mini-boss - Heavy Cruiser design
+        ctx.fillStyle = '#ff4444';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        
+        // Main hull
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.8, -this.size * 0.3, this.size * 1.6, this.size * 0.6);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Command tower
+        ctx.fillStyle = '#ffaaaa';
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.2, -this.size * 0.5, this.size * 0.6, this.size * 1.0);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Weapon arrays
+        ctx.fillStyle = '#ff6666';
+        ctx.beginPath();
+        ctx.rect(this.size * 0.5, -this.size * 0.4, this.size * 0.3, this.size * 0.2);
+        ctx.rect(this.size * 0.5, this.size * 0.2, this.size * 0.3, this.size * 0.2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Engine glow
         ctx.fillStyle = '#ffaa00';
         ctx.beginPath();
-        ctx.arc(-this.size * 0.5, 0, this.size * 0.3, 0, Math.PI * 2);
+        ctx.arc(-this.size * 0.8, -this.size * 0.15, this.size * 0.1, 0, Math.PI * 2);
+        ctx.arc(-this.size * 0.8, this.size * 0.15, this.size * 0.1, 0, Math.PI * 2);
         ctx.fill();
+    }
+    
+    drawBetaShip(ctx) {
+        // Beta mini-boss - Carrier design
+        ctx.fillStyle = '#4444ff';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        
+        // Main hull - elongated
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.9, -this.size * 0.25, this.size * 1.8, this.size * 0.5);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Flight deck
+        ctx.fillStyle = '#6666ff';
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.7, -this.size * 0.4, this.size * 1.4, this.size * 0.15);
+        ctx.rect(-this.size * 0.7, this.size * 0.25, this.size * 1.4, this.size * 0.15);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Hangar bays
+        ctx.fillStyle = '#222222';
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.1, -this.size * 0.35, this.size * 0.4, this.size * 0.1);
+        ctx.rect(-this.size * 0.1, this.size * 0.25, this.size * 0.4, this.size * 0.1);
+        ctx.fill();
+        
+        // Engine array
+        ctx.fillStyle = '#ffaa00';
+        ctx.beginPath();
+        ctx.arc(-this.size * 0.9, -this.size * 0.1, this.size * 0.08, 0, Math.PI * 2);
+        ctx.arc(-this.size * 0.9, 0, this.size * 0.08, 0, Math.PI * 2);
+        ctx.arc(-this.size * 0.9, this.size * 0.1, this.size * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    drawHealthBar(ctx) {
+        const barWidth = this.size * 1.5;
+        const barHeight = 6;
+        const barY = -this.size - 15;
+        
+        // Background
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(-barWidth / 2, barY, barWidth, barHeight);
+        
+        // Health bar
+        const healthPercent = this.health / this.maxHealth;
+        ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
+        ctx.fillRect(-barWidth / 2, barY, barWidth * healthPercent, barHeight);
+        
+        // Border
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-barWidth / 2, barY, barWidth, barHeight);
     }
 }
 

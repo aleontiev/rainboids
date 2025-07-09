@@ -1,6 +1,6 @@
 // Rainboids: Blitz - A bullet hell space shooter
 import { Player } from './blitz/entities/player.js';
-import { Enemy, Bullet, Laser, PulseCircle, HomingMissile } from './blitz/entities/enemy.js';
+import { Enemy, Bullet, Laser, PulseCircle, HomingMissile, MiniBoss } from './blitz/entities/enemy.js';
 import { Asteroid } from './blitz/entities/asteroid.js';
 import { InputHandler } from './blitz/input.js';
 
@@ -42,6 +42,10 @@ class BlitzGame {
         this.asteroidSpawnTimer = 0;
         this.enemySpawnTimer = 0;
         
+        // Game progression
+        this.gamePhase = 1; // 1: asteroids only, 2: enemies start, 3: increased spawn, 4: mini-boss
+        this.miniBosses = [];
+        
         this.backgroundStars = [];
         this.powerups = [];
         this.explosions = [];
@@ -70,10 +74,13 @@ class BlitzGame {
         // Initialize audio
         this.audioReady = false;
         this.sounds = {
-            shoot: this.generateSound('laserShoot'),
-            hit: this.generateSound('hitHurt'),
-            explosion: this.generateSound('explosion'),
-            dash: this.generateSound('powerUp')
+            shoot: this.generateSfxrSound('laserShoot'),
+            hit: this.generateSfxrSound('hitHurt'),
+            explosion: this.generateSfxrSound('explosion'),
+            enemyExplosion: this.generateSfxrSound('enemyExplosion'),
+            asteroidExplosion: this.generateSfxrSound('asteroidExplosion'),
+            playerExplosion: this.generateSfxrSound('playerExplosion'),
+            dash: this.generateSfxrSound('powerUp')
         };
         
         // Background music
@@ -82,45 +89,75 @@ class BlitzGame {
         this.backgroundMusic.volume = 0.3;
     }
     
-    generateSound(type) {
-        // Simple sound generation (placeholder - would use sfxr in real implementation)
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
+    generateSfxrSound(type) {
+        // Generate sound using sfxr.js for authentic retro game audio
+        let synthdef;
+        const params = new Params();
+        
+        switch(type) {
+            case 'laserShoot':
+                // Simple, subtle laser sound
+                synthdef = params.laserShoot();
+                synthdef.p_base_freq = 0.4; // Higher pitch, less harsh
+                synthdef.p_env_sustain = 0.05; // Very short duration
+                synthdef.p_env_decay = 0.1; // Quick decay
+                synthdef.p_freq_ramp = -0.3; // Gentle frequency drop
+                synthdef.sound_vol = 0.15; // Lower volume
+                break;
+            case 'hitHurt':
+                synthdef = params.hitHurt();
+                synthdef.sound_vol = 0.2; // Reduced volume
+                synthdef.p_env_sustain = 0.1; // Shorter duration
+                break;
+            case 'explosion':
+                synthdef = params.explosion();
+                synthdef.sound_vol = 0.25; // Reduced volume
+                synthdef.p_env_sustain = 0.15; // Shorter duration
+                break;
+            case 'enemyExplosion':
+                // Custom enemy explosion - shorter, higher pitch, subtle
+                synthdef = params.explosion();
+                synthdef.p_base_freq = 0.3 + Math.random() * 0.3;
+                synthdef.p_env_sustain = 0.08 + Math.random() * 0.1;
+                synthdef.p_env_decay = 0.15 + Math.random() * 0.2;
+                synthdef.sound_vol = 0.2; // Reduced volume
+                break;
+            case 'asteroidExplosion':
+                // Custom asteroid explosion - deeper, longer rumble, subtle
+                synthdef = params.explosion();
+                synthdef.p_base_freq = 0.1 + Math.random() * 0.15;
+                synthdef.p_env_sustain = 0.15 + Math.random() * 0.25;
+                synthdef.p_env_decay = 0.3 + Math.random() * 0.4;
+                synthdef.p_lpf_freq = 0.3 + Math.random() * 0.2;
+                synthdef.sound_vol = 0.22; // Reduced volume
+                break;
+            case 'playerExplosion':
+                // Custom player explosion - dramatic but not overwhelming
+                synthdef = params.explosion();
+                synthdef.p_base_freq = 0.2 + Math.random() * 0.25;
+                synthdef.p_env_sustain = 0.2 + Math.random() * 0.2;
+                synthdef.p_env_decay = 0.4 + Math.random() * 0.3;
+                synthdef.p_repeat_speed = 0.1 + Math.random() * 0.15;
+                synthdef.sound_vol = 0.3; // Slightly higher for dramatic effect
+                break;
+            case 'powerUp':
+                synthdef = params.powerUp();
+                synthdef.sound_vol = 0.18; // Reduced volume
+                synthdef.p_env_sustain = 0.1; // Shorter duration
+                break;
+            default:
+                synthdef = params.explosion();
+                synthdef.sound_vol = 0.2;
+        }
         
         return {
             play: () => {
-                if (!this.audioReady) return;
-                const osc = audioContext.createOscillator();
-                const gain = audioContext.createGain();
-                
-                osc.connect(gain);
-                gain.connect(audioContext.destination);
-                
-                switch(type) {
-                    case 'laserShoot':
-                        osc.frequency.setValueAtTime(800, audioContext.currentTime);
-                        osc.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.1);
-                        break;
-                    case 'hitHurt':
-                        osc.frequency.setValueAtTime(400, audioContext.currentTime);
-                        osc.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.2);
-                        break;
-                    case 'explosion':
-                        osc.type = 'noise';
-                        osc.frequency.setValueAtTime(200, audioContext.currentTime);
-                        break;
-                    case 'powerUp':
-                        osc.frequency.setValueAtTime(400, audioContext.currentTime);
-                        osc.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.2);
-                        break;
+                if (!this.audioReady || this.backgroundMusic.muted) return;
+                try {
+                    sfxr.play(synthdef);
+                } catch (e) {
+                    console.log('Audio play failed:', e);
                 }
-                
-                gain.gain.setValueAtTime(0.1, audioContext.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-                
-                osc.start();
-                osc.stop(audioContext.currentTime + 0.2);
             }
         };
     }
@@ -329,10 +366,56 @@ class BlitzGame {
     }
     
     gameOver() {
+        // Play dramatic player explosion sound
+        this.sounds.playerExplosion.play();
+        
+        // Create larger explosion effect for player death
+        this.createExplosion(this.player.x, this.player.y, 'large');
+        
+        // Add additional smaller explosions around the player
+        for (let i = 0; i < 5; i++) {
+            setTimeout(() => {
+                const offsetX = (Math.random() - 0.5) * 60;
+                const offsetY = (Math.random() - 0.5) * 60;
+                this.createExplosion(this.player.x + offsetX, this.player.y + offsetY, 'small');
+            }, i * 100);
+        }
+        
         this.gameState = 'GAME_OVER';
         document.getElementById('game-over').style.display = 'flex';
     }
     
+    updateGamePhase() {
+        if (this.gameTime < 10) {
+            this.gamePhase = 1; // Asteroids only
+        } else if (this.gameTime < 30) {
+            this.gamePhase = 2; // Enemies start spawning
+        } else if (this.gameTime < 60) {
+            this.gamePhase = 3; // Increased spawn rates
+        }
+        // Phase 4 is set when mini-bosses spawn
+    }
+    
+    getAsteroidSpawnRate() {
+        switch (this.gamePhase) {
+            case 1: return 120; // Every 2 seconds
+            case 2: return 100; // Every 1.67 seconds
+            case 3: return 80;  // Every 1.33 seconds
+            case 4: return 90;  // Slightly reduced during mini-boss
+            default: return 120;
+        }
+    }
+    
+    getEnemySpawnRate() {
+        switch (this.gamePhase) {
+            case 1: return 999999; // No enemies
+            case 2: return 180; // Every 3 seconds
+            case 3: return 120; // Every 2 seconds
+            case 4: return 150; // Slightly reduced during mini-boss
+            default: return 180;
+        }
+    }
+
     updateUI() {
         document.getElementById('score-value').textContent = this.score;
         const timerElement = document.getElementById('timer-value');
@@ -393,6 +476,27 @@ class BlitzGame {
         const type = types[Math.floor(Math.random() * types.length)];
         
         this.enemies.push(new Enemy(x, y, type, this.isPortrait));
+    }
+    
+    spawnMiniBosses() {
+        console.log('spawnMiniBosses called');
+        // Spawn two mini-bosses
+        const centerY = this.canvas.height / 2;
+        const spacing = 150;
+        
+        // Alpha mini-boss (top)
+        const alphaY = centerY - spacing;
+        const alphaX = this.canvas.width - 100;
+        console.log('Creating alpha mini-boss at:', alphaX, alphaY);
+        this.miniBosses.push(new MiniBoss(alphaX, alphaY, 'alpha', this.isPortrait));
+        
+        // Beta mini-boss (bottom)
+        const betaY = centerY + spacing;
+        const betaX = this.canvas.width - 100;
+        console.log('Creating beta mini-boss at:', betaX, betaY);
+        this.miniBosses.push(new MiniBoss(betaX, betaY, 'beta', this.isPortrait));
+        
+        console.log('Mini-bosses spawned, total:', this.miniBosses.length);
     }
     
     update(deltaTime) {
@@ -458,6 +562,25 @@ class BlitzGame {
             return enemy.x > -50;
         });
         
+        // Update mini-bosses
+        this.miniBosses.forEach(miniBoss => {
+            miniBoss.update();
+            
+            // Mini-boss primary weapon
+            if (miniBoss.canFirePrimary()) {
+                const bulletData = miniBoss.firePrimary();
+                this.enemyBullets.push(new Bullet(bulletData.x, bulletData.y, bulletData.vx, bulletData.vy, bulletData.type));
+            }
+            
+            // Mini-boss secondary weapon
+            if (miniBoss.canFireSecondary()) {
+                const bulletsData = miniBoss.fireSecondary();
+                bulletsData.forEach(bulletData => {
+                    this.enemyBullets.push(new Bullet(bulletData.x, bulletData.y, bulletData.vx, bulletData.vy, bulletData.type));
+                });
+            }
+        });
+        
         // Update particles
         this.particles = this.particles.filter(particle => {
             particle.update();
@@ -510,8 +633,13 @@ class BlitzGame {
         }
         
         // Spawn asteroids
+        // Game progression phases based on time
+        this.updateGamePhase();
+        
+        // Spawn asteroids based on current phase
         this.asteroidSpawnTimer++;
-        if (this.asteroidSpawnTimer > 120) { // Reduced frequency (every 2 seconds)
+        const asteroidSpawnRate = this.getAsteroidSpawnRate();
+        if (this.asteroidSpawnTimer > asteroidSpawnRate) {
             const rand = Math.random();
             let type = 'medium';
             if (rand < 0.1) { // 10% large
@@ -523,11 +651,24 @@ class BlitzGame {
             this.asteroidSpawnTimer = 0;
         }
         
-        // Spawn enemies
+        // Spawn enemies based on current phase
         this.enemySpawnTimer++;
-        if (this.enemySpawnTimer > 180) {
+        const enemySpawnRate = this.getEnemySpawnRate();
+        if (this.enemySpawnTimer > enemySpawnRate && this.gamePhase >= 2) {
             this.spawnEnemy();
             this.enemySpawnTimer = 0;
+        }
+        
+        // Check for mini-boss spawn at 60 seconds
+        if (this.gameTime >= 60 && this.gamePhase === 3 && this.miniBosses.length === 0) {
+            console.log('Spawning mini-bosses at time:', this.gameTime);
+            console.log('Method exists?', typeof this.spawnMiniBosses);
+            try {
+                this.spawnMiniBosses();
+                this.gamePhase = 4; // Mini-boss phase
+            } catch (error) {
+                console.error('Error spawning mini-bosses:', error);
+            }
         }
         
         this.checkCollisions();
@@ -588,7 +729,7 @@ class BlitzGame {
                         } else if (damageResult === 'destroyed') {
                             // Debris already created above
                         }
-                        this.sounds.explosion.play();
+                        this.sounds.asteroidExplosion.play();
                     }
                     // If it's a laser, it can hit multiple targets, so don't break from inner loop
                     if (!(bullet instanceof Laser)) {
@@ -618,10 +759,53 @@ class BlitzGame {
                     }
 
                     this.createEnemyExplosion(enemy.x, enemy.y);
-                    this.sounds.hit.play();
+                    this.sounds.enemyExplosion.play();
                     this.enemies.splice(j, 1);
                     this.score += 200;
                     this.updateUI();
+                    
+                    // If it's a laser, it can hit multiple targets, so don't break from inner loop
+                    if (!(bullet instanceof Laser)) {
+                        break; // Break from inner loop only if not a laser
+                    }
+                }
+            }
+        }
+        
+        // Player bullets vs mini-bosses
+        for (let i = this.bullets.length - 1; i >= 0; i--) {
+            for (let j = this.miniBosses.length - 1; j >= 0; j--) {
+                const bullet = this.bullets[i];
+                const miniBoss = this.miniBosses[j];
+                let collision = false;
+
+                if (bullet instanceof Laser) {
+                    collision = this.checkLaserCollision(bullet, miniBoss);
+                } else {
+                    collision = this.checkCollision(bullet, miniBoss);
+                }
+
+                if (collision) {
+                    // For lasers, we don't remove the laser on hit, as it's continuous
+                    if (!(bullet instanceof Laser)) {
+                        this.bullets.splice(i, 1);
+                    }
+
+                    const result = miniBoss.takeDamage(25); // Higher damage for mini-bosses
+                    this.createEnemyExplosion(miniBoss.x, miniBoss.y);
+                    this.sounds.enemyExplosion.play();
+                    
+                    if (result === 'destroyed') {
+                        this.miniBosses.splice(j, 1);
+                        this.score += 1000; // High score for mini-boss defeat
+                        this.updateUI();
+                        
+                        // Check if all mini-bosses are defeated
+                        if (this.miniBosses.length === 0) {
+                            // All mini-bosses defeated - ready for level 1 boss
+                            console.log('All mini-bosses defeated! Ready for level 1 boss.');
+                        }
+                    }
                     
                     // If it's a laser, it can hit multiple targets, so don't break from inner loop
                     if (!(bullet instanceof Laser)) {
@@ -656,6 +840,25 @@ class BlitzGame {
         if (!this.player.isDashing && !this.player.godMode) {
             for (let i = this.enemies.length - 1; i >= 0; i--) {
                 if (this.checkPlayerCollision(this.player, this.enemies[i])) {
+                    if (this.player.secondShip.length > 0) {
+                        const destroyedShip = this.player.secondShip.pop();
+                        this.createExplosion(destroyedShip.x, destroyedShip.y);
+                        this.updateUI();
+                    } else if (this.player.shield > 0) {
+                        this.player.shield--;
+                        this.createExplosion(this.player.x, this.player.y);
+                        this.updateUI();
+                    } else {
+                        this.createExplosion(this.player.x, this.player.y);
+                        this.gameOver();
+                        return;
+                    }
+                }
+            }
+            
+            // Player vs mini-bosses
+            for (let i = this.miniBosses.length - 1; i >= 0; i--) {
+                if (this.checkPlayerCollision(this.player, this.miniBosses[i])) {
                     if (this.player.secondShip.length > 0) {
                         const destroyedShip = this.player.secondShip.pop();
                         this.createExplosion(destroyedShip.x, destroyedShip.y);
@@ -867,7 +1070,7 @@ class BlitzGame {
                 this.createRainbowExplosion(this.player.x, this.player.y, bombRadius);
                 
                 // Play bomb explosion sound
-                this.sounds.explosion.play();
+                this.sounds.playerExplosion.play();
                 
                 // Destroy nearby enemies
                 for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -1019,6 +1222,7 @@ class BlitzGame {
             this.enemyPulseCircles.forEach(circle => circle.render(this.ctx));
             this.asteroids.forEach(asteroid => asteroid.render(this.ctx));
             this.enemies.forEach(enemy => enemy.render(this.ctx));
+            this.miniBosses.forEach(miniBoss => miniBoss.render(this.ctx));
             this.particles.forEach(particle => particle.render(this.ctx));
         }
     }
