@@ -24,126 +24,226 @@ export class Player {
     this.secondShip = []; // Change to an array
     this.godMode = false;
     this.rollAngle = 0; // Initialize rollAngle property
+    
+    // Velocity tracking for predictive aiming
+    this.vx = 0;
+    this.vy = 0;
+    this.prevX = x;
+    this.prevY = y;
   }
 
   update(keys, enemies, asteroids, isPortrait, autoaimEnabled = true, mainWeaponLevel = 1) {
-    // Handle dash
+    // Handle dash timing
     if (this.isDashing) {
-      this.x += this.dashVx;
-      this.y += this.dashVy;
       this.dashFrames--;
-
       if (this.dashFrames <= 0) {
         this.isDashing = false;
       }
-    } else if (keys.target) {
+    }
+
+    // Get current speed (increased during dash)
+    const currentSpeed = this.isDashing ? this.speed * 2 : this.speed;
+
+    // Handle movement - prioritize touch for mobile, keyboard for desktop
+    if (keys.target) {
+      // Touch controls - move toward target
       const dx = keys.target.x - this.x;
       const dy = keys.target.y - this.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
       if (distance > 1) {
-        this.x += (dx / distance) * this.speed;
-        this.y += (dy / distance) * this.speed;
+        this.x += (dx / distance) * currentSpeed;
+        this.y += (dy / distance) * currentSpeed;
       }
     } else {
-      // Normal movement
-      if (keys.up) this.y -= this.speed;
-      if (keys.down) this.y += this.speed;
-      if (keys.left) this.x -= this.speed;
-      if (keys.right) this.x += this.speed;
+      // Keyboard movement (WASD)
+      if (keys.up) this.y -= currentSpeed;
+      if (keys.down) this.y += currentSpeed;
+      if (keys.left) this.x -= currentSpeed;
+      if (keys.right) this.x += currentSpeed;
     }
 
     // Keep player on screen
     this.x = Math.max(20, Math.min(this.x, window.innerWidth - 20));
     this.y = Math.max(20, Math.min(this.y, window.innerHeight - 20));
 
-    if (isPortrait) {
-      this.angle = -Math.PI / 2; // Face up
+    // Update velocity tracking for predictive aiming
+    this.vx = this.x - this.prevX;
+    this.vy = this.y - this.prevY;
+    this.prevX = this.x;
+    this.prevY = this.y;
+
+    // Handle aiming - use mouse position for desktop, default angle for mobile
+    if (keys.mousePosition) {
+      // Desktop: aim toward mouse cursor
+      const dx = keys.mousePosition.x - this.x;
+      const dy = keys.mousePosition.y - this.y;
+      this.angle = Math.atan2(dy, dx);
     } else {
-      this.angle = 0; // Face right
-    }
-
-    // Predictive aim - only if autoaim is enabled
-    if (autoaimEnabled && keys.fire && (enemies.length > 0 || asteroids.length > 0)) {
-        let target = null;
-        let minDistance = Infinity;
-
-        // First, prioritize enemies that can shoot
-        const shootingEnemyTypes = ['straight', 'sine', 'zigzag'];
-        let closestShootingEnemy = null;
-        let minShootingEnemyDistance = Infinity;
-
-        for (const enemy of enemies) {
-            if (shootingEnemyTypes.includes(enemy.type)) {
-                const dist = Math.sqrt(
-                    (enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2
-                );
-                if (dist < minShootingEnemyDistance) {
-                    minShootingEnemyDistance = dist;
-                    closestShootingEnemy = enemy;
-                }
-            }
-        }
-
-        if (closestShootingEnemy) {
-            target = closestShootingEnemy;
-            minDistance = minShootingEnemyDistance;
-        } else {
-            // If no shooting enemies, prioritize by proximity among all enemies and asteroids
-            const allTargets = [...enemies, ...asteroids];
-            for (const t of allTargets) { // Renamed 'target' to 't' to avoid conflict
-                const dist = Math.sqrt(
-                    (t.x - this.x) ** 2 + (t.y - this.y) ** 2
-                );
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    target = t;
-                }
-            }
-        }
-
-        if (target) {
-          if (mainWeaponLevel === 5) { // If primary weapon is laser (level 5)
-              this.angle = Math.atan2(target.y - this.y, target.x - this.x); // Aim directly
-          } else {
-              const bulletSpeed = 10; // Assuming a bullet speed, adjust as needed
-              const timeToTarget = minDistance / bulletSpeed;
-
-              const predictedX = target.x + (target.vx || 0) * timeToTarget;
-              const predictedY = target.y + (target.vy || 0) * timeToTarget;
-
-              this.angle = Math.atan2(predictedY - this.y, predictedX - this.x);
-          }
-        }
-    }
-
-    // Dash mechanic - dash in movement direction
-    if (keys.shift && this.dashCooldown <= 0 && !this.isDashing) {
-      // Determine dash direction based on movement keys
-      let dashDirX = 0;
-      let dashDirY = 0;
-
-      if (keys.up) dashDirY = -1;
-      if (keys.down) dashDirY = 1;
-      if (keys.left) dashDirX = -1;
-      if (keys.right) dashDirX = 1;
-
-      // If no movement keys, dash forward
-      if (dashDirX === 0 && dashDirY === 0) {
-        dashDirX = Math.cos(this.angle);
-        dashDirY = Math.sin(this.angle);
+      // Mobile: use default orientation
+      if (isPortrait) {
+        this.angle = -Math.PI / 2; // Face up
       } else {
-        // Normalize diagonal movement
-        const length = Math.sqrt(dashDirX * dashDirX + dashDirY * dashDirY);
-        if (length > 0) {
-          dashDirX /= length;
-          dashDirY /= length;
-        }
+        this.angle = 0; // Face right
+      }
+    }
+
+    // Helper function to check if target is within viewport
+    const isTargetInViewport = (target) => {
+      return target.x >= 0 && target.x <= window.innerWidth && 
+             target.y >= 0 && target.y <= window.innerHeight;
+    };
+
+    // Helper function to get current bullet speed based on weapon level
+    const getCurrentBulletSpeed = (level) => {
+      if (level === 5) return Infinity; // Laser beam is instant
+      return GAME_CONFIG.BULLET_SPEED; // All other levels use standard speed (8)
+    };
+
+    // Advanced predictive aiming that considers both player and target velocity
+    const calculatePredictiveAim = (target, bulletSpeed) => {
+      if (bulletSpeed === Infinity) {
+        // For laser, aim directly at target
+        return Math.atan2(target.y - this.y, target.x - this.x);
       }
 
+      // Get target velocity (some targets may not have velocity)
+      const targetVx = target.vx || 0;
+      const targetVy = target.vy || 0;
+      
+      // Calculate relative velocity (target velocity minus player velocity)
+      const relativeVx = targetVx - this.vx;
+      const relativeVy = targetVy - this.vy;
+      
+      // Calculate relative position
+      const relativeX = target.x - this.x;
+      const relativeY = target.y - this.y;
+      
+      // Solve for intercept time using quadratic formula
+      // |target_pos + target_vel * t - player_pos - player_vel * t| = bulletSpeed * t
+      const a = relativeVx * relativeVx + relativeVy * relativeVy - bulletSpeed * bulletSpeed;
+      const b = 2 * (relativeX * relativeVx + relativeY * relativeVy);
+      const c = relativeX * relativeX + relativeY * relativeY;
+      
+      let interceptTime = 0;
+      
+      if (Math.abs(a) < 0.001) {
+        // Linear case: solve bt + c = 0
+        if (Math.abs(b) > 0.001) {
+          interceptTime = -c / b;
+        }
+      } else {
+        // Quadratic case
+        const discriminant = b * b - 4 * a * c;
+        if (discriminant >= 0) {
+          const t1 = (-b + Math.sqrt(discriminant)) / (2 * a);
+          const t2 = (-b - Math.sqrt(discriminant)) / (2 * a);
+          
+          // Choose the smallest positive time
+          const validTimes = [t1, t2].filter(t => t > 0);
+          if (validTimes.length > 0) {
+            interceptTime = Math.min(...validTimes);
+          }
+        }
+      }
+      
+      // Calculate predicted intercept position
+      const predictedX = target.x + targetVx * interceptTime;
+      const predictedY = target.y + targetVy * interceptTime;
+      
+      // Return angle to predicted position
+      return Math.atan2(predictedY - this.y, predictedX - this.x);
+    };
+
+    // Enhanced predictive aim with priority system
+    // Only use autoaim if no mouse position (mobile) or if autoaim is explicitly enabled
+    if ((autoaimEnabled || !keys.mousePosition) && keys.fire && (enemies.length > 0 || asteroids.length > 0)) {
+        let target = null;
+        const bulletSpeed = getCurrentBulletSpeed(mainWeaponLevel);
+        const allTargets = [...enemies, ...asteroids];
+        const shootingEnemyTypes = ['straight', 'sine', 'zigzag'];
+        
+        // Priority 1: Very close targets (within 200px) - any enemy or asteroid
+        let closestNearbyTarget = null;
+        let closestNearbyDistance = Infinity;
+        
+        for (const t of allTargets) {
+            if (isTargetInViewport(t)) {
+                const dist = Math.sqrt((t.x - this.x) ** 2 + (t.y - this.y) ** 2);
+                if (dist < 200 && dist < closestNearbyDistance) {
+                    closestNearbyDistance = dist;
+                    closestNearbyTarget = t;
+                }
+            }
+        }
+        
+        if (closestNearbyTarget) {
+            target = closestNearbyTarget;
+        } else {
+            // Priority 2: Shooting enemies (nearby ones first)
+            let closestShootingEnemy = null;
+            let closestShootingDistance = Infinity;
+            
+            for (const enemy of enemies) {
+                if (shootingEnemyTypes.includes(enemy.type) && isTargetInViewport(enemy)) {
+                    const dist = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
+                    if (dist < closestShootingDistance) {
+                        closestShootingDistance = dist;
+                        closestShootingEnemy = enemy;
+                    }
+                }
+            }
+            
+            if (closestShootingEnemy) {
+                target = closestShootingEnemy;
+            } else {
+                // Priority 3: Any enemies (nearby ones first)
+                let closestEnemy = null;
+                let closestEnemyDistance = Infinity;
+                
+                for (const enemy of enemies) {
+                    if (isTargetInViewport(enemy)) {
+                        const dist = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
+                        if (dist < closestEnemyDistance) {
+                            closestEnemyDistance = dist;
+                            closestEnemy = enemy;
+                        }
+                    }
+                }
+                
+                if (closestEnemy) {
+                    target = closestEnemy;
+                } else {
+                    // Priority 4: Asteroids (if no enemies available)
+                    let closestAsteroid = null;
+                    let closestAsteroidDistance = Infinity;
+                    
+                    for (const asteroid of asteroids) {
+                        if (isTargetInViewport(asteroid)) {
+                            const dist = Math.sqrt((asteroid.x - this.x) ** 2 + (asteroid.y - this.y) ** 2);
+                            if (dist < closestAsteroidDistance) {
+                                closestAsteroidDistance = dist;
+                                closestAsteroid = asteroid;
+                            }
+                        }
+                    }
+                    
+                    if (closestAsteroid) {
+                        target = closestAsteroid;
+                    }
+                }
+            }
+        }
+
+        // Apply advanced predictive aiming to the selected target
+        if (target) {
+            this.angle = calculatePredictiveAim(target, bulletSpeed);
+        }
+    }
+
+    // Dash mechanic - speed boost only
+    if (keys.shift && this.dashCooldown <= 0 && !this.isDashing) {
       this.isDashing = true;
       this.dashFrames = this.maxDashFrames + 30;
-      this.dashVx = dashDirX * (this.dashDistance / this.maxDashFrames);
-      this.dashVy = dashDirY * (this.dashDistance / this.maxDashFrames);
       this.dashCooldown = 120; // 2 seconds at 60fps
     }
 
@@ -182,6 +282,11 @@ export class Player {
     HomingMissileClass,
     isPortrait
   ) {
+    // Cannot shoot while dashing
+    if (this.isDashing) {
+      return;
+    }
+    
     if (this.shootCooldown <= 0) {
       // Main weapon
       if (this.mainWeaponLevel >= 5) {
@@ -192,9 +297,9 @@ export class Player {
         this.shootCooldown = 1; // Allow continuous firing
       } else if (this.mainWeaponLevel === 1) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 10, "#00ff88", isPortrait, 4) // Speed 4
+          new BulletClass(this.x, this.y, this.angle, 10, "#00ff88", isPortrait, GAME_CONFIG.BULLET_SPEED) // Speed 8 (same as level 2)
         ); // Cool green
-        this.shootCooldown = 45; // Slower (0.75 seconds at 60fps)
+        this.shootCooldown = 30; // Half as often as level 2 (0.5 seconds at 60fps)
       } else if (this.mainWeaponLevel === 2) {
         bullets.push(
           new BulletClass(this.x, this.y, this.angle, 14, "#00ffcc", isPortrait, GAME_CONFIG.BULLET_SPEED)
@@ -402,7 +507,7 @@ export class Player {
     ctx.globalAlpha = shipOpacity;
 
     // Draw intricate ship design
-    ctx.strokeStyle = this.isDashing ? "#44ffff" : "#00ff88"; // Cool cyan when dashing, cool green normally
+    ctx.strokeStyle = this.isDashing ? "#ffaa00" : "#00ff88"; // Gold when dashing, cool green normally
     ctx.lineWidth = 2;
 
     // Main hull
@@ -445,21 +550,7 @@ export class Player {
     ctx.closePath();
     ctx.stroke();
 
-    // Draw dash trail effect
-    if (this.isDashing) {
-      ctx.globalAlpha = 0.6;
-      ctx.strokeStyle = "#44ffff"; // Cool cyan
-      ctx.lineWidth = 6;
-
-      // Create multiple trail lines for effect
-      for (let i = 1; i <= 3; i++) {
-        ctx.globalAlpha = 0.6 / i;
-        ctx.beginPath();
-        ctx.moveTo(-this.dashVx * i * 2, -this.dashVy * i * 2);
-        ctx.lineTo(-this.dashVx * i * 4, -this.dashVy * i * 4);
-        ctx.stroke();
-      }
-    }
+    // Dash trail effect removed for cleaner dash visual
 
     // Draw shield if active
     if (this.shield > 0) {

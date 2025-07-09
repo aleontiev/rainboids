@@ -74,10 +74,10 @@ export class Asteroid {
         return false;
     }
     
-    update() {
-        this.x += this.vx;
-        this.y += this.vy;
-        this.angle += this.rotationSpeed;
+    update(slowdownFactor = 1.0) {
+        this.x += this.vx * slowdownFactor;
+        this.y += this.vy * slowdownFactor;
+        this.angle += this.rotationSpeed * slowdownFactor;
     }
     
     render(ctx) {

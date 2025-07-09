@@ -21,6 +21,15 @@ class BlitzGame {
     this.gameState = "TITLE";
     this.score = 0;
     this.lives = 1;
+    this.highScore = this.loadHighScore();
+    
+    // Death animation properties
+    this.deathAnimationActive = false;
+    this.deathAnimationTimer = 0;
+    this.deathAnimationDuration = 60; // 1 second at 60fps
+    this.sceneOpacity = 1.0;
+    this.gameOverOpacity = 0.0;
+    this.deathPosition = { x: 0, y: 0 };
 
     let playerX, playerY;
     if (this.isPortrait) {
@@ -83,6 +92,25 @@ class BlitzGame {
     this.gameLoop();
   }
 
+  loadHighScore() {
+    try {
+      return parseInt(localStorage.getItem('rainboids-high-score') || '0');
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  saveHighScore(score) {
+    try {
+      if (score > this.highScore) {
+        this.highScore = score;
+        localStorage.setItem('rainboids-high-score', score.toString());
+      }
+    } catch (e) {
+      // localStorage not available
+    }
+  }
+
   detectMobile() {
     return (
       window.matchMedia &&
@@ -115,6 +143,10 @@ class BlitzGame {
     this.backgroundMusic = new Audio("bgm.mp3");
     this.backgroundMusic.loop = true;
     this.backgroundMusic.volume = 0.3;
+    
+    // Audio state tracking
+    this.sfxMuted = false;
+    this.musicMuted = false;
   }
 
   generateSfxrSound(type) {
@@ -126,11 +158,12 @@ class BlitzGame {
       case "laserShoot":
         // Simple, subtle laser sound
         synthdef = params.laserShoot();
-        synthdef.p_base_freq = 0.4; // Higher pitch, less harsh
-        synthdef.p_env_sustain = 0.05; // Very short duration
-        synthdef.p_env_decay = 0.1; // Quick decay
-        synthdef.p_freq_ramp = -0.3; // Gentle frequency drop
-        synthdef.sound_vol = 0.15; // Lower volume
+        synthdef.p_base_freq = 0.5; // Higher pitch, less harsh
+        synthdef.p_env_sustain = 0.03; // Very short duration
+        synthdef.p_env_decay = 0.08; // Quick decay
+        synthdef.p_freq_ramp = -0.2; // Gentle frequency drop
+        synthdef.p_lpf_freq = 0.8; // Low pass filter for softer sound
+        synthdef.sound_vol = 0.08; // Much lower volume
         break;
       case "hitHurt":
         synthdef = params.hitHurt();
@@ -139,35 +172,41 @@ class BlitzGame {
         break;
       case "explosion":
         synthdef = params.explosion();
-        synthdef.sound_vol = 0.15; // Further reduced volume
-        synthdef.p_env_sustain = 0.1; // Shorter duration
-        synthdef.p_env_decay = 0.2; // Quicker decay
+        synthdef.sound_vol = 0.12; // Further reduced volume
+        synthdef.p_env_sustain = 0.08; // Shorter duration
+        synthdef.p_env_decay = 0.15; // Quicker decay
+        synthdef.p_lpf_freq = 0.6; // Low pass filter for smoother sound
+        synthdef.p_hpf_freq = 0.1; // High pass filter to reduce harshness
         break;
       case "enemyExplosion":
         // Custom enemy explosion - shorter, higher pitch, very subtle
         synthdef = params.explosion();
         synthdef.p_base_freq = 0.4 + Math.random() * 0.2;
-        synthdef.p_env_sustain = 0.05 + Math.random() * 0.05;
-        synthdef.p_env_decay = 0.1 + Math.random() * 0.1;
-        synthdef.sound_vol = 0.12; // Much more subdued
+        synthdef.p_env_sustain = 0.04 + Math.random() * 0.03;
+        synthdef.p_env_decay = 0.08 + Math.random() * 0.08;
+        synthdef.p_lpf_freq = 0.7 + Math.random() * 0.2; // Smoother filtering
+        synthdef.p_hpf_freq = 0.1; // Reduce low-end harshness
+        synthdef.sound_vol = 0.08; // Much more subdued
         break;
       case "asteroidExplosion":
         // Custom asteroid explosion - deeper, but more subtle
         synthdef = params.explosion();
-        synthdef.p_base_freq = 0.15 + Math.random() * 0.1;
-        synthdef.p_env_sustain = 0.1 + Math.random() * 0.15;
-        synthdef.p_env_decay = 0.2 + Math.random() * 0.25;
-        synthdef.p_lpf_freq = 0.4 + Math.random() * 0.2;
-        synthdef.sound_vol = 0.14; // More subdued
+        synthdef.p_base_freq = 0.18 + Math.random() * 0.08;
+        synthdef.p_env_sustain = 0.08 + Math.random() * 0.1;
+        synthdef.p_env_decay = 0.15 + Math.random() * 0.2;
+        synthdef.p_lpf_freq = 0.5 + Math.random() * 0.2; // Smoother filtering
+        synthdef.p_hpf_freq = 0.05; // Reduce harshness
+        synthdef.sound_vol = 0.1; // More subdued
         break;
       case "playerExplosion":
-        // Custom player explosion - dramatic but not overwhelming
+        // Custom player explosion - extremely subtle and soft
         synthdef = params.explosion();
-        synthdef.p_base_freq = 0.25 + Math.random() * 0.2;
-        synthdef.p_env_sustain = 0.15 + Math.random() * 0.15;
-        synthdef.p_env_decay = 0.3 + Math.random() * 0.2;
-        synthdef.p_repeat_speed = 0.08 + Math.random() * 0.1;
-        synthdef.sound_vol = 0.2; // More subdued
+        synthdef.p_base_freq = 0.1 + Math.random() * 0.05; // Even lower frequency
+        synthdef.p_env_sustain = 0.4 + Math.random() * 0.1; // Longer sustain for smoothness
+        synthdef.p_env_decay = 0.8 + Math.random() * 0.2; // Very long decay
+        synthdef.p_repeat_speed = 0.02 + Math.random() * 0.02; // Much slower repeat
+        synthdef.p_lpf_freq = 0.2 + Math.random() * 0.1; // Heavy low-pass filtering
+        synthdef.sound_vol = 0.04; // Extremely subtle volume
         break;
       case "powerUp":
         synthdef = params.powerUp();
@@ -200,6 +239,17 @@ class BlitzGame {
         this.restartGame();
       }
     });
+
+    // Restart button
+    const restartBtn = document.getElementById("restart-btn");
+    if (restartBtn) {
+      restartBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.gameState === "GAME_OVER") {
+          this.restartGame();
+        }
+      });
+    }
 
     document.addEventListener(
       "touchstart",
@@ -300,33 +350,80 @@ class BlitzGame {
     }
 
     // Volume button
-    const volumeButton = document.getElementById("volume-button");
+    // Setup audio controls in pause dialog
+    this.setupAudioControls();
+    
+    // Auto-pause when user navigates away from page
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && this.gameState === "PLAYING") {
+        this.pauseGame();
+      }
+    });
+    
+    // Also handle window blur/focus events for additional coverage
+    window.addEventListener("blur", () => {
+      if (this.gameState === "PLAYING") {
+        this.pauseGame();
+      }
+    });
+  }
+
+  setupAudioControls() {
+    // Volume button (all sounds)
+    const volumeButton = document.getElementById("volume-btn");
     if (volumeButton) {
       const updateVolumeIcon = () => {
         const icon = volumeButton.querySelector('i');
         if (icon) {
-          icon.setAttribute('data-lucide', this.backgroundMusic.muted ? 'volume-x' : 'volume-2');
+          icon.setAttribute('data-lucide', this.sfxMuted ? 'volume-x' : 'volume-2');
           if (typeof lucide !== 'undefined') {
             lucide.createIcons();
           }
         }
+        volumeButton.classList.toggle('muted', this.sfxMuted);
       };
       
       volumeButton.addEventListener("click", (e) => {
         e.stopPropagation();
-        this.backgroundMusic.muted = !this.backgroundMusic.muted;
+        this.sfxMuted = !this.sfxMuted;
+        // Also mute/unmute music when all sounds are toggled
+        this.musicMuted = this.sfxMuted;
+        this.backgroundMusic.muted = this.musicMuted;
         updateVolumeIcon();
+        updateMusicIcon();
       });
-      volumeButton.addEventListener(
-        "touchstart",
-        (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          this.backgroundMusic.muted = !this.backgroundMusic.muted;
-          updateVolumeIcon();
-        },
-        { passive: false }
-      );
+      
+      updateVolumeIcon();
+    }
+
+    // Music button (music only)
+    const musicButton = document.getElementById("music-btn");
+    const updateMusicIcon = () => {
+      const icon = musicButton.querySelector('i');
+      if (icon) {
+        icon.setAttribute('data-lucide', 'music');
+        if (typeof lucide !== 'undefined') {
+          lucide.createIcons();
+        }
+      }
+      musicButton.classList.toggle('muted', this.musicMuted);
+    };
+    
+    if (musicButton) {
+      musicButton.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.musicMuted = !this.musicMuted;
+        this.backgroundMusic.muted = this.musicMuted;
+        updateMusicIcon();
+      });
+      
+      updateMusicIcon();
+    }
+  }
+
+  playSound(sound) {
+    if (!this.sfxMuted && sound && sound.play) {
+      sound.play();
     }
   }
 
@@ -457,26 +554,19 @@ class BlitzGame {
 
   gameOver() {
     // Play dramatic player explosion sound
-    this.sounds.playerExplosion.play();
+    this.playSound(this.sounds.playerExplosion);
 
-    // Create larger explosion effect for player death
-    this.createExplosion(this.player.x, this.player.y, "large");
+    // Create initial explosion effect for player death
+    this.createExplosion(this.player.x, this.player.y);
 
-    // Add additional smaller explosions around the player
-    for (let i = 0; i < 5; i++) {
-      setTimeout(() => {
-        const offsetX = (Math.random() - 0.5) * 60;
-        const offsetY = (Math.random() - 0.5) * 60;
-        this.createExplosion(
-          this.player.x + offsetX,
-          this.player.y + offsetY,
-          "small"
-        );
-      }, i * 100);
-    }
-
-    this.gameState = "GAME_OVER";
-    document.getElementById("game-over").style.display = "flex";
+    // Start death animation sequence
+    this.deathAnimationActive = true;
+    this.deathAnimationTimer = 0;
+    this.sceneOpacity = 1.0;
+    this.gameOverOpacity = 0.0;
+    
+    // Change game state to prevent normal game updates
+    this.gameState = "DEATH_ANIMATION";
   }
 
   updateGamePhase() {
@@ -610,8 +700,8 @@ class BlitzGame {
     this.enemies.push(new Enemy(x, y, type, this.isPortrait));
   }
 
-  update(deltaTime) {
-    if (this.gameState !== "PLAYING") return;
+  update(deltaTime, slowdownFactor = 1.0) {
+    if (this.gameState !== "PLAYING" && !this.deathAnimationActive) return;
 
     this.gameTime += deltaTime / 1000; // Convert ms to seconds
 
@@ -642,9 +732,9 @@ class BlitzGame {
     // Update bullets
     this.bullets = this.bullets.filter((bullet) => {
       if (bullet instanceof HomingMissile) {
-        return bullet.update(this.enemies);
+        return bullet.update(this.enemies, slowdownFactor);
       } else {
-        bullet.update();
+        bullet.update(slowdownFactor);
         if (this.isPortrait) {
           return bullet.y < this.canvas.height + 50;
         } else {
@@ -655,7 +745,7 @@ class BlitzGame {
 
     // Update enemy bullets
     this.enemyBullets = this.enemyBullets.filter((bullet) => {
-      bullet.update();
+      bullet.update(slowdownFactor);
 
       // Special handling for pulse circles
       if (bullet.enemyType === "pulse") {
@@ -670,15 +760,15 @@ class BlitzGame {
       );
     });
 
-    this.enemyLasers = this.enemyLasers.filter((laser) => laser.update());
+    this.enemyLasers = this.enemyLasers.filter((laser) => laser.update(slowdownFactor));
 
     this.enemyPulseCircles = this.enemyPulseCircles.filter((circle) =>
-      circle.update()
+      circle.update(slowdownFactor)
     );
 
     // Update asteroids
     this.asteroids = this.asteroids.filter((asteroid) => {
-      asteroid.update();
+      asteroid.update(slowdownFactor);
       if (this.isPortrait) {
         return asteroid.y < this.canvas.height + asteroid.size; // Keep if on screen or just off bottom
       } else {
@@ -693,7 +783,8 @@ class BlitzGame {
         this.player.y,
         this.enemyBullets,
         this.enemyLasers,
-        this.enemyPulseCircles
+        this.enemyPulseCircles,
+        slowdownFactor
       );
       enemy.shoot(this.enemyBullets, this.player);
       return enemy.x > -50;
@@ -701,7 +792,7 @@ class BlitzGame {
 
     // Update mini-bosses
     this.miniBosses.forEach((miniBoss) => {
-      miniBoss.update(this.player.x, this.player.y); // Pass player coordinates
+      miniBoss.update(this.player.x, this.player.y, slowdownFactor); // Pass player coordinates
 
       // Mini-boss primary weapon
       if (miniBoss.canFirePrimary()) {
@@ -737,6 +828,42 @@ class BlitzGame {
         });
       }
 
+      // Mini-boss circular weapon
+      if (miniBoss.canFireCircular()) {
+        const bulletsData = miniBoss.fireCircular(this.player.x, this.player.y);
+        bulletsData.forEach((bulletData) => {
+          this.enemyBullets.push(
+            new Bullet(
+              bulletData.x,
+              bulletData.y,
+              bulletData.vx,
+              bulletData.vy,
+              bulletData.type,
+              bulletData.size,
+              bulletData.color
+            )
+          );
+        });
+      }
+
+      // Mini-boss burst weapon
+      if (miniBoss.canFireBurst()) {
+        const bulletsData = miniBoss.fireBurst(this.player.x, this.player.y);
+        bulletsData.forEach((bulletData) => {
+          this.enemyBullets.push(
+            new Bullet(
+              bulletData.x,
+              bulletData.y,
+              bulletData.vx,
+              bulletData.vy,
+              bulletData.type,
+              bulletData.size,
+              bulletData.color
+            )
+          );
+        });
+      }
+
       // Mini-boss dive enemy spawn
       if (miniBoss.canFireDiveEnemy()) {
         const enemyData = miniBoss.fireDiveEnemy(this.player.x, this.player.y); // Pass player coordinates
@@ -754,7 +881,7 @@ class BlitzGame {
 
     // Update particles
     this.particles = this.particles.filter((particle) => {
-      particle.update();
+      particle.update(slowdownFactor);
       return particle.life > 0;
     });
 
@@ -786,13 +913,13 @@ class BlitzGame {
 
     // Update explosions
     this.explosions = this.explosions.filter((explosion) => {
-      explosion.update();
+      explosion.update(slowdownFactor);
       return explosion.life > 0;
     });
 
     // Update text particles
     this.textParticles = this.textParticles.filter((particle) => {
-      particle.update();
+      particle.update(slowdownFactor);
       return particle.life > 0;
     });
 
@@ -898,7 +1025,7 @@ class BlitzGame {
 
     // Update boss fight
     if (this.gamePhase === 6) {
-      this.updateBossFight();
+      this.updateBossFight(slowdownFactor);
     }
     
     // Handle boss dialog delay phase
@@ -1015,7 +1142,7 @@ class BlitzGame {
             } else if (damageResult === "destroyed") {
               // Debris already created above
             }
-            this.sounds.asteroidExplosion.play();
+            this.playSound(this.sounds.asteroidExplosion);
           }
           // If it's a laser, it can hit multiple targets, so don't break from inner loop
           if (!(bullet instanceof Laser)) {
@@ -1045,7 +1172,7 @@ class BlitzGame {
           }
 
           this.createEnemyExplosion(enemy.x, enemy.y);
-          this.sounds.enemyExplosion.play();
+          this.playSound(this.sounds.enemyExplosion);
           this.enemies.splice(j, 1);
           this.score += 200;
           this.updateUI();
@@ -1079,7 +1206,7 @@ class BlitzGame {
 
           const result = miniBoss.takeDamage(10); // Reduced damage since they have 3x more health
           this.createEnemyExplosion(miniBoss.x, miniBoss.y);
-          this.sounds.enemyExplosion.play();
+          this.playSound(this.sounds.enemyExplosion);
 
           if (result === "destroyed") {
             this.miniBosses.splice(j, 1);
@@ -1295,6 +1422,11 @@ class BlitzGame {
   }
 
   checkPlayerCollision(player, obj) {
+    // Player is immune to damage while dashing
+    if (player.isDashing) {
+      return false;
+    }
+    
     const dx = player.x - obj.x;
     const dy = player.y - obj.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1326,6 +1458,22 @@ class BlitzGame {
 
   createRainbowExplosion(x, y) {
     this.explosions.push(new RainbowExplosion(x, y));
+  }
+
+  createDeathRainbowExplosion(x, y) {
+    // Create a medium-sized rainbow explosion similar to asteroids
+    this.explosions.push(new RainbowExplosion(x, y, 120));
+    
+    // Add rainbow particles scattered around the explosion
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const distance = 30 + Math.random() * 40;
+      const particleX = x + Math.cos(angle) * distance;
+      const particleY = y + Math.sin(angle) * distance;
+      
+      // Create rainbow debris particles
+      this.particles.push(new RainbowParticle(particleX, particleY));
+    }
   }
 
   collectPowerup(powerup) {
@@ -1385,7 +1533,7 @@ class BlitzGame {
         this.createRainbowExplosion(this.player.x, this.player.y, bombRadius);
 
         // Play bomb explosion sound
-        this.sounds.playerExplosion.play();
+        this.playSound(this.sounds.playerExplosion);
 
         // Destroy nearby enemies
         for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -1538,6 +1686,9 @@ class BlitzGame {
       // Draw game objects
       this.player.render(this.ctx);
 
+      // Draw target indicator for mouse position (desktop only)
+      this.renderTargetIndicator();
+
       this.bullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyBullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyLasers.forEach((laser) => laser.render(this.ctx));
@@ -1551,6 +1702,50 @@ class BlitzGame {
         this.level1Boss.render(this.ctx);
       }
       this.particles.forEach((particle) => particle.render(this.ctx));
+    }
+    
+    // Render death animation effects
+    if (this.deathAnimationActive) {
+      // Draw explosions during death animation
+      this.explosions.forEach((explosion) => explosion.render(this.ctx));
+      this.particles.forEach((particle) => particle.render(this.ctx));
+      
+      // Apply scene fade effect
+      if (this.sceneOpacity < 1) {
+        this.ctx.fillStyle = `rgba(0, 0, 0, ${1 - this.sceneOpacity})`;
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      }
+    }
+  }
+
+  renderTargetIndicator() {
+    const input = this.inputHandler.getInput();
+    if (input.mousePosition) {
+      const { x, y } = input.mousePosition;
+      
+      // Draw crosshair target indicator
+      this.ctx.save();
+      this.ctx.strokeStyle = "#ff4444";
+      this.ctx.lineWidth = 2;
+      this.ctx.globalAlpha = 0.8;
+      
+      // Draw crosshair
+      const size = 20;
+      this.ctx.beginPath();
+      // Vertical line
+      this.ctx.moveTo(x, y - size);
+      this.ctx.lineTo(x, y + size);
+      // Horizontal line
+      this.ctx.moveTo(x - size, y);
+      this.ctx.lineTo(x + size, y);
+      this.ctx.stroke();
+      
+      // Draw circle around crosshair
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, 8, 0, Math.PI * 2);
+      this.ctx.stroke();
+      
+      this.ctx.restore();
     }
   }
 
@@ -1665,32 +1860,20 @@ class BlitzGame {
   updateCheatButtons() {
     // Godmode button
     const godmodeBtn = document.getElementById("godmode-btn");
-    if (this.player.godMode) {
-      godmodeBtn.textContent = "Godmode: ON";
-      godmodeBtn.style.background = "#44ff44";
-    } else {
-      godmodeBtn.textContent = "Godmode: OFF";
-      godmodeBtn.style.background = "#ff4444";
+    if (godmodeBtn) {
+      godmodeBtn.classList.toggle('active', this.player.godMode);
     }
 
     // All Upgrades button
     const allUpgradesBtn = document.getElementById("all-upgrades-btn");
-    if (this.allUpgradesState !== null) {
-      allUpgradesBtn.textContent = "Upgrades: ON";
-      allUpgradesBtn.style.background = "#44ff44";
-    } else {
-      allUpgradesBtn.textContent = "Upgrades: OFF";
-      allUpgradesBtn.style.background = "#ff4444";
+    if (allUpgradesBtn) {
+      allUpgradesBtn.classList.toggle('active', this.allUpgradesState !== null);
     }
 
     // Autoaim button
     const autoaimBtn = document.getElementById("autoaim-btn");
-    if (this.autoaimEnabled) {
-      autoaimBtn.textContent = "Autoaim: ON";
-      autoaimBtn.style.background = "#44ff44";
-    } else {
-      autoaimBtn.textContent = "Autoaim: OFF";
-      autoaimBtn.style.background = "#ff4444";
+    if (autoaimBtn) {
+      autoaimBtn.classList.toggle('active', this.autoaimEnabled);
     }
   }
 
@@ -1776,10 +1959,10 @@ class BlitzGame {
     console.log('Level 1 Boss spawned at:', bossX, bossY);
   }
   
-  updateBossFight() {
+  updateBossFight(slowdownFactor = 1.0) {
     if (!this.level1Boss) return;
     
-    this.level1Boss.update();
+    this.level1Boss.update(slowdownFactor);
     
     // Boss weapons
     if (this.level1Boss.canFirePrimary()) {
@@ -1903,7 +2086,7 @@ class BlitzGame {
     // Final large explosion and start zoom sequence
     setTimeout(() => {
       this.createRainbowExplosion(this.level1Boss.x, this.level1Boss.y, 400);
-      this.sounds.playerExplosion.play();
+      this.playSound(this.sounds.playerExplosion);
       this.startPlayerZoomSequence();
     }, 1600);
   }
@@ -1954,8 +2137,62 @@ class BlitzGame {
     if (this.gameState === "PLAYING") {
       this.update(deltaTime);
     }
+    
+    // Handle death animation
+    if (this.deathAnimationActive) {
+      this.updateDeathAnimation();
+      // Continue updating game objects during death animation with 4x slowdown
+      this.update(deltaTime, 0.25); // 4x slower
+    }
+    
     this.render();
     requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
+  }
+
+  updateDeathAnimation() {
+    this.deathAnimationTimer++;
+    
+    // Create medium rainbow explosions around the player for the first 2 seconds
+    if (this.deathAnimationTimer < 120) {
+      if (this.deathAnimationTimer % 30 === 0) {
+        this.createDeathRainbowExplosion(this.player.x, this.player.y);
+      }
+    }
+    
+    // Start fading out scene in the last second
+    if (this.deathAnimationTimer > 180) {
+      const fadeProgress = (this.deathAnimationTimer - 180) / 60; // 0 to 1 over 1 second
+      this.sceneOpacity = Math.max(0, 1 - fadeProgress);
+    }
+    
+    // End death animation and show game over screen
+    if (this.deathAnimationTimer >= this.deathAnimationDuration) {
+      this.deathAnimationActive = false;
+      this.gameState = "GAME_OVER";
+      this.gameOverOpacity = 0;
+      
+      // Save high score and update display
+      this.saveHighScore(this.score);
+      document.getElementById("final-score-value").textContent = this.score.toLocaleString();
+      document.getElementById("high-score-value").textContent = this.highScore.toLocaleString();
+      
+      // Start fade in game over screen
+      const gameOverElement = document.getElementById("game-over");
+      gameOverElement.style.display = "flex";
+      gameOverElement.style.opacity = "0";
+      
+      // Animate game over screen fade in
+      let fadeInTimer = 0;
+      const fadeInInterval = setInterval(() => {
+        fadeInTimer += 16; // ~60fps
+        const progress = fadeInTimer / 1000; // 1 second fade in
+        gameOverElement.style.opacity = Math.min(1, progress);
+        
+        if (progress >= 1) {
+          clearInterval(fadeInInterval);
+        }
+      }, 16);
+    }
   }
 }
 
@@ -2153,9 +2390,9 @@ class RainbowExplosion {
     }
   }
 
-  update() {
-    this.radius += this.growthRate;
-    this.life--;
+  update(slowdownFactor = 1.0) {
+    this.radius += this.growthRate * slowdownFactor;
+    this.life -= slowdownFactor;
 
     if (this.radius >= this.maxRadius) {
       this.life = 0;
@@ -2173,20 +2410,20 @@ class RainbowExplosion {
         spark.trail.shift();
       }
 
-      spark.x += spark.vx;
-      spark.y += spark.vy;
+      spark.x += spark.vx * slowdownFactor;
+      spark.y += spark.vy * slowdownFactor;
 
       // Add gravity for firework effect
       if (this.isFirework) {
-        spark.vy += 0.1; // Gravity
-        spark.vx *= 0.995; // Air resistance
+        spark.vy += 0.1 * slowdownFactor; // Gravity
+        spark.vx *= 0.995;
         spark.vy *= 0.995;
       } else {
         spark.vx *= 0.98;
         spark.vy *= 0.98;
       }
 
-      spark.life--;
+      spark.life -= slowdownFactor;
       return spark.life > 0;
     });
   }
@@ -2276,12 +2513,12 @@ class Particle {
     this.scale = scale;
   }
 
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
+  update(slowdownFactor = 1.0) {
+    this.x += this.vx * slowdownFactor;
+    this.y += this.vy * slowdownFactor;
     this.vx *= 0.95;
     this.vy *= 0.95;
-    this.life--;
+    this.life -= slowdownFactor;
   }
 
   render(ctx) {
@@ -2306,13 +2543,13 @@ class Debris {
     this.color = color;
   }
 
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
+  update(slowdownFactor = 1.0) {
+    this.x += this.vx * slowdownFactor;
+    this.y += this.vy * slowdownFactor;
     this.vx *= 0.98;
     this.vy *= 0.98;
-    this.angle += this.angularVelocity;
-    this.life--;
+    this.angle += this.angularVelocity * slowdownFactor;
+    this.life -= slowdownFactor;
   }
 
   render(ctx) {
@@ -2333,6 +2570,51 @@ class Debris {
   }
 }
 
+class RainbowParticle {
+  constructor(x, y, scale = 1) {
+    this.x = x;
+    this.y = y;
+    this.vx = (Math.random() - 0.5) * 4 * scale;
+    this.vy = (Math.random() - 0.5) * 4 * scale;
+    this.life = 60;
+    this.maxLife = 60;
+    this.scale = scale;
+    this.angle = Math.random() * Math.PI * 2;
+    this.angularVelocity = (Math.random() - 0.5) * 0.1;
+    this.size = 3 + Math.random() * 2;
+    this.colors = [
+      "#ff0000", "#ff8800", "#ffff00", "#00ff00", 
+      "#0088ff", "#4400ff", "#ff00ff"
+    ];
+    this.colorIndex = Math.floor(Math.random() * this.colors.length);
+  }
+
+  update(slowdownFactor = 1.0) {
+    this.x += this.vx * slowdownFactor;
+    this.y += this.vy * slowdownFactor;
+    this.vx *= 0.96;
+    this.vy *= 0.96;
+    this.angle += this.angularVelocity * slowdownFactor;
+    this.life -= slowdownFactor;
+    
+    // Cycle through rainbow colors
+    if (Math.floor(this.life / slowdownFactor) % 8 === 0) {
+      this.colorIndex = (this.colorIndex + 1) % this.colors.length;
+    }
+  }
+
+  render(ctx) {
+    const alpha = this.life / this.maxLife;
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = this.colors[this.colorIndex];
+    ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+    ctx.restore();
+  }
+}
+
 class TextParticle {
   constructor(x, y, text, color = "#ffffff", size = 20, life = 60) {
     this.x = x;
@@ -2346,10 +2628,10 @@ class TextParticle {
     this.vx = (Math.random() - 0.5) * 0.5; // Slight horizontal drift
   }
 
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    this.life--;
+  update(slowdownFactor = 1.0) {
+    this.x += this.vx * slowdownFactor;
+    this.y += this.vy * slowdownFactor;
+    this.life -= slowdownFactor;
   }
 
   render(ctx) {

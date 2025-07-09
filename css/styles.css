@@ -466,7 +466,7 @@ body {
 
 @keyframes letter-color-4 {
   0% {
-    color: #00ff0;
+    color: #00ff00;
   }
   20% {
     color: #0088ff;
@@ -499,7 +499,7 @@ body {
     color: #ff8800;
   }
   80% {
-    color: #ffff0;
+    color: #ffff00;
   }
   100% {
     color: #00ff00;
@@ -540,7 +540,117 @@ body {
 #game-over h1 {
   font-size: 36px;
   margin-bottom: 20px;
-  color: #ff4444;
+  background: linear-gradient(45deg, #ff0000, #aa0088, #6600cc, #ff0000);
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 3s ease-in-out infinite;
+  text-shadow: 0 0 20px rgba(255, 0, 100, 0.5);
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+#score-display {
+  margin: 20px 0;
+  text-align: center;
+}
+
+#final-score, #high-score {
+  font-size: 18px;
+  margin: 10px 0;
+  color: #fff;
+}
+
+#final-score {
+  color: #ffff00;
+}
+
+#high-score {
+  color: #00ff88;
+}
+
+.play-button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 48px;
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.play-button:hover {
+  color: #00ff88;
+  transform: scale(1.2);
+}
+
+.play-button i {
+  width: 48px;
+  height: 48px;
+}
+
+/* Rainbow title effects */
+#title-rainboids {
+  background: linear-gradient(90deg, #ff0000, #ff8800, #ffff00, #00ff00, #00ffff, #0088ff, #8800ff, #ff00ff);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gentleRainbow 8s ease-in-out infinite;
+}
+
+#title-blitz {
+  display: inline-block;
+}
+
+#title-blitz .blitz-letter {
+  display: inline-block;
+}
+
+#title-blitz .blitz-letter:nth-child(1) {
+  animation: letter-color-1 0.4s linear infinite;
+}
+
+#title-blitz .blitz-letter:nth-child(2) {
+  animation: letter-color-2 0.4s linear infinite;
+}
+
+#title-blitz .blitz-letter:nth-child(3) {
+  animation: letter-color-3 0.4s linear infinite;
+}
+
+#title-blitz .blitz-letter:nth-child(4) {
+  animation: letter-color-4 0.4s linear infinite;
+}
+
+#title-blitz .blitz-letter:nth-child(5) {
+  animation: letter-color-5 0.4s linear infinite;
+}
+
+@keyframes gentleRainbow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes rapidRainbow {
+  0% { background-position: 0% 50%; }
+  25% { background-position: 100% 25%; }
+  50% { background-position: 200% 75%; }
+  75% { background-position: 300% 25%; }
+  100% { background-position: 400% 50%; }
 }
 
 #controls {
@@ -645,24 +755,65 @@ body {
   }
 }
 
-#pause-cheats button {
-  background-color: #333;
-  color: white;
-  border: 2px solid #888;
-  padding: 10px 20px;
-  margin: 5px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-family: "Press Start 2P", cursive;
-  font-size: 14px;
-  transition: background-color 0.2s, border-color 0.2s;
-  width: 280px;
-  text-align: center;
+/* Action Buttons */
+#pause-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
 }
 
-#pause-cheats button:hover {
-  background-color: #555;
-  border-color: #fff;
+.action-buttons {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 400px;
+}
+
+.icon-button {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 15px;
+  border-radius: 8px;
+  transition: color 0.2s, transform 0.1s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+}
+
+.icon-button:hover {
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.icon-button.active {
+  color: #00ff88;
+}
+
+.icon-button i {
+  width: 24px;
+  height: 24px;
+}
+
+/* Muted state overlay */
+.icon-button.muted::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border: 3px solid #ff4444;
+  border-radius: 50%;
+  background: linear-gradient(45deg, transparent 40%, #ff4444 40%, #ff4444 60%, transparent 60%);
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* Skill Level Indicator */

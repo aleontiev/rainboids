@@ -14,6 +14,7 @@ export class InputHandler {
       joystickX: 0,
       joystickY: 0,
       target: null,
+      mousePosition: null,
     };
 
     this.joystickActive = false;
@@ -21,6 +22,7 @@ export class InputHandler {
 
     this.setupKeyboardControls();
     this.setupTouchControls();
+    this.setupMouseControls();
   }
 
   setupKeyboardControls() {
@@ -120,6 +122,42 @@ export class InputHandler {
   handleTouchEnd(evt) {
     this.input.fire = false;
     this.input.target = null;
+  }
+
+  setupMouseControls() {
+    // Only enable mouse controls on desktop (non-touch devices)
+    if (!('ontouchstart' in window)) {
+      this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+      this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+      this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+      this.canvas.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
+    }
+  }
+
+  handleMouseMove(evt) {
+    const rect = this.canvas.getBoundingClientRect();
+    this.input.mousePosition = {
+      x: evt.clientX - rect.left,
+      y: evt.clientY - rect.top,
+    };
+  }
+
+  handleMouseDown(evt) {
+    if (evt.button === 0) { // Left mouse button
+      this.input.fire = true;
+      this.input.firePressed = true;
+    }
+  }
+
+  handleMouseUp(evt) {
+    if (evt.button === 0) { // Left mouse button
+      this.input.fire = false;
+    }
+  }
+
+  handleMouseLeave(evt) {
+    this.input.fire = false;
+    this.input.mousePosition = null;
   }
 
   getInput() {

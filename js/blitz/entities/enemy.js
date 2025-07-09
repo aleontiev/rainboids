@@ -55,38 +55,38 @@ export class Enemy {
         }
     }
     
-    update(playerX, playerY, bullets, lasers, pulseCircles) {
-        this.time++;
+    update(playerX, playerY, bullets, lasers, pulseCircles, slowdownFactor = 1.0) {
+        this.time += slowdownFactor;
         
         if (this.isPortrait) {
             // Portrait mode movement
             switch(this.type) {
                 case 'straight':
-                    this.y += this.speed;
+                    this.y += this.speed * slowdownFactor;
                     break;
                 case 'sine':
-                    this.y += this.speed;
+                    this.y += this.speed * slowdownFactor;
                     this.x = this.initialX + Math.sin(this.time * this.frequency) * this.amplitude;
                     break;
                 case 'zigzag':
-                    this.y += this.speed;
-                    this.zigzagTimer++;
+                    this.y += this.speed * slowdownFactor;
+                    this.zigzagTimer += slowdownFactor;
                     if (this.zigzagTimer > 30) {
                         this.zigzagDirection *= -1;
                         this.zigzagTimer = 0;
                     }
-                    this.x += this.zigzagDirection * 2;
+                    this.x += this.zigzagDirection * 2 * slowdownFactor;
                     break;
                 case 'circle':
-                    this.y += this.speed * 0.5;
-                    this.centerY += this.speed * 0.5;
+                    this.y += this.speed * 0.5 * slowdownFactor;
+                    this.centerY += this.speed * 0.5 * slowdownFactor;
                     const angle = this.time * this.angularSpeed;
                     this.x = this.centerX + Math.cos(angle) * this.radius;
                     this.y = this.centerY + Math.sin(angle) * this.radius;
                     break;
                 case 'dive':
                     if (this.phase === 'approach') {
-                        this.y += this.speed;
+                        this.y += this.speed * slowdownFactor;
                         if (this.y > window.innerHeight * 0.3) {
                             this.phase = 'target';
                             this.targetX = playerX;
@@ -97,16 +97,16 @@ export class Enemy {
                         const dy = this.targetY - this.y;
                         const dist = Math.sqrt(dx * dx + dy * dy);
                         if (dist > 5) {
-                            this.diveSpeed = Math.min(this.diveSpeed + 0.2, 6);
-                            this.x += (dx / dist) * this.diveSpeed;
-                            this.y += (dy / dist) * this.diveSpeed;
+                            this.diveSpeed = Math.min(this.diveSpeed + 0.2 * slowdownFactor, 6);
+                            this.x += (dx / dist) * this.diveSpeed * slowdownFactor;
+                            this.y += (dy / dist) * this.diveSpeed * slowdownFactor;
                             this.angle = Math.atan2(dy, dx);
                         }
                     }
                     break;
                 case 'laser':
-                    this.y += this.speed * 0.8;
-                    this.laserChargeTime++;
+                    this.y += this.speed * 0.8 * slowdownFactor;
+                    this.laserChargeTime += slowdownFactor;
                     if (this.laserChargeTime > 90 && !this.laserFiring) {
                         this.laserFiring = true;
                         this.laserChargeTime = 0;
@@ -114,7 +114,7 @@ export class Enemy {
                         lasers.push(new Laser(this.x, this.y, Math.atan2(playerY - this.y, playerX - this.x)));
                     }
                     if (this.laserFiring) {
-                        this.laserChargeTime++;
+                        this.laserChargeTime += slowdownFactor;
                         if (this.laserChargeTime > 60) {
                             this.laserFiring = false;
                             this.laserChargeTime = 0;
@@ -122,8 +122,8 @@ export class Enemy {
                     }
                     break;
                 case 'pulse':
-                    this.y += this.speed * 0.6;
-                    this.pulseTimer++;
+                    this.y += this.speed * 0.6 * slowdownFactor;
+                    this.pulseTimer += slowdownFactor;
                     if (this.pulseTimer > this.pulseInterval) {
                         this.pulseTimer = 0;
                         pulseCircles.push(new PulseCircle(this.x, this.y));
@@ -134,27 +134,27 @@ export class Enemy {
             // Update based on type
             switch(this.type) {
                 case 'straight':
-                    this.x -= this.speed;
+                    this.x -= this.speed * slowdownFactor;
                     break;
                     
                 case 'sine':
-                    this.x -= this.speed;
+                    this.x -= this.speed * slowdownFactor;
                     this.y = this.initialY + Math.sin(this.time * this.frequency) * this.amplitude;
                     break;
                     
                 case 'zigzag':
-                    this.x -= this.speed;
-                    this.zigzagTimer++;
+                    this.x -= this.speed * slowdownFactor;
+                    this.zigzagTimer += slowdownFactor;
                     if (this.zigzagTimer > 30) {
                         this.zigzagDirection *= -1;
                         this.zigzagTimer = 0;
                     }
-                    this.y += this.zigzagDirection * 2;
+                    this.y += this.zigzagDirection * 2 * slowdownFactor;
                     break;
                     
                 case 'circle':
-                    this.x -= this.speed * 0.5;
-                    this.centerX -= this.speed * 0.5;
+                    this.x -= this.speed * 0.5 * slowdownFactor;
+                    this.centerX -= this.speed * 0.5 * slowdownFactor;
                     const angle = this.time * this.angularSpeed;
                     this.x = this.centerX + Math.cos(angle) * this.radius;
                     this.y = this.centerY + Math.sin(angle) * this.radius;
@@ -532,8 +532,12 @@ export class MiniBoss {
         // Weapons
         this.primaryWeaponTimer = 0;
         this.secondaryWeaponTimer = 0;
-        this.primaryWeaponCooldown = 45; // 0.75 seconds at 60fps (2x faster)
-        this.secondaryWeaponCooldown = 120; // 2 seconds at 60fps (2x faster)
+        this.circularWeaponTimer = 0;
+        this.burstWeaponTimer = 0;
+        this.primaryWeaponCooldown = 20; // 0.33 seconds at 60fps (much faster)
+        this.secondaryWeaponCooldown = 60; // 1 second at 60fps (much faster)
+        this.circularWeaponCooldown = 180; // 3 seconds at 60fps (circular pattern)
+        this.burstWeaponCooldown = 150; // 2.5 seconds at 60fps (rapid burst)
         
         // Visual effects
         this.hitFlash = 0;
@@ -543,8 +547,8 @@ export class MiniBoss {
         this.diveSpawnCooldown = 300; // 5 seconds cooldown for spawning divers
     }
     
-    update(playerX, playerY) {
-        this.frameCount++;
+    update(playerX, playerY, slowdownFactor = 1.0) {
+        this.frameCount += slowdownFactor;
         
         // Movement logic
         if (this.movePattern === 'entering') {
@@ -552,7 +556,7 @@ export class MiniBoss {
             if (this.isPortrait) {
                 // Portrait: move down from top
                 if (this.y < this.targetY) {
-                    this.y += this.speed;
+                    this.y += this.speed * slowdownFactor;
                 } else {
                     this.movePattern = 'patrol';
                     this.startY = this.y;
@@ -561,7 +565,7 @@ export class MiniBoss {
             } else {
                 // Landscape: move left from right
                 if (this.x > this.targetX) {
-                    this.x -= this.speed;
+                    this.x -= this.speed * slowdownFactor;
                 } else {
                     this.movePattern = 'patrol';
                     this.startY = this.y;
@@ -571,12 +575,12 @@ export class MiniBoss {
         } else if (this.movePattern === 'patrol') {
             // Patrol movement
             if (this.isPortrait) {
-                this.x += this.patrolDirection * this.speed;
+                this.x += this.patrolDirection * this.speed * slowdownFactor;
                 if (Math.abs(this.x - this.startX) > this.patrolRange) {
                     this.patrolDirection *= -1;
                 }
             } else {
-                this.y += this.patrolDirection * this.speed;
+                this.y += this.patrolDirection * this.speed * slowdownFactor;
                 if (Math.abs(this.y - this.startY) > this.patrolRange) {
                     this.patrolDirection *= -1;
                 }
@@ -584,13 +588,15 @@ export class MiniBoss {
         }
         
         // Weapon timers
-        this.primaryWeaponTimer++;
-        this.secondaryWeaponTimer++;
-        this.diveSpawnTimer++; // Increment dive spawn timer
+        this.primaryWeaponTimer += slowdownFactor;
+        this.secondaryWeaponTimer += slowdownFactor;
+        this.circularWeaponTimer += slowdownFactor;
+        this.burstWeaponTimer += slowdownFactor;
+        this.diveSpawnTimer += slowdownFactor; // Increment dive spawn timer
         
         // Reduce hit flash
         if (this.hitFlash > 0) {
-            this.hitFlash--;
+            this.hitFlash -= slowdownFactor;
         }
         
         // Secondary weapon charging effect
@@ -635,7 +641,7 @@ export class MiniBoss {
             y: this.y, // Fire from center of miniboss
             vx: Math.cos(angleToPlayer) * bulletSpeed, // Aim at player
             vy: Math.sin(angleToPlayer) * bulletSpeed, // Aim at player
-            size: 10, // Larger size (1.25x of 8)
+            size: 15, // Much larger size (1.87x of 8)
             color: '#ff0000', // Red color
             type: 'miniBossPrimary'
         };
@@ -656,7 +662,7 @@ export class MiniBoss {
                 y: this.y,
                 vx: Math.cos(angle) * bulletSpeed,
                 vy: Math.sin(angle) * bulletSpeed,
-                size: 10, // Larger size (1.25x of 8)
+                size: 15, // Much larger size (1.87x of 8)
                 color: '#ff0000', // Red color
                 type: 'miniBossSecondary'
             });
@@ -681,6 +687,58 @@ export class MiniBoss {
             targetX: playerX, // Pass player's current position as target
             targetY: playerY
         };
+    }
+
+    canFireCircular() {
+        return this.circularWeaponTimer >= this.circularWeaponCooldown;
+    }
+
+    fireCircular(playerX, playerY) {
+        this.circularWeaponTimer = 0;
+        const bullets = [];
+        const bulletSpeed = 3;
+        const numBullets = 12; // 360 degree pattern with 12 bullets
+        
+        for (let i = 0; i < numBullets; i++) {
+            const angle = (i / numBullets) * Math.PI * 2;
+            bullets.push({
+                x: this.x,
+                y: this.y,
+                vx: Math.cos(angle) * bulletSpeed,
+                vy: Math.sin(angle) * bulletSpeed,
+                size: 15, // Same large size as other attacks
+                color: '#ff4400', // Orange-red color for distinction
+                type: 'miniBossCircular'
+            });
+        }
+        return bullets;
+    }
+
+    canFireBurst() {
+        return this.burstWeaponTimer >= this.burstWeaponCooldown;
+    }
+
+    fireBurst(playerX, playerY) {
+        this.burstWeaponTimer = 0;
+        const bullets = [];
+        const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x);
+        const bulletSpeed = 6;
+        
+        // Fire 6 bullets in rapid succession (simulated by slight angle variations)
+        for (let i = 0; i < 6; i++) {
+            const angleVariation = (Math.random() - 0.5) * 0.1; // Small random spread
+            const angle = angleToPlayer + angleVariation;
+            bullets.push({
+                x: this.x,
+                y: this.y,
+                vx: Math.cos(angle) * bulletSpeed,
+                vy: Math.sin(angle) * bulletSpeed,
+                size: 15, // Same large size as other attacks
+                color: '#ff8800', // Bright orange color for distinction
+                type: 'miniBossBurst'
+            });
+        }
+        return bullets;
     }
     
     render(ctx) {
@@ -934,10 +992,10 @@ export class Bullet {
         this.isPortrait = isPortrait;
     }
     
-    update() {
-        this.x += Math.cos(this.angle) * this.speed;
-        this.y += Math.sin(this.angle) * this.speed;
-        this.life--;
+    update(slowdownFactor = 1.0) {
+        this.x += Math.cos(this.angle) * this.speed * slowdownFactor;
+        this.y += Math.sin(this.angle) * this.speed * slowdownFactor;
+        this.life -= slowdownFactor;
         
         // Remove if off screen or life expired
         if (this.isPortrait) {
@@ -978,10 +1036,10 @@ export class Laser {
         this.rainbowColors = ['#ff0000', '#ff8800', '#ffff00', '#00ff00', '#0088ff', '#4400ff', '#ff00ff'];
     }
 
-    update() {
-        this.x += Math.cos(this.angle) * this.speed;
-        this.y += Math.sin(this.angle) * this.speed;
-        this.life--;
+    update(slowdownFactor = 1.0) {
+        this.x += Math.cos(this.angle) * this.speed * slowdownFactor;
+        this.y += Math.sin(this.angle) * this.speed * slowdownFactor;
+        this.life -= slowdownFactor;
 
         if (this.color === 'rainbow') {
             this.colorIndex = Math.floor(Math.random() * this.rainbowColors.length);
@@ -1040,9 +1098,9 @@ export class PulseCircle {
         this.speed = 2;
     }
     
-    update() {
-        this.radius += this.speed;
-        this.life--;
+    update(slowdownFactor = 1.0) {
+        this.radius += this.speed * slowdownFactor;
+        this.life -= slowdownFactor;
         
         if (this.radius > this.maxRadius) {
             this.radius = this.maxRadius;
@@ -1083,17 +1141,21 @@ export class HomingMissile {
         this.target = null;
     }
 
-    update(enemies) {
+    update(enemies, slowdownFactor = 1.0) {
         if (!this.target || !enemies.includes(this.target)) {
             let closestEnemy = null;
             let closestDist = Infinity;
             for (const enemy of enemies) {
-                const dx = enemy.x - this.x;
-                const dy = enemy.y - this.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closestEnemy = enemy;
+                // Only target enemies within viewport
+                if (enemy.x >= 0 && enemy.x <= window.innerWidth && 
+                    enemy.y >= 0 && enemy.y <= window.innerHeight) {
+                    const dx = enemy.x - this.x;
+                    const dy = enemy.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestEnemy = enemy;
+                    }
                 }
             }
             this.target = closestEnemy;
@@ -1108,13 +1170,13 @@ export class HomingMissile {
             if (Math.abs(angleDiff) < this.turnSpeed) {
                 this.angle = targetAngle;
             } else {
-                this.angle += Math.sign(angleDiff) * this.turnSpeed;
+                this.angle += Math.sign(angleDiff) * this.turnSpeed * slowdownFactor;
             }
         }
 
-        this.x += Math.cos(this.angle) * this.speed;
-        this.y += Math.sin(this.angle) * this.speed;
-        this.life--;
+        this.x += Math.cos(this.angle) * this.speed * slowdownFactor;
+        this.y += Math.sin(this.angle) * this.speed * slowdownFactor;
+        this.life -= slowdownFactor;
         return this.life > 0;
     }
 
