@@ -229,7 +229,7 @@ export class Enemy {
                 const warmColors = ['#ff4500', '#ffa500', '#ffd700']; // OrangeRed, Orange, Gold
                 const randomColor = warmColors[Math.floor(Math.random() * warmColors.length)];
                 
-                bullets.push(new Bullet(this.x, this.y, angle, 6, randomColor, this.isPortrait)); // Size 6, random warm color
+                bullets.push(new Bullet(this.x, this.y, angle, 7.5, randomColor, this.isPortrait)); // Size 7.5, random warm color
             }
         }
     }
@@ -635,7 +635,7 @@ export class MiniBoss {
             y: this.y, // Fire from center of miniboss
             vx: Math.cos(angleToPlayer) * bulletSpeed, // Aim at player
             vy: Math.sin(angleToPlayer) * bulletSpeed, // Aim at player
-            size: 8, // Larger size
+            size: 10, // Larger size (1.25x of 8)
             color: '#ff0000', // Red color
             type: 'miniBossPrimary'
         };
@@ -656,7 +656,7 @@ export class MiniBoss {
                 y: this.y,
                 vx: Math.cos(angle) * bulletSpeed,
                 vy: Math.sin(angle) * bulletSpeed,
-                size: 8, // Larger size
+                size: 10, // Larger size (1.25x of 8)
                 color: '#ff0000', // Red color
                 type: 'miniBossSecondary'
             });
@@ -1261,6 +1261,7 @@ export class Level1Boss {
                 y: this.y,
                 vx: Math.cos(angleToPlayer) * 4,
                 vy: Math.sin(angleToPlayer) * 4,
+                size: 7.5, // At least as large as normal enemy bullets
                 type: 'boss'
             });
         }
