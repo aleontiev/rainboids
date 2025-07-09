@@ -527,9 +527,22 @@ class BlitzGame {
         // Player bullets vs asteroids
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             for (let j = this.asteroids.length - 1; j >= 0; j--) {
-                if (this.checkCollision(this.bullets[i], this.asteroids[j])) {
-                    this.bullets.splice(i, 1);
-                    const asteroid = this.asteroids[j];
+                const bullet = this.bullets[i];
+                const asteroid = this.asteroids[j];
+                let collision = false;
+
+                if (bullet instanceof Laser) {
+                    collision = this.checkLaserCollision(bullet, asteroid);
+                } else {
+                    collision = this.checkCollision(bullet, asteroid);
+                }
+
+                if (collision) {
+                    // For lasers, we don't remove the laser on hit, as it's continuous
+                    if (!(bullet instanceof Laser)) {
+                        this.bullets.splice(i, 1);
+                    }
+                    
                     const damageResult = asteroid.takeDamage(1);
                     this.createDebris(asteroid.x, asteroid.y, '#ffffff'); // Always create debris on hit
                     if (damageResult) {
@@ -550,7 +563,10 @@ class BlitzGame {
                         }
                         this.sounds.explosion.play();
                     }
-                    break;
+                    // If it's a laser, it can hit multiple targets, so don't break from inner loop
+                    if (!(bullet instanceof Laser)) {
+                        break; // Break from inner loop only if not a laser
+                    }
                 }
             }
         }
@@ -558,14 +574,32 @@ class BlitzGame {
         // Player bullets vs enemies
         for (let i = this.bullets.length - 1; i >= 0; i--) {
             for (let j = this.enemies.length - 1; j >= 0; j--) {
-                if (this.checkCollision(this.bullets[i], this.enemies[j])) {
-                    this.createEnemyExplosion(this.enemies[j].x, this.enemies[j].y);
+                const bullet = this.bullets[i];
+                const enemy = this.enemies[j];
+                let collision = false;
+
+                if (bullet instanceof Laser) {
+                    collision = this.checkLaserCollision(bullet, enemy);
+                } else {
+                    collision = this.checkCollision(bullet, enemy);
+                }
+
+                if (collision) {
+                    // For lasers, we don't remove the laser on hit, as it's continuous
+                    if (!(bullet instanceof Laser)) {
+                        this.bullets.splice(i, 1);
+                    }
+
+                    this.createEnemyExplosion(enemy.x, enemy.y);
                     this.sounds.hit.play();
-                    this.bullets.splice(i, 1);
                     this.enemies.splice(j, 1);
                     this.score += 200;
                     this.updateUI();
-                    break;
+                    
+                    // If it's a laser, it can hit multiple targets, so don't break from inner loop
+                    if (!(bullet instanceof Laser)) {
+                        break; // Break from inner loop only if not a laser
+                    }
                 }
             }
         }
@@ -695,6 +729,35 @@ class BlitzGame {
         return distance < (obj1.size + obj2.size);
     }
 
+    checkLaserCollision(laser, target) {
+        const laserStartX = laser.x;
+        const laserStartY = laser.y;
+        const laserEndX = laser.x + Math.cos(laser.angle) * 200; // Laser length is 200
+        const laserEndY = laser.y + Math.sin(laser.angle) * 200;
+
+        const circleX = target.x;
+        const circleY = target.y;
+        const circleRadius = target.size;
+
+        const dx = laserEndX - laserStartX;
+        const dy = laserEndY - laserStartY;
+        const lengthSq = dx * dx + dy * dy;
+        let t = 0;
+        if (lengthSq !== 0) {
+            t = ((circleX - laserStartX) * dx + (circleY - laserStartY) * dy) / lengthSq;
+            t = Math.max(0, Math.min(1, t)); // Clamp t between 0 and 1
+        }
+
+        const closestX = laserStartX + t * dx;
+        const closestY = laserStartY + t * dy;
+
+        const distDx = circleX - closestX;
+        const distDy = circleY - closestY;
+        const distance = Math.sqrt(distDx * distDx + distDy * distDy);
+
+        return distance < (circleRadius + laser.width / 2);
+    }
+
     checkPlayerLaserCollision(player, laser) {
         const dx = player.x - laser.x;
         const dy = player.y - laser.y;
@@ -765,7 +828,6 @@ class BlitzGame {
                         initialAngle: this.player.angle, // Store initial angle
                         offset: offset
                     });
-                    this.player.secondShipTimer = 900; // Reset timer for all companion ships
                 }
                 break;
             case 'bomb':
@@ -945,16 +1007,24 @@ class BlitzGame {
         });
         
         document.getElementById('all-upgrades-btn').addEventListener('click', () => {
-            this.player.shield = 5;
-            this.player.mainWeaponLevel = 5;
-            this.player.sideWeaponLevel = 2;
-            this.player.secondShip = { 
-                x: this.player.x, 
-                y: this.player.y - 40, 
-                angle: this.player.angle,
+            this.player.shield = 3; // Max shields
+            this.player.mainWeaponLevel = 5; // Max main weapon
+            this.player.sideWeaponLevel = 2; // Max side weapon
+            
+            // Add two companion ships
+            this.player.secondShip = []; // Clear existing to ensure max 2
+            this.player.secondShip.push({
+                x: this.player.x,
+                y: this.player.y - 40,
+                initialAngle: this.player.angle,
                 offset: -40
-            };
-            this.player.secondShipTimer = 99999; // Essentially permanent
+            });
+            this.player.secondShip.push({
+                x: this.player.x,
+                y: this.player.y + 40,
+                initialAngle: this.player.angle,
+                offset: 40
+            });
             this.updateUI();
         });
         

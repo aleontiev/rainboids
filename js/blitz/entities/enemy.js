@@ -467,7 +467,7 @@ export class Laser {
         this.angle = angle;
         this.speed = 50; // Very fast
         this.color = color;
-        this.width = 10; // Thicker laser
+        this.width = 20; // Thicker laser
         this.life = 60; // Longer life (1 second)
     }
 
@@ -482,6 +482,19 @@ export class Laser {
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
+
+        // Draw glow effect
+        if (this.color === 'rainbow') {
+            ctx.globalAlpha = 0.3; // Semi-transparent glow
+            ctx.strokeStyle = '#ffffff'; // White glow
+            ctx.lineWidth = this.width * 2; // 2x thicker than the laser itself
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(200, 0);
+            ctx.stroke();
+        }
+
+        ctx.globalAlpha = 1; // Reset alpha for the main laser
         if (this.color === 'rainbow') {
             const gradient = ctx.createLinearGradient(0, -this.width / 2, 0, this.width / 2);
             gradient.addColorStop(0, 'red');

@@ -21,7 +21,6 @@ export class Player {
     this.mainWeaponLevel = 1;
     this.sideWeaponLevel = 0;
     this.secondShip = []; // Change to an array
-    this.secondShipTimer = 0;
     this.godMode = false;
     this.rollAngle = 0; // Initialize rollAngle property
   }
@@ -130,18 +129,11 @@ export class Player {
       this.shootCooldown--;
     }
 
-    // Update second ship timer
-    if (this.secondShipTimer > 0) {
-      this.secondShipTimer--;
-      if (this.secondShipTimer <= 0) {
-        this.secondShip = []; // Clear the array
-      }
-    }
-
     // Update second ship positions (above or below player)
     this.secondShip.forEach(ship => {
       ship.x = this.x;
       ship.y = this.y + (ship.offset || 40); // Default to below
+      ship.initialAngle = this.angle; // Make companion ship face same direction as player
     });
   }
 
