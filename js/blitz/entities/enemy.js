@@ -229,7 +229,7 @@ export class Enemy {
                 const warmColors = ['#ff4500', '#ffa500', '#ffd700']; // OrangeRed, Orange, Gold
                 const randomColor = warmColors[Math.floor(Math.random() * warmColors.length)];
                 
-                bullets.push(new Bullet(this.x, this.y, angle, 7.5, randomColor, this.isPortrait)); // Size 7.5, random warm color
+                bullets.push(new Bullet(this.x, this.y, angle, 7.5, randomColor, this.isPortrait, 6.4)); // Size 7.5, random warm color, speed 6.4
             }
         }
     }
@@ -1274,6 +1274,7 @@ export class Level1Boss {
                     y: this.y,
                     vx: Math.cos(angle) * 4,
                     vy: Math.sin(angle) * 4,
+                    size: 7.5, // At least as large as normal enemy bullets
                     type: 'boss'
                 });
             }
@@ -1287,7 +1288,7 @@ export class Level1Boss {
                     y: this.y,
                     vx: Math.cos(angle) * 5,
                     vy: Math.sin(angle) * 5,
-                    size: 10, // Larger size for powerful attack
+                    size: 12.5, // Larger size for powerful attack (1.25x of 10)
                     type: 'boss'
                 });
             }
@@ -1301,7 +1302,7 @@ export class Level1Boss {
                     y: this.y,
                     vx: Math.cos(angle) * 3,
                     vy: Math.sin(angle) * 3,
-                    size: 12, // Even larger size for ultimate attack
+                    size: 15, // Even larger size for ultimate attack (1.25x of 12)
                     type: 'boss'
                 });
             }
