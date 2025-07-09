@@ -26,7 +26,7 @@ export class Player {
     this.rollAngle = 0; // Initialize rollAngle property
   }
 
-  update(keys, enemies, asteroids, isPortrait) {
+  update(keys, enemies, asteroids, isPortrait, autoaimEnabled = true) {
     // Handle dash
     if (this.isDashing) {
       this.x += this.dashVx;
@@ -62,8 +62,8 @@ export class Player {
       this.angle = 0; // Face right
     }
 
-    // Predictive aim
-    if (keys.fire && (enemies.length > 0 || asteroids.length > 0)) {
+    // Predictive aim - only if autoaim is enabled
+    if (autoaimEnabled && keys.fire && (enemies.length > 0 || asteroids.length > 0)) {
       let closestTarget = null;
       let minDistance = Infinity;
 
@@ -162,7 +162,7 @@ export class Player {
         bullets.push(
           new BulletClass(this.x, this.y, this.angle, 10, "#00ff88", isPortrait)
         ); // Cool green
-        this.shootCooldown = 30; // Slow
+        this.shootCooldown = 45; // Slower (0.75 seconds at 60fps)
       } else if (this.mainWeaponLevel === 2) {
         bullets.push(
           new BulletClass(this.x, this.y, this.angle, 14, "#00ffcc", isPortrait)
@@ -220,91 +220,82 @@ export class Player {
         this.shootCooldown = 8; // Very fast
       }
 
-      // Side weapons
+      // Secondary weapon system (0-4 levels)
+      // Level 0: Nothing (handled by if condition)
+      
       if (this.sideWeaponLevel >= 1) {
+        // Level 1: 1 missile moving off to diagonal
         bullets.push(
           new BulletClass(
             this.x,
             this.y,
-            this.angle + Math.PI / 4,
-            8,
-            "#8844ff",
-            isPortrait
-          )
-        ); // Cool purple
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle - Math.PI / 4,
+            this.angle + Math.PI / 4, // 45 degree diagonal
             8,
             "#8844ff",
             isPortrait
           )
         );
       }
+      
       if (this.sideWeaponLevel >= 2) {
+        // Level 2: 2 missiles going to both diagonals
         bullets.push(
           new BulletClass(
             this.x,
             this.y,
-            this.angle + Math.PI / 2,
-            8,
-            "#8844ff",
-            isPortrait
-          )
-        );
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle - Math.PI / 2,
+            this.angle - Math.PI / 4, // -45 degree diagonal
             8,
             "#8844ff",
             isPortrait
           )
         );
       }
+      
       if (this.sideWeaponLevel >= 3) {
+        // Level 3: 2 missiles + 1 homing missile
         if (this.homingMissileCooldown <= 0) {
-          // Level 3: 1 homing missile, perpendicular to player
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2, 6, "#ff00ff")
+            new HomingMissileClass(this.x, this.y, this.angle, 6, "#ff00ff")
           );
           this.homingMissileCooldown = 60; // 1 second cooldown
         }
       }
+      
       if (this.sideWeaponLevel >= 4) {
+        // Level 4: 4 missiles total + 4 homing missiles total (ultimate level)
+        // Add third and fourth missiles (we already have 2 from levels 1-2)
+        bullets.push(
+          new BulletClass(
+            this.x,
+            this.y,
+            this.angle + Math.PI / 6, // 30 degree
+            8,
+            "#8844ff",
+            isPortrait
+          )
+        );
+        bullets.push(
+          new BulletClass(
+            this.x,
+            this.y,
+            this.angle - Math.PI / 6, // -30 degree
+            8,
+            "#8844ff",
+            isPortrait
+          )
+        );
+        
+        // Add 3 more homing missiles (total 4, we already have 1 from level 3)
         if (this.homingMissileCooldown <= 0) {
-          // Level 4: 2 homing missiles, spread out
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 - 0.2, 6, "#ff00ff")
+            new HomingMissileClass(this.x, this.y, this.angle + 0.3, 6, "#ff00ff")
           );
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 + 0.2, 6, "#ff00ff")
-          );
-          this.homingMissileCooldown = 60; // 1 second cooldown
-        }
-      }
-      if (this.sideWeaponLevel >= 5) {
-        if (this.homingMissileCooldown <= 0) {
-          // Level 5: 5 homing missiles, spread out
-          bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2, 6, "#ff00ff")
+            new HomingMissileClass(this.x, this.y, this.angle - 0.3, 6, "#ff00ff")
           );
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 - 0.4, 6, "#ff00ff")
+            new HomingMissileClass(this.x, this.y, this.angle + 0.6, 6, "#ff00ff")
           );
-          bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 + 0.4, 6, "#ff00ff")
-          );
-          bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 - 0.8, 6, "#ff00ff")
-          );
-          bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 + 0.8, 6, "#ff00ff")
-          );
-          this.homingMissileCooldown = 60; // 1 second cooldown
         }
       }
 

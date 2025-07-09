@@ -52,6 +52,10 @@ class BlitzGame {
         this.powerupSpawnTimer = 0;
         this.textParticles = []; // For score popups
         
+        // Cheat toggles
+        this.autoaimEnabled = false; // Default off
+        this.allUpgradesState = null; // Store state before all upgrades
+        
         this.setupBackgroundStars();
         this.setupAudio();
         this.setupEventListeners();
@@ -111,34 +115,35 @@ class BlitzGame {
                 break;
             case 'explosion':
                 synthdef = params.explosion();
-                synthdef.sound_vol = 0.25; // Reduced volume
-                synthdef.p_env_sustain = 0.15; // Shorter duration
+                synthdef.sound_vol = 0.15; // Further reduced volume
+                synthdef.p_env_sustain = 0.1; // Shorter duration
+                synthdef.p_env_decay = 0.2; // Quicker decay
                 break;
             case 'enemyExplosion':
-                // Custom enemy explosion - shorter, higher pitch, subtle
+                // Custom enemy explosion - shorter, higher pitch, very subtle
                 synthdef = params.explosion();
-                synthdef.p_base_freq = 0.3 + Math.random() * 0.3;
-                synthdef.p_env_sustain = 0.08 + Math.random() * 0.1;
-                synthdef.p_env_decay = 0.15 + Math.random() * 0.2;
-                synthdef.sound_vol = 0.2; // Reduced volume
+                synthdef.p_base_freq = 0.4 + Math.random() * 0.2;
+                synthdef.p_env_sustain = 0.05 + Math.random() * 0.05;
+                synthdef.p_env_decay = 0.1 + Math.random() * 0.1;
+                synthdef.sound_vol = 0.12; // Much more subdued
                 break;
             case 'asteroidExplosion':
-                // Custom asteroid explosion - deeper, longer rumble, subtle
+                // Custom asteroid explosion - deeper, but more subtle
                 synthdef = params.explosion();
-                synthdef.p_base_freq = 0.1 + Math.random() * 0.15;
-                synthdef.p_env_sustain = 0.15 + Math.random() * 0.25;
-                synthdef.p_env_decay = 0.3 + Math.random() * 0.4;
-                synthdef.p_lpf_freq = 0.3 + Math.random() * 0.2;
-                synthdef.sound_vol = 0.22; // Reduced volume
+                synthdef.p_base_freq = 0.15 + Math.random() * 0.1;
+                synthdef.p_env_sustain = 0.1 + Math.random() * 0.15;
+                synthdef.p_env_decay = 0.2 + Math.random() * 0.25;
+                synthdef.p_lpf_freq = 0.4 + Math.random() * 0.2;
+                synthdef.sound_vol = 0.14; // More subdued
                 break;
             case 'playerExplosion':
                 // Custom player explosion - dramatic but not overwhelming
                 synthdef = params.explosion();
-                synthdef.p_base_freq = 0.2 + Math.random() * 0.25;
-                synthdef.p_env_sustain = 0.2 + Math.random() * 0.2;
-                synthdef.p_env_decay = 0.4 + Math.random() * 0.3;
-                synthdef.p_repeat_speed = 0.1 + Math.random() * 0.15;
-                synthdef.sound_vol = 0.3; // Slightly higher for dramatic effect
+                synthdef.p_base_freq = 0.25 + Math.random() * 0.2;
+                synthdef.p_env_sustain = 0.15 + Math.random() * 0.15;
+                synthdef.p_env_decay = 0.3 + Math.random() * 0.2;
+                synthdef.p_repeat_speed = 0.08 + Math.random() * 0.1;
+                synthdef.sound_vol = 0.2; // More subdued
                 break;
             case 'powerUp':
                 synthdef = params.powerUp();
@@ -294,6 +299,9 @@ class BlitzGame {
         // Start audio
         this.audioReady = true;
         this.backgroundMusic.play().catch(e => console.log('Audio play failed:', e));
+        
+        // Initialize skill indicator
+        this.updateUI();
     }
     
     restartGame() {
@@ -428,6 +436,21 @@ class BlitzGame {
                 this.lastGameTimeSeconds = currentSeconds;
             }
         }
+        
+        // Update skill level indicator
+        this.updateSkillIndicator();
+    }
+    
+    updateSkillIndicator() {
+        const primaryLevel = document.getElementById('primary-level');
+        const secondaryLevel = document.getElementById('secondary-level');
+        const shipsLevel = document.getElementById('ships-level');
+        const shieldsLevel = document.getElementById('shields-level');
+        
+        if (primaryLevel) primaryLevel.textContent = this.player.mainWeaponLevel;
+        if (secondaryLevel) secondaryLevel.textContent = this.player.sideWeaponLevel;
+        if (shipsLevel) shipsLevel.textContent = this.player.secondShip.length;
+        if (shieldsLevel) shieldsLevel.textContent = this.player.shield;
     }
     
     spawnAsteroid(type = 'large', x = null, y = null, vx = null, vy = null) {
@@ -478,26 +501,6 @@ class BlitzGame {
         this.enemies.push(new Enemy(x, y, type, this.isPortrait));
     }
     
-    spawnMiniBosses() {
-        console.log('spawnMiniBosses called');
-        // Spawn two mini-bosses
-        const centerY = this.canvas.height / 2;
-        const spacing = 150;
-        
-        // Alpha mini-boss (top)
-        const alphaY = centerY - spacing;
-        const alphaX = this.canvas.width - 100;
-        console.log('Creating alpha mini-boss at:', alphaX, alphaY);
-        this.miniBosses.push(new MiniBoss(alphaX, alphaY, 'alpha', this.isPortrait));
-        
-        // Beta mini-boss (bottom)
-        const betaY = centerY + spacing;
-        const betaX = this.canvas.width - 100;
-        console.log('Creating beta mini-boss at:', betaX, betaY);
-        this.miniBosses.push(new MiniBoss(betaX, betaY, 'beta', this.isPortrait));
-        
-        console.log('Mini-bosses spawned, total:', this.miniBosses.length);
-    }
     
     update(deltaTime) {
         if (this.gameState !== 'PLAYING') return;
@@ -507,7 +510,7 @@ class BlitzGame {
         const input = this.inputHandler.getInput();
 
         // Update player
-        this.player.update(input, this.enemies, this.asteroids, this.isPortrait);
+        this.player.update(input, this.enemies, this.asteroids, this.isPortrait, this.autoaimEnabled);
         
         // Player shooting
         if (input.fire) {
@@ -627,7 +630,7 @@ class BlitzGame {
         
         // Spawn powerups occasionally
         this.powerupSpawnTimer++;
-        if (this.powerupSpawnTimer > 600 + Math.random() * 900) {
+        if (this.powerupSpawnTimer > 1200 + Math.random() * 1800) { // 0.5x spawn rate (20-50 seconds)
             this.spawnPowerup();
             this.powerupSpawnTimer = 0;
         }
@@ -663,8 +666,45 @@ class BlitzGame {
         if (this.gameTime >= 60 && this.gamePhase === 3 && this.miniBosses.length === 0) {
             console.log('Spawning mini-bosses at time:', this.gameTime);
             console.log('Method exists?', typeof this.spawnMiniBosses);
+            console.log('this object:', this);
             try {
-                this.spawnMiniBosses();
+                // Spawn two mini-bosses directly inline to avoid method call issues
+                let alphaX, alphaY, betaX, betaY;
+                
+                if (this.isPortrait) {
+                    // Portrait mode: spawn at top of screen like other enemies
+                    const centerX = this.canvas.width / 2;
+                    const spacing = 120;
+                    
+                    // Alpha mini-boss (left side)
+                    alphaX = centerX - spacing;
+                    alphaY = -100; // Start above screen
+                    
+                    // Beta mini-boss (right side) 
+                    betaX = centerX + spacing;
+                    betaY = -100; // Start above screen
+                } else {
+                    // Landscape mode: spawn from right side like other enemies
+                    const centerY = this.canvas.height / 2;
+                    const spacing = 150;
+                    
+                    // Alpha mini-boss (top)
+                    alphaX = this.canvas.width + 100; // Start off-screen right
+                    alphaY = centerY - spacing;
+                    
+                    // Beta mini-boss (bottom)
+                    betaX = this.canvas.width + 100; // Start off-screen right
+                    betaY = centerY + spacing;
+                }
+                
+                console.log('Creating mini-bosses - Portrait mode:', this.isPortrait);
+                console.log('Alpha mini-boss at:', alphaX, alphaY);
+                console.log('Beta mini-boss at:', betaX, betaY);
+                
+                this.miniBosses.push(new MiniBoss(alphaX, alphaY, 'alpha', this.isPortrait, this.canvas.width));
+                this.miniBosses.push(new MiniBoss(betaX, betaY, 'beta', this.isPortrait, this.canvas.width));
+                
+                console.log('Mini-bosses spawned, total:', this.miniBosses.length);
                 this.gamePhase = 4; // Mini-boss phase
             } catch (error) {
                 console.error('Error spawning mini-bosses:', error);
@@ -791,7 +831,7 @@ class BlitzGame {
                         this.bullets.splice(i, 1);
                     }
 
-                    const result = miniBoss.takeDamage(25); // Higher damage for mini-bosses
+                    const result = miniBoss.takeDamage(10); // Reduced damage since they have 3x more health
                     this.createEnemyExplosion(miniBoss.x, miniBoss.y);
                     this.sounds.enemyExplosion.play();
                     
@@ -1052,7 +1092,7 @@ class BlitzGame {
                 }
                 break;
             case 'sideWeapon':
-                this.player.sideWeaponLevel = Math.min(this.player.sideWeaponLevel + 1, 2);
+                this.player.sideWeaponLevel = Math.min(this.player.sideWeaponLevel + 1, 4);
                 break;
             case 'secondShip':
                 if (this.player.secondShip.length < 2) { // Max 2 companion ships
@@ -1240,39 +1280,82 @@ class BlitzGame {
     }
     
     setupCheatButtons() {
-        document.getElementById('godmode-btn').addEventListener('click', () => {
+        // Godmode button with touch support
+        const godmodeBtn = document.getElementById('godmode-btn');
+        const toggleGodmode = () => {
             this.player.godMode = !this.player.godMode;
             this.updateCheatButtons();
+        };
+        godmodeBtn.addEventListener('click', toggleGodmode);
+        godmodeBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            toggleGodmode();
         });
         
-        document.getElementById('all-upgrades-btn').addEventListener('click', () => {
-            this.player.shield = 3; // Max shields
-            this.player.mainWeaponLevel = 5; // Max main weapon
-            this.player.sideWeaponLevel = 2; // Max side weapon
+        // All upgrades toggle button with touch support
+        const allUpgradesBtn = document.getElementById('all-upgrades-btn');
+        const toggleAllUpgrades = () => {
+            if (this.allUpgradesState === null) {
+                // Save current state and apply all upgrades
+                this.allUpgradesState = {
+                    shield: this.player.shield,
+                    mainWeaponLevel: this.player.mainWeaponLevel,
+                    sideWeaponLevel: this.player.sideWeaponLevel,
+                    secondShip: [...this.player.secondShip] // Copy array
+                };
+                
+                // Apply all upgrades
+                this.player.shield = 3; // Max shields (0-3)
+                this.player.mainWeaponLevel = 5; // Max main weapon (1-5)
+                this.player.sideWeaponLevel = 4; // Max side weapon (0-4)
+                
+                // Add maximum companion ships (2)
+                this.player.secondShip = []; // Clear existing
+                this.player.secondShip.push({
+                    x: this.player.x,
+                    y: this.player.y - 40,
+                    initialAngle: this.player.angle,
+                    offset: -40
+                });
+                this.player.secondShip.push({
+                    x: this.player.x,
+                    y: this.player.y + 40,
+                    initialAngle: this.player.angle,
+                    offset: 40
+                });
+            } else {
+                // Restore previous state
+                this.player.shield = this.allUpgradesState.shield;
+                this.player.mainWeaponLevel = this.allUpgradesState.mainWeaponLevel;
+                this.player.sideWeaponLevel = this.allUpgradesState.sideWeaponLevel;
+                this.player.secondShip = [...this.allUpgradesState.secondShip];
+                this.allUpgradesState = null;
+            }
             
-            // Add two companion ships
-            this.player.secondShip = []; // Clear existing to ensure max 2
-            this.player.secondShip.push({
-                x: this.player.x,
-                y: this.player.y - 40,
-                initialAngle: this.player.angle,
-                offset: -40
-            });
-            this.player.secondShip.push({
-                x: this.player.x,
-                y: this.player.y + 40,
-                initialAngle: this.player.angle,
-                offset: 40
-            });
             this.updateUI();
+            this.updateCheatButtons();
+        };
+        allUpgradesBtn.addEventListener('click', toggleAllUpgrades);
+        allUpgradesBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            toggleAllUpgrades();
         });
         
-        document.getElementById('spawn-bomb-btn').addEventListener('click', () => {
-            this.powerups.push(new Powerup(this.player.x + 50, this.player.y, 'bomb'));
+        // Autoaim toggle button with touch support
+        const autoaimBtn = document.getElementById('autoaim-btn');
+        const toggleAutoaim = () => {
+            this.autoaimEnabled = !this.autoaimEnabled;
+            this.updateCheatButtons();
+        };
+        autoaimBtn.addEventListener('click', toggleAutoaim);
+        autoaimBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            toggleAutoaim();
         });
     }
     
     updateCheatButtons() {
+        // Godmode button
         const godmodeBtn = document.getElementById('godmode-btn');
         if (this.player.godMode) {
             godmodeBtn.textContent = 'Godmode: ON';
@@ -1280,6 +1363,26 @@ class BlitzGame {
         } else {
             godmodeBtn.textContent = 'Godmode: OFF';
             godmodeBtn.style.background = '#ff4444';
+        }
+        
+        // All Upgrades button
+        const allUpgradesBtn = document.getElementById('all-upgrades-btn');
+        if (this.allUpgradesState !== null) {
+            allUpgradesBtn.textContent = 'All Upgrades: ON';
+            allUpgradesBtn.style.background = '#44ff44';
+        } else {
+            allUpgradesBtn.textContent = 'All Upgrades: OFF';
+            allUpgradesBtn.style.background = '#ff4444';
+        }
+        
+        // Autoaim button
+        const autoaimBtn = document.getElementById('autoaim-btn');
+        if (this.autoaimEnabled) {
+            autoaimBtn.textContent = 'Autoaim: ON';
+            autoaimBtn.style.background = '#44ff44';
+        } else {
+            autoaimBtn.textContent = 'Autoaim: OFF';
+            autoaimBtn.style.background = '#ff4444';
         }
     }
     

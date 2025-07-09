@@ -503,28 +503,31 @@ export class Enemy {
 }
 
 export class MiniBoss {
-    constructor(x, y, type, isPortrait) {
+    constructor(x, y, type, isPortrait, canvasWidth = 800) {
         this.x = x;
         this.y = y;
         this.type = type; // 'alpha' or 'beta'
         this.isPortrait = isPortrait;
-        this.size = 60; // Much larger than regular enemies
-        this.speed = 1;
-        this.maxHealth = 100;
+        this.size = 90; // Much larger than regular enemies (was 60)
+        this.speed = 0.5; // Slower movement (was 1)
+        this.maxHealth = 900; // 9x more health than regular enemies (3x from 300)
         this.health = this.maxHealth;
         this.frameCount = 0;
         
         // Movement pattern
-        this.movePattern = 'patrol';
+        this.movePattern = 'entering'; // Start with entering phase
         this.patrolDirection = 1;
-        this.patrolRange = 200;
+        this.patrolRange = 150; // Reduced range for slower movement
         this.startY = y;
+        this.startX = x;
+        this.targetY = isPortrait ? 150 : y; // In portrait, move to 150px from top
+        this.targetX = isPortrait ? x : canvasWidth - 150; // In landscape, move to 150px from right
         
         // Weapons
         this.primaryWeaponTimer = 0;
         this.secondaryWeaponTimer = 0;
-        this.primaryWeaponCooldown = 60; // 1 second at 60fps
-        this.secondaryWeaponCooldown = 180; // 3 seconds at 60fps
+        this.primaryWeaponCooldown = 90; // 1.5 seconds at 60fps
+        this.secondaryWeaponCooldown = 240; // 4 seconds at 60fps
         
         // Visual effects
         this.hitFlash = 0;
@@ -534,11 +537,42 @@ export class MiniBoss {
     update() {
         this.frameCount++;
         
-        // Movement - patrol up and down
-        if (this.movePattern === 'patrol') {
-            this.y += this.patrolDirection * this.speed;
-            if (Math.abs(this.y - this.startY) > this.patrolRange) {
-                this.patrolDirection *= -1;
+        // Movement logic
+        if (this.movePattern === 'entering') {
+            // Move to target position
+            if (this.isPortrait) {
+                // Portrait: move down from top
+                if (this.y < this.targetY) {
+                    this.y += this.speed;
+                } else {
+                    this.movePattern = 'patrol';
+                    this.startY = this.y;
+                    this.startX = this.x;
+                }
+            } else {
+                // Landscape: move left from right
+                if (this.x > this.targetX) {
+                    this.x -= this.speed;
+                } else {
+                    this.movePattern = 'patrol';
+                    this.startY = this.y;
+                    this.startX = this.x;
+                }
+            }
+        } else if (this.movePattern === 'patrol') {
+            // Patrol movement
+            if (this.isPortrait) {
+                // Portrait: patrol side to side
+                this.x += this.patrolDirection * this.speed;
+                if (Math.abs(this.x - this.startX) > this.patrolRange) {
+                    this.patrolDirection *= -1;
+                }
+            } else {
+                // Landscape: patrol up and down
+                this.y += this.patrolDirection * this.speed;
+                if (Math.abs(this.y - this.startY) > this.patrolRange) {
+                    this.patrolDirection *= -1;
+                }
             }
         }
         
@@ -630,12 +664,12 @@ export class MiniBoss {
         this.drawHealthBar(ctx);
         
         // Secondary weapon charging effect
-        if (this.chargingSecondary > 0) {
+        if (this.chargingSecondary > 0 && this.size > 0) {
             ctx.strokeStyle = '#ff4444';
             ctx.lineWidth = 3;
             ctx.globalAlpha = this.chargingSecondary;
             ctx.beginPath();
-            ctx.arc(0, 0, this.size + 10, 0, Math.PI * 2);
+            ctx.arc(0, 0, Math.max(1, this.size + 10), 0, Math.PI * 2);
             ctx.stroke();
             ctx.globalAlpha = 1;
         }
@@ -715,18 +749,19 @@ export class MiniBoss {
     }
     
     drawHealthBar(ctx) {
-        const barWidth = this.size * 1.5;
-        const barHeight = 6;
-        const barY = -this.size - 15;
+        const barWidth = this.size * 1.8; // Slightly wider for larger mini-bosses
+        const barHeight = 8; // Slightly taller for better visibility
+        const barY = -this.size - 20; // Further from the ship
         
         // Background
         ctx.fillStyle = '#333333';
         ctx.fillRect(-barWidth / 2, barY, barWidth, barHeight);
         
         // Health bar
-        const healthPercent = this.health / this.maxHealth;
+        const healthPercent = Math.max(0, this.health / this.maxHealth);
         ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
-        ctx.fillRect(-barWidth / 2, barY, barWidth * healthPercent, barHeight);
+        const healthBarWidth = Math.max(0, barWidth * healthPercent);
+        ctx.fillRect(-barWidth / 2, barY, healthBarWidth, barHeight);
         
         // Border
         ctx.strokeStyle = '#ffffff';
@@ -868,6 +903,9 @@ export class Bullet {
     }
     
     render(ctx) {
+        // Safety check to prevent negative radius errors
+        if (this.size <= 0) return;
+        
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
@@ -875,7 +913,7 @@ export class Bullet {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.ellipse(0, 0, this.size, this.size * 0.4, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, Math.max(1, this.size), Math.max(0.4, this.size * 0.4), 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
         ctx.restore();
@@ -969,6 +1007,9 @@ export class PulseCircle {
     }
     
     render(ctx) {
+        // Safety check to prevent negative radius errors
+        if (this.radius <= 0) return;
+        
         const alpha = this.life / this.maxLife;
         
         ctx.save();
@@ -977,7 +1018,7 @@ export class PulseCircle {
         ctx.lineWidth = 4;
         
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, Math.max(1, this.radius), 0, Math.PI * 2);
         ctx.stroke();
         
         ctx.restore();
@@ -1033,14 +1074,17 @@ export class HomingMissile {
     }
 
     render(ctx) {
+        // Safety check to prevent negative size errors
+        if (this.size <= 0) return;
+        
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         ctx.fillStyle = this.color;
         ctx.beginPath();
-        ctx.moveTo(this.size, 0);
-        ctx.lineTo(-this.size / 2, -this.size / 2);
-        ctx.lineTo(-this.size / 2, this.size / 2);
+        ctx.moveTo(Math.max(1, this.size), 0);
+        ctx.lineTo(-Math.max(0.5, this.size / 2), -Math.max(0.5, this.size / 2));
+        ctx.lineTo(-Math.max(0.5, this.size / 2), Math.max(0.5, this.size / 2));
         ctx.closePath();
         ctx.fill();
         ctx.restore();

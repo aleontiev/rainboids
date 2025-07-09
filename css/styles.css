@@ -108,22 +108,6 @@ canvas {
   right: 10px; /* Position next to pause button */
 }
 
-#pause-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.7);
-  display: none; /* initially hidden */
-  justify-content: center;
-  align-items: center;
-  z-index: 100;
-  border: 5px solid;
-  border-image: linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088) 1;
-  border-image-slice: 1;
-  border-image-repeat: stretch;
-}
 
 #pause-close-button {
   position: absolute;
@@ -169,6 +153,99 @@ canvas {
 #pause-controls div {
   color: white; /* Ensure controls text is white */
   margin-bottom: 10px;
+}
+
+/* Keyboard Controls Grid */
+.controls-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.control-row {
+  display: grid;
+  grid-template-columns: 150px 200px;
+  gap: 20px;
+  align-items: center;
+  width: 100%;
+}
+
+.control-keys {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.key-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 4px;
+  width: 120px;
+  height: 60px;
+}
+
+.key-group .key:nth-child(1) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.key-group .key:nth-child(2) {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.key-group .key:nth-child(3) {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.key-group .key:nth-child(4) {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.key {
+  background: linear-gradient(145deg, #404040, #2a2a2a);
+  border: 2px solid #666;
+  border-radius: 6px;
+  color: white;
+  font-family: "Press Start 2P", cursive;
+  font-size: 10px;
+  padding: 8px;
+  text-align: center;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.1);
+  min-width: 20px;
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.key.spacebar {
+  width: 120px;
+  height: 30px;
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+
+.key:hover {
+  background: linear-gradient(145deg, #505050, #3a3a3a);
+  border-color: #888;
+}
+
+.control-desc {
+  color: white;
+  font-size: 12px;
+  text-align: left;
+}
+
+.mouse-icon {
+  font-size: 20px;
+  filter: grayscale(1) brightness(0.8);
 }
 
 body {
@@ -454,17 +531,15 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.7);
+  bottom: 0;
+  right: 0;
   display: none; /* initially hidden */
   justify-content: center;
   align-items: center;
   z-index: 100;
-  border: 5px solid;
-  border-image: linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088) 1;
-  border-image-slice: 1;
-  border-image-repeat: stretch;
+  border: 5px solid transparent;
+  background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)) padding-box,
+              linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088) border-box;
 }
 
 #pause-close-button {
@@ -539,4 +614,55 @@ body {
 #pause-cheats button:hover {
   background-color: #555;
   border-color: #fff;
+}
+
+/* Skill Level Indicator */
+#skill-indicator {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-family: "Press Start 2P", cursive;
+  font-size: 12px;
+  color: #fff;
+  z-index: 50;
+}
+
+#skill-indicator > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.skill-icon {
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+}
+
+.skill-level {
+  color: #00ff00;
+  font-weight: bold;
+  min-width: 15px;
+  text-align: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  #skill-indicator {
+    bottom: 10px;
+    left: 10px;
+    font-size: 10px;
+    padding: 8px;
+  }
+  
+  .skill-icon {
+    font-size: 12px;
+    width: 16px;
+  }
 }
