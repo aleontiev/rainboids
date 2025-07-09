@@ -15,6 +15,7 @@
     />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="stylesheet" href="css/styles.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   </head>
   <body>
     <div id="title-screen">
@@ -37,29 +38,29 @@
     
 
     <div id="ui">
-      <div id="score">🏆 <span id="score-value">0</span></div>
-      <div id="timer">⏰ <span id="timer-value">0:00</span></div>
+      <div id="score"><i data-lucide="trophy"></i> <span id="score-value">0</span></div>
+      <div id="timer"><i data-lucide="clock"></i> <span id="timer-value">0:00</span></div>
     </div>
     <div id="skill-indicator">
       <div id="skill-primary">
-        <span class="skill-icon">🔫</span>
+        <span class="skill-icon"><i data-lucide="flame"></i></span>
         <span class="skill-level" id="primary-level">1</span>
       </div>
       <div id="skill-secondary">
-        <span class="skill-icon">⚡</span>
+        <span class="skill-icon"><i data-lucide="triangle"></i></span>
         <span class="skill-level" id="secondary-level">0</span>
       </div>
       <div id="skill-ships">
-        <span class="skill-icon">🚀</span>
+        <span class="skill-icon"><i data-lucide="rocket"></i></span>
         <span class="skill-level" id="ships-level">0</span>
       </div>
       <div id="skill-shields">
-        <span class="skill-icon">🛡️</span>
+        <span class="skill-icon"><i data-lucide="shield"></i></span>
         <span class="skill-level" id="shields-level">0</span>
       </div>
     </div>
     <div id="volume-button" class="ui-button">
-      🔊
+      <i data-lucide="volume-2"></i>
     </div>
     <div id="pause-button">
       <div id="pause-icon"></div>
@@ -86,7 +87,7 @@
             </div>
             <div class="control-row">
               <div class="control-keys">
-                <div class="mouse-icon">🖱️</div>
+                <div class="mouse-icon">👆</div>
               </div>
               <div class="control-desc">Auto-aim direction</div>
             </div>
@@ -113,7 +114,7 @@
           <div class="mobile-controls">
             <div class="control-row">
               <div class="control-keys">
-                <div class="mouse-icon">🖱️</div>
+                <div class="mouse-icon">👆</div>
               </div>
               <div class="control-desc">Tap move + fire</div>
             </div>
@@ -123,11 +124,24 @@
           <h2>CHEATS</h2>
           <div>
             <button id="godmode-btn">Godmode: OFF</button>
-            <button id="all-upgrades-btn">All Upgrades: OFF</button>
+            <button id="all-upgrades-btn">Upgrades: OFF</button>
             <button id="autoaim-btn">Autoaim: OFF</button>
           </div>
         </div>
       </div>
+    </div>
+
+    <div id="boss-dialog">
+      <div id="boss-dialog-content">
+        <div id="boss-face">👾</div>
+        <div id="boss-text">...</div>
+      </div>
+      <div id="dialog-continue">Press SPACE or Click to continue</div>
+    </div>
+
+    <div id="level-cleared">
+      <h1>Level 1: Cleared</h1>
+      <p>Press or Click to Continue</p>
     </div>
 
     <canvas id="gameCanvas"></canvas>

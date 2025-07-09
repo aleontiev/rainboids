@@ -510,7 +510,7 @@ export class MiniBoss {
         this.isPortrait = isPortrait;
         this.size = 90; // Much larger than regular enemies (was 60)
         this.speed = 0.5; // Slower movement (was 1)
-        this.maxHealth = 900; // 9x more health than regular enemies (3x from 300)
+        this.maxHealth = 1800; // 18x more health than regular enemies (6x from 300)
         this.health = this.maxHealth;
         this.frameCount = 0;
         
@@ -526,8 +526,8 @@ export class MiniBoss {
         // Weapons
         this.primaryWeaponTimer = 0;
         this.secondaryWeaponTimer = 0;
-        this.primaryWeaponCooldown = 90; // 1.5 seconds at 60fps
-        this.secondaryWeaponCooldown = 240; // 4 seconds at 60fps
+        this.primaryWeaponCooldown = 45; // 0.75 seconds at 60fps (2x faster)
+        this.secondaryWeaponCooldown = 120; // 2 seconds at 60fps (2x faster)
         
         // Visual effects
         this.hitFlash = 0;
@@ -1088,5 +1088,325 @@ export class HomingMissile {
         ctx.closePath();
         ctx.fill();
         ctx.restore();
+    }
+}
+
+export class Level1Boss {
+    constructor(x, y, isPortrait, canvasWidth, canvasHeight) {
+        this.x = x;
+        this.y = y;
+        this.isPortrait = isPortrait;
+        this.canvasWidth = canvasWidth;
+        this.canvasHeight = canvasHeight;
+        this.size = 120; // Very large boss
+        this.maxHealth = 2000; // Very high health
+        this.health = this.maxHealth;
+        this.frameCount = 0;
+        
+        // Movement
+        this.movePattern = 'entering';
+        this.targetX = isPortrait ? canvasWidth / 2 : canvasWidth - 200;
+        this.targetY = isPortrait ? 200 : canvasHeight / 2;
+        this.speed = 1;
+        this.patrolDirection = 1;
+        this.patrolRange = 150;
+        this.startX = this.targetX;
+        this.startY = this.targetY;
+        
+        // Attack phases
+        this.phase = 1; // Phase 1-4, different attack patterns
+        this.phaseTimer = 0;
+        this.phaseDuration = 600; // 10 seconds per phase
+        
+        // Weapons
+        this.primaryWeaponTimer = 0;
+        this.secondaryWeaponTimer = 0;
+        this.specialWeaponTimer = 0;
+        this.primaryCooldown = 30; // Rapid fire
+        this.secondaryCooldown = 120; // 2 seconds
+        this.specialCooldown = 300; // 5 seconds
+        
+        // Visual effects
+        this.hitFlash = 0;
+        this.angle = 0;
+        this.rotationSpeed = 0.02;
+        
+        // Death sequence
+        this.isDefeated = false;
+        this.deathTimer = 0;
+        this.explosionTimer = 0;
+    }
+    
+    update() {
+        this.frameCount++;
+        this.angle += this.rotationSpeed;
+        
+        if (this.isDefeated) {
+            this.deathTimer++;
+            return;
+        }
+        
+        // Movement logic
+        if (this.movePattern === 'entering') {
+            // Move to target position
+            const dx = this.targetX - this.x;
+            const dy = this.targetY - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance > 5) {
+                this.x += (dx / distance) * this.speed;
+                this.y += (dy / distance) * this.speed;
+            } else {
+                this.movePattern = 'patrol';
+                this.startX = this.x;
+                this.startY = this.y;
+            }
+        } else if (this.movePattern === 'patrol') {
+            // Patrol movement
+            if (this.isPortrait) {
+                this.x += this.patrolDirection * 0.5;
+                if (Math.abs(this.x - this.startX) > this.patrolRange) {
+                    this.patrolDirection *= -1;
+                }
+            } else {
+                this.y += this.patrolDirection * 0.5;
+                if (Math.abs(this.y - this.startY) > this.patrolRange) {
+                    this.patrolDirection *= -1;
+                }
+            }
+        }
+        
+        // Phase management
+        this.phaseTimer++;
+        if (this.phaseTimer > this.phaseDuration) {
+            this.phase = Math.min(this.phase + 1, 4);
+            this.phaseTimer = 0;
+        }
+        
+        // Weapon timers
+        this.primaryWeaponTimer++;
+        this.secondaryWeaponTimer++;
+        this.specialWeaponTimer++;
+        
+        // Hit flash
+        if (this.hitFlash > 0) {
+            this.hitFlash--;
+        }
+    }
+    
+    canFirePrimary() {
+        return this.primaryWeaponTimer >= this.primaryCooldown;
+    }
+    
+    firePrimary() {
+        if (!this.canFirePrimary()) return [];
+        this.primaryWeaponTimer = 0;
+        
+        const bullets = [];
+        const angleToPlayer = Math.atan2(0 - this.y, 0 - this.x); // Aim at approximate player area
+        
+        // Phase 1: Single bullets
+        if (this.phase === 1) {
+            bullets.push({
+                x: this.x,
+                y: this.y,
+                vx: Math.cos(angleToPlayer) * 4,
+                vy: Math.sin(angleToPlayer) * 4,
+                type: 'boss'
+            });
+        }
+        // Phase 2: Triple shot
+        else if (this.phase === 2) {
+            for (let i = -1; i <= 1; i++) {
+                const angle = angleToPlayer + i * 0.3;
+                bullets.push({
+                    x: this.x,
+                    y: this.y,
+                    vx: Math.cos(angle) * 4,
+                    vy: Math.sin(angle) * 4,
+                    type: 'boss'
+                });
+            }
+        }
+        // Phase 3: Spread shot
+        else if (this.phase === 3) {
+            for (let i = -2; i <= 2; i++) {
+                const angle = angleToPlayer + i * 0.4;
+                bullets.push({
+                    x: this.x,
+                    y: this.y,
+                    vx: Math.cos(angle) * 5,
+                    vy: Math.sin(angle) * 5,
+                    type: 'boss'
+                });
+            }
+        }
+        // Phase 4: Circle shot
+        else if (this.phase === 4) {
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                bullets.push({
+                    x: this.x,
+                    y: this.y,
+                    vx: Math.cos(angle) * 3,
+                    vy: Math.sin(angle) * 3,
+                    type: 'boss'
+                });
+            }
+        }
+        
+        return bullets;
+    }
+    
+    canFireSecondary() {
+        return this.secondaryWeaponTimer >= this.secondaryCooldown;
+    }
+    
+    fireSecondary() {
+        if (!this.canFireSecondary()) return [];
+        this.secondaryWeaponTimer = 0;
+        
+        const bullets = [];
+        
+        // Laser attacks in later phases
+        if (this.phase >= 2) {
+            // Create laser data (will be handled by game engine)
+            return [{
+                type: 'laser',
+                x: this.x,
+                y: this.y,
+                angle: Math.atan2(0 - this.y, 0 - this.x),
+                length: 400,
+                color: '#ff4444'
+            }];
+        }
+        
+        return bullets;
+    }
+    
+    canFireSpecial() {
+        return this.specialWeaponTimer >= this.specialCooldown && this.phase >= 3;
+    }
+    
+    fireSpecial() {
+        if (!this.canFireSpecial()) return [];
+        this.specialWeaponTimer = 0;
+        
+        // Pulse circle attack
+        return [{
+            type: 'pulse',
+            x: this.x,
+            y: this.y,
+            maxRadius: 300,
+            color: '#ff00ff'
+        }];
+    }
+    
+    takeDamage(damage) {
+        this.health -= damage;
+        this.hitFlash = 10;
+        
+        if (this.health <= 0) {
+            this.isDefeated = true;
+            this.deathTimer = 0;
+            return 'defeated';
+        }
+        
+        return 'hit';
+    }
+    
+    getHealthPercentage() {
+        return this.health / this.maxHealth;
+    }
+    
+    render(ctx) {
+        if (this.size <= 0) return;
+        
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        
+        // Flash effect when hit
+        if (this.hitFlash > 0) {
+            ctx.globalAlpha = 0.5;
+        }
+        
+        // Main boss body - large menacing design
+        ctx.strokeStyle = this.isDefeated ? '#666666' : '#ff4444';
+        ctx.fillStyle = this.isDefeated ? '#333333' : '#cc2222';
+        ctx.lineWidth = 4;
+        
+        // Core body
+        ctx.beginPath();
+        ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Inner details
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.size * 0.7, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // Weapon hardpoints
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2;
+            const x = Math.cos(angle) * this.size * 0.8;
+            const y = Math.sin(angle) * this.size * 0.8;
+            
+            ctx.fillStyle = '#ffff00';
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Central eye/core
+        ctx.fillStyle = '#00ffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, this.size * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Pulsing effect based on phase
+        if (this.phase >= 2) {
+            ctx.globalAlpha = 0.3 + 0.2 * Math.sin(this.frameCount * 0.1);
+            ctx.strokeStyle = '#ff00ff';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.size + 20, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        
+        ctx.restore();
+        
+        // Health bar
+        this.renderHealthBar(ctx);
+    }
+    
+    renderHealthBar(ctx) {
+        const barWidth = 300;
+        const barHeight = 20;
+        const barX = this.x - barWidth / 2;
+        const barY = this.y - this.size - 40;
+        
+        // Background
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(barX, barY, barWidth, barHeight);
+        
+        // Health
+        const healthPercent = this.getHealthPercentage();
+        ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
+        ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+        
+        // Border
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        
+        // Boss name
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '16px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillText('SPACE OVERLORD', this.x, barY - 10);
     }
 }

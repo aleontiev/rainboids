@@ -134,10 +134,17 @@ export class Player {
       this.homingMissileCooldown--;
     }
 
-    // Update second ship positions (above or below player)
+    // Update second ship positions (above/below or left/right based on orientation)
     this.secondShip.forEach(ship => {
-      ship.x = this.x;
-      ship.y = this.y + (ship.offset || 40); // Default to below
+      if (ship.isHorizontal) {
+        // Portrait mode: left/right positioning
+        ship.x = this.x + (ship.offset || 40);
+        ship.y = this.y;
+      } else {
+        // Landscape mode: above/below positioning
+        ship.x = this.x;
+        ship.y = this.y + (ship.offset || 40);
+      }
       ship.initialAngle = this.angle; // Make companion ship face same direction as player
     });
   }
@@ -251,18 +258,34 @@ export class Player {
         );
       }
       
-      if (this.sideWeaponLevel >= 3) {
-        // Level 3: 2 missiles + 1 homing missile
+      if (this.sideWeaponLevel >= 2) {
+        // Level 2: 2 missiles + 2 homing missiles (green, 1.5x larger)
         if (this.homingMissileCooldown <= 0) {
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle, 6, "#ff00ff")
+            new HomingMissileClass(this.x, this.y, this.angle + 0.2, 9, "#00ff44")
+          );
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle - 0.2, 9, "#00ff44")
           );
           this.homingMissileCooldown = 60; // 1 second cooldown
         }
       }
       
+      if (this.sideWeaponLevel >= 3) {
+        // Level 3: 2 missiles + 4 homing missiles total
+        if (this.homingMissileCooldown <= 0) {
+          // Add 2 more homing missiles (total 4)
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle + 0.4, 9, "#00ff44")
+          );
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle - 0.4, 9, "#00ff44")
+          );
+        }
+      }
+      
       if (this.sideWeaponLevel >= 4) {
-        // Level 4: 4 missiles total + 4 homing missiles total (ultimate level)
+        // Level 4: 4 missiles total + 6 homing missiles total (ultimate level)
         // Add third and fourth missiles (we already have 2 from levels 1-2)
         bullets.push(
           new BulletClass(
@@ -285,16 +308,13 @@ export class Player {
           )
         );
         
-        // Add 3 more homing missiles (total 4, we already have 1 from level 3)
+        // Add 2 more homing missiles (total 6)
         if (this.homingMissileCooldown <= 0) {
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + 0.3, 6, "#ff00ff")
+            new HomingMissileClass(this.x, this.y, this.angle + 0.6, 9, "#00ff44")
           );
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle - 0.3, 6, "#ff00ff")
-          );
-          bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + 0.6, 6, "#ff00ff")
+            new HomingMissileClass(this.x, this.y, this.angle - 0.6, 9, "#00ff44")
           );
         }
       }
