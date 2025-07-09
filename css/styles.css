@@ -248,6 +248,35 @@ canvas {
   filter: grayscale(1) brightness(0.8);
 }
 
+/* Mobile/Desktop control visibility */
+.mobile-controls {
+  display: none;
+}
+
+.desktop-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .desktop-controls {
+    display: none;
+  }
+  
+  .mobile-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -609,6 +638,8 @@ body {
   font-family: "Press Start 2P", cursive;
   font-size: 14px;
   transition: background-color 0.2s, border-color 0.2s;
+  min-width: 200px;
+  text-align: center;
 }
 
 #pause-cheats button:hover {
