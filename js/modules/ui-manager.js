@@ -20,8 +20,17 @@ export class UIManager {
             titleScreen: document.getElementById('title-screen'),
             gameTitle: document.getElementById('game-title'),
             orientationOverlay: document.getElementById('orientation-overlay'),
-            highScoreDisplay: document.getElementById('high-score-display')
+            highScoreDisplay: document.getElementById('high-score-display'),
+            timer: document.getElementById('timer')
         };
+    }
+
+    updateTimer(time) {
+        if (this.elements.timer) {
+            const minutes = Math.floor(time / 60000);
+            const seconds = Math.floor((time % 60000) / 1000).toString().padStart(2, '0');
+            this.elements.timer.textContent = `${minutes}:${seconds}`;
+        }
     }
     
     setupEventListeners() {

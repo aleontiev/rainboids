@@ -1,17 +1,20 @@
 // Input handling for keyboard and touch controls
-import { triggerHapticFeedback } from './utils.js';
+
 
 export class InputHandler {
-    constructor() {
+    constructor(canvas) {
+        this.canvas = canvas;
         this.input = {
             up: false,
             down: false,
+            left: false,
+            right: false,
             fire: false,
             firePressed: false,
-            rotation: 0,
+            shift: false,
             joystickX: 0,
             joystickY: 0,
-            space: false
+            target: null
         };
         
         this.joystickActive = false;
@@ -20,10 +23,18 @@ export class InputHandler {
         this.setupKeyboardControls();
         this.setupTouchControls();
     }
+
+    
     
     setupKeyboardControls() {
         document.addEventListener('keydown', this.handleKeyDown.bind(this));
         document.addEventListener('keyup', this.handleKeyUp.bind(this));
+    }
+
+    setupTouchControls() {
+        this.canvas.addEventListener('touchstart', this.handleTouch.bind(this), { passive: false });
+        this.canvas.addEventListener('touchmove', this.handleTouch.bind(this), { passive: false });
+        this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this));
     }
     
     handleKeyDown(e) {
@@ -33,136 +44,81 @@ export class InputHandler {
         }
         
         switch (e.code) {
+            case 'KeyW':
             case 'ArrowUp':
                 this.input.up = true;
                 break;
+            case 'KeyS':
             case 'ArrowDown':
                 this.input.down = true;
                 break;
+            case 'KeyA':
             case 'ArrowLeft':
-                this.input.rotation = -1;
+                this.input.left = true;
                 break;
+            case 'KeyD':
             case 'ArrowRight':
-                this.input.rotation = 1;
+                this.input.right = true;
                 break;
-            case 'KeyZ':
+            case 'Space':
                 if (!this.input.fire) {
                     this.input.firePressed = true;
                 }
                 this.input.fire = true;
                 break;
-            case 'Space':
-                this.input.space = true;
+            case 'ShiftLeft':
+            case 'ShiftRight':
+                this.input.shift = true;
                 break;
         }
     }
     
     handleKeyUp(e) {
         switch (e.code) {
+            case 'KeyW':
             case 'ArrowUp':
                 this.input.up = false;
                 break;
+            case 'KeyS':
             case 'ArrowDown':
                 this.input.down = false;
                 break;
+            case 'KeyA':
             case 'ArrowLeft':
-                if (this.input.rotation < 0) this.input.rotation = 0;
+                this.input.left = false;
                 break;
+            case 'KeyD':
             case 'ArrowRight':
-                if (this.input.rotation > 0) this.input.rotation = 0;
-                break;
-            case 'KeyZ':
-                this.input.fire = false;
+                this.input.right = false;
                 break;
             case 'Space':
-                this.input.space = false;
+                this.input.fire = false;
+                break;
+            case 'ShiftLeft':
+            case 'ShiftRight':
+                this.input.shift = false;
                 break;
         }
     }
     
-    setupTouchControls() {
-        const touchFire = document.getElementById('touch-fire');
-        const joystickArea = document.getElementById('joystick-area');
-        const joystickHandle = document.getElementById('joystick-handle');
-        
-        // Touch button handlers
-        const handleTouchStart = (e, key) => {
-            e.preventDefault();
-            triggerHapticFeedback();
-            if (key === 'fire' && !this.input.fire) {
-                this.input.firePressed = true;
-            }
-            this.input[key] = true;
-            // Add .pressed class for visual feedback
-            if (key === 'fire') touchFire.classList.add('pressed');
-            if (key === 'up') touchThrust.classList.add('pressed');
-            if (key === 'space') touchTractor.classList.add('pressed');
+    getTouchPos(evt) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+            x: evt.touches[0].clientX - rect.left,
+            y: evt.touches[0].clientY - rect.top
         };
-        
-        const handleTouchEnd = (e, key) => {
-            e.preventDefault();
-            this.input[key] = false;
-            // Remove .pressed class
-            if (key === 'fire') touchFire.classList.remove('pressed');
-            if (key === 'up') touchThrust.classList.remove('pressed');
-            if (key === 'space') touchTractor.classList.remove('pressed');
-        };
-        
-        touchFire.addEventListener('touchstart', (e) => handleTouchStart(e, 'fire'), { passive: false });
-        touchFire.addEventListener('touchend', (e) => handleTouchEnd(e, 'fire'), { passive: false });
-        
-        // Enhanced joystick handlers for movement and rotation
-        joystickArea.addEventListener('touchstart', e => {
-            e.preventDefault();
-            triggerHapticFeedback(20);
-            this.joystickActive = true;
-            this.joystickMaxDist = joystickArea.clientWidth / 2.5;
-        }, { passive: false });
-        
-        joystickArea.addEventListener('touchend', e => {
-            e.preventDefault();
-            this.joystickActive = false;
-            this.input.rotation = 0;
-            this.input.joystickX = 0;
-            this.input.joystickY = 0;
-            this.input.up = false;
-            joystickHandle.style.transform = `translate(0px, 0px) translate(-50%, -50%)`;
-        }, { passive: false });
-        
-        // Remove thrust from joystick: only set rotation
-        joystickArea.addEventListener('touchmove', e => {
-            if (!this.joystickActive) return;
-            e.preventDefault();
-            const rect = joystickArea.getBoundingClientRect();
-            const touch = e.targetTouches[0];
-            // Always use current width/height for center
-            const centerX = joystickArea.offsetWidth / 2;
-            const centerY = joystickArea.offsetHeight / 2;
-            let dx = touch.clientX - rect.left - centerX;
-            let dy = touch.clientY - rect.top - centerY;
-            const dist = Math.hypot(dx, dy);
-            if (dist > this.joystickMaxDist) {
-                dx = (dx / dist) * this.joystickMaxDist;
-                dy = (dy / dist) * this.joystickMaxDist;
-            }
-            // Move the handle, keeping it centered
-            joystickHandle.style.transform = `translate(${dx}px, ${dy}px) translate(-50%, -50%)`;
-            // Normalize joystick values
-            const normalizedX = dx / this.joystickMaxDist;
-            const normalizedY = dy / this.joystickMaxDist;
-            // Only set rotation, not thrust
-            this.input.rotation = Math.max(-1, Math.min(1, normalizedX));
-            this.input.joystickX = normalizedX;
-            this.input.joystickY = normalizedY;
-        }, { passive: false });
-        // Thrust button handlers
-        const touchThrust = document.getElementById('touch-thrust');
-        const touchTractor = document.getElementById('touch-tractor');
-        touchThrust.addEventListener('touchstart', (e) => handleTouchStart(e, 'up'), { passive: false });
-        touchThrust.addEventListener('touchend', (e) => handleTouchEnd(e, 'up'), { passive: false });
-        // Tractor button handlers
-        touchTractor.addEventListener('touchstart', (e) => handleTouchStart(e, 'space'), { passive: false });
-        touchTractor.addEventListener('touchend', (e) => handleTouchEnd(e, 'space'), { passive: false });
+    }
+
+    handleTouch(evt) {
+        evt.preventDefault();
+        const touchPos = this.getTouchPos(evt);
+        this.input.target = touchPos;
+        this.input.fire = true;
+    }
+
+    handleTouchEnd(evt) {
+        this.input.fire = false;
+        this.input.target = null;
     }
     
     getInput() {

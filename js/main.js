@@ -97,7 +97,7 @@ class RainboidsGame {
     }
     
     setupManagers() {
-        this.inputHandler = new InputHandler();
+        this.inputHandler = new InputHandler(this.canvas);
         this.uiManager = new UIManager();
     }
     

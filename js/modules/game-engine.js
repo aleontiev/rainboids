@@ -33,7 +33,9 @@ export class GameEngine {
             state: GAME_STATES.TITLE_SCREEN,
             lastState: GAME_STATES.TITLE_SCREEN,
             screenShakeDuration: 0,
-            screenShakeMagnitude: 0
+            screenShakeMagnitude: 0,
+            timer: 0,
+            startTime: 0
         };
         this.initializePools();
         this.setupEventListeners();
@@ -115,6 +117,8 @@ export class GameEngine {
         this.game.score = 0;
         this.game.currentWave = 0;
         this.game.state = GAME_STATES.PLAYING;
+        this.game.timer = 0;
+        this.game.startTime = Date.now();
         // Reset player
         this.player = new Player();
         // Reset energy and CRITICAL state
@@ -547,6 +551,10 @@ export class GameEngine {
             }
             
             this.uiManager.updateScore(this.game.score);
+            if (this.game.state === GAME_STATES.PLAYING) {
+                this.game.timer = Date.now() - this.game.startTime;
+                this.uiManager.updateTimer(this.game.timer);
+            }
         } else if (this.game.state === GAME_STATES.GAME_OVER || this.game.state === GAME_STATES.PAUSED) {
             // Remove CRITICAL overlay if still active
             if (this.playerState === PLAYER_STATES.CRITICAL || this.playerState === PLAYER_STATES.RAPID_RECHARGE) {
