@@ -2,12 +2,12 @@
 import { GAME_CONFIG, COLORS, ENEMY_TYPES } from '../constants.js';
 
 export class Enemy {
-    constructor(x, y, type, isPortrait) {
+    constructor(x, y, type, isPortrait, speed = GAME_CONFIG.ENEMY_SPEED) {
         this.x = x;
         this.y = y;
         this.type = type || ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
         this.size = GAME_CONFIG.ENEMY_SIZE;
-        this.speed = GAME_CONFIG.ENEMY_SPEED;
+        this.speed = speed; // Use passed speed or default
         this.angle = isPortrait ? Math.PI / 2 : Math.PI; // Face down or left
         this.health = 1;
         this.shootCooldown = 0;
@@ -224,7 +224,12 @@ export class Enemy {
             if (this.shootCooldown > 60 + Math.random() * 60) {
                 this.shootCooldown = 0;
                 const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                bullets.push(new Bullet(this.x, this.y, angle, this.type));
+                
+                // Choose a random warm color
+                const warmColors = ['#ff4500', '#ffa500', '#ffd700']; // OrangeRed, Orange, Gold
+                const randomColor = warmColors[Math.floor(Math.random() * warmColors.length)];
+                
+                bullets.push(new Bullet(this.x, this.y, angle, 6, randomColor, this.isPortrait)); // Size 6, random warm color
             }
         }
     }
@@ -513,6 +518,7 @@ export class MiniBoss {
         this.maxHealth = 1800; // 18x more health than regular enemies (6x from 300)
         this.health = this.maxHealth;
         this.frameCount = 0;
+        this.angle = isPortrait ? Math.PI / 2 : 0; // Add this line for rotation
         
         // Movement pattern
         this.movePattern = 'entering'; // Start with entering phase
@@ -532,9 +538,12 @@ export class MiniBoss {
         // Visual effects
         this.hitFlash = 0;
         this.chargingSecondary = 0;
+        this.playerRef = null; // To store player reference for aiming
+        this.diveSpawnTimer = 0;
+        this.diveSpawnCooldown = 300; // 5 seconds cooldown for spawning divers
     }
     
-    update() {
+    update(playerX, playerY) {
         this.frameCount++;
         
         // Movement logic
@@ -562,13 +571,11 @@ export class MiniBoss {
         } else if (this.movePattern === 'patrol') {
             // Patrol movement
             if (this.isPortrait) {
-                // Portrait: patrol side to side
                 this.x += this.patrolDirection * this.speed;
                 if (Math.abs(this.x - this.startX) > this.patrolRange) {
                     this.patrolDirection *= -1;
                 }
             } else {
-                // Landscape: patrol up and down
                 this.y += this.patrolDirection * this.speed;
                 if (Math.abs(this.y - this.startY) > this.patrolRange) {
                     this.patrolDirection *= -1;
@@ -579,6 +586,7 @@ export class MiniBoss {
         // Weapon timers
         this.primaryWeaponTimer++;
         this.secondaryWeaponTimer++;
+        this.diveSpawnTimer++; // Increment dive spawn timer
         
         // Reduce hit flash
         if (this.hitFlash > 0) {
@@ -590,6 +598,13 @@ export class MiniBoss {
             this.chargingSecondary = Math.min(this.chargingSecondary + 0.1, 1);
         } else {
             this.chargingSecondary = 0;
+        }
+
+        // Spawn dive enemy periodically
+        if (this.canFireDiveEnemy()) {
+            // This will be handled in BlitzGame.update()
+            // We just reset the timer here
+            this.diveSpawnTimer = 0;
         }
     }
     
@@ -610,38 +625,68 @@ export class MiniBoss {
         return this.secondaryWeaponTimer >= this.secondaryWeaponCooldown;
     }
     
-    firePrimary() {
+    firePrimary(playerX, playerY) { // Added playerX, playerY
         this.primaryWeaponTimer = 0;
+        const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x); // Calculate angle to player
+        const bulletSpeed = 5; // Adjust as needed
         // Return bullet data for the main game to create
         return {
-            x: this.x - this.size * 0.5,
-            y: this.y,
-            vx: -4,
-            vy: 0,
+            x: this.x, // Fire from center of miniboss
+            y: this.y, // Fire from center of miniboss
+            vx: Math.cos(angleToPlayer) * bulletSpeed, // Aim at player
+            vy: Math.sin(angleToPlayer) * bulletSpeed, // Aim at player
+            size: 8, // Larger size
+            color: '#ff0000', // Red color
             type: 'miniBossPrimary'
         };
     }
     
-    fireSecondary() {
+    fireSecondary(playerX, playerY) { // Added playerX, playerY
         this.secondaryWeaponTimer = 0;
         this.chargingSecondary = 0;
-        // Return multiple bullets for spread shot
         const bullets = [];
+        const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x); // Calculate angle to player
+        const bulletSpeed = 4; // Slightly slower for spread
+        const spreadAngle = 0.3; // Angle between bullets in spread
+
         for (let i = -2; i <= 2; i++) {
+            const angle = angleToPlayer + i * spreadAngle; // Spread around player angle
             bullets.push({
-                x: this.x - this.size * 0.3,
-                y: this.y + i * 15,
-                vx: -3,
-                vy: i * 0.5,
+                x: this.x,
+                y: this.y,
+                vx: Math.cos(angle) * bulletSpeed,
+                vy: Math.sin(angle) * bulletSpeed,
+                size: 8, // Larger size
+                color: '#ff0000', // Red color
                 type: 'miniBossSecondary'
             });
         }
         return bullets;
     }
+
+    canFireDiveEnemy() {
+        return this.diveSpawnTimer >= this.diveSpawnCooldown;
+    }
+    
+    fireDiveEnemy(playerX, playerY) {
+        this.diveSpawnTimer = 0;
+        // Spawn a faster dive enemy
+        const fasterDiveSpeed = 3; // Adjust as needed
+        return {
+            x: this.x,
+            y: this.y,
+            type: 'dive',
+            isPortrait: this.isPortrait,
+            speed: fasterDiveSpeed,
+            targetX: playerX, // Pass player's current position as target
+            targetY: playerY
+        };
+    }
     
     render(ctx) {
         ctx.save();
         ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle); // Add this line for rotation
         
         // Hit flash effect
         if (this.hitFlash > 0) {
@@ -878,11 +923,11 @@ export class Asteroid {
 }
 
 export class Bullet {
-    constructor(x, y, angle, size, color, isPortrait) {
+    constructor(x, y, angle, size, color, isPortrait, speed = GAME_CONFIG.BULLET_SPEED) {
         this.x = x;
         this.y = y;
         this.angle = angle;
-        this.speed = GAME_CONFIG.BULLET_SPEED;
+        this.speed = speed; // Use passed speed or default
         this.size = size;
         this.color = color;
         this.life = 300;
@@ -925,7 +970,7 @@ export class Laser {
         this.x = x;
         this.y = y;
         this.angle = angle;
-        this.speed = 50; // Very fast
+        this.speed = speed || 50; // Use passed speed or default to 50
         this.color = color;
         this.width = 20; // Thicker laser
         this.life = 60; // Longer life (1 second)
@@ -989,7 +1034,7 @@ export class PulseCircle {
         this.x = x;
         this.y = y;
         this.radius = 5;
-        this.maxRadius = 200;
+        this.maxRadius = 300; // 1.5x larger
         this.life = 120;
         this.maxLife = 120;
         this.speed = 2;
@@ -1122,9 +1167,12 @@ export class Level1Boss {
         this.primaryWeaponTimer = 0;
         this.secondaryWeaponTimer = 0;
         this.specialWeaponTimer = 0;
+        this.spiralWeaponTimer = 0; // New timer for spiral attack
         this.primaryCooldown = 30; // Rapid fire
         this.secondaryCooldown = 120; // 2 seconds
         this.specialCooldown = 300; // 5 seconds
+        this.spiralWeaponCooldown = 180; // 3 seconds for spiral attack
+        this.laserSpeed = 5; // Speed for slow lasers
         
         // Visual effects
         this.hitFlash = 0;
@@ -1187,6 +1235,7 @@ export class Level1Boss {
         this.primaryWeaponTimer++;
         this.secondaryWeaponTimer++;
         this.specialWeaponTimer++;
+        this.spiralWeaponTimer++; // Increment spiral weapon timer
         
         // Hit flash
         if (this.hitFlash > 0) {
@@ -1237,6 +1286,7 @@ export class Level1Boss {
                     y: this.y,
                     vx: Math.cos(angle) * 5,
                     vy: Math.sin(angle) * 5,
+                    size: 10, // Larger size for powerful attack
                     type: 'boss'
                 });
             }
@@ -1250,6 +1300,7 @@ export class Level1Boss {
                     y: this.y,
                     vx: Math.cos(angle) * 3,
                     vy: Math.sin(angle) * 3,
+                    size: 12, // Even larger size for ultimate attack
                     type: 'boss'
                 });
             }
@@ -1276,6 +1327,7 @@ export class Level1Boss {
                 x: this.x,
                 y: this.y,
                 angle: Math.atan2(0 - this.y, 0 - this.x),
+                speed: this.laserSpeed, // Pass the new speed
                 length: 400,
                 color: '#ff4444'
             }];
@@ -1300,6 +1352,30 @@ export class Level1Boss {
             maxRadius: 300,
             color: '#ff00ff'
         }];
+    }
+    
+    canFireSpiral() {
+        return this.spiralWeaponTimer >= this.spiralWeaponCooldown;
+    }
+    
+    fireSpiral() {
+        this.spiralWeaponTimer = 0;
+        const bullets = [];
+        const numBullets = 12; // Number of bullets in one wave
+        const baseAngle = this.frameCount * 0.05; // Rotate the spiral over time
+
+        for (let i = 0; i < numBullets; i++) {
+            const angle = baseAngle + (i / numBullets) * Math.PI * 2;
+            bullets.push({
+                x: this.x,
+                y: this.y,
+                vx: Math.cos(angle) * 2, // Slower bullet speed
+                vy: Math.sin(angle) * 2,
+                size: 8, // Larger size
+                type: 'boss'
+            });
+        }
+        return bullets;
     }
     
     takeDamage(damage) {

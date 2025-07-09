@@ -58,6 +58,7 @@ class BlitzGame {
     // Boss dialog system
     this.bossDialogState = 0; // 0: hidden, 1: "...", 2: threat message, 3: closed
     this.bossDialogActive = false;
+    this.bossDialogTimer = 0;
 
     this.backgroundStars = [];
     this.powerups = [];
@@ -392,6 +393,15 @@ class BlitzGame {
 
     document.getElementById("game-over").style.display = "none";
     
+    // Reset boss and miniboss state
+    this.miniBosses = []; // Clear minibosses
+    this.level1Boss = null; // Clear boss
+    this.gamePhase = 1; // Reset game phase to initial
+    this.gameTime = 0; // Reset game time
+    this.bossDialogTimer = 0; // Reset boss dialog timer
+    this.bossDialogState = 0; // Reset boss dialog state
+    this.bossDialogActive = false; // Reset boss dialog active flag
+
     // Resume audio if it was already initialized
     if (this.audioReady && this.backgroundMusic.paused) {
       this.backgroundMusic.play().catch((e) => console.log("Audio resume failed:", e));
@@ -613,7 +623,8 @@ class BlitzGame {
       this.enemies,
       this.asteroids,
       this.isPortrait,
-      this.autoaimEnabled
+      this.autoaimEnabled,
+      this.player.mainWeaponLevel // Pass mainWeaponLevel
     );
 
     // Player shooting
@@ -690,25 +701,27 @@ class BlitzGame {
 
     // Update mini-bosses
     this.miniBosses.forEach((miniBoss) => {
-      miniBoss.update();
+      miniBoss.update(this.player.x, this.player.y); // Pass player coordinates
 
       // Mini-boss primary weapon
       if (miniBoss.canFirePrimary()) {
-        const bulletData = miniBoss.firePrimary();
+        const bulletData = miniBoss.firePrimary(this.player.x, this.player.y); // Pass player coordinates
         this.enemyBullets.push(
           new Bullet(
             bulletData.x,
             bulletData.y,
             bulletData.vx,
             bulletData.vy,
-            bulletData.type
+            bulletData.type,
+            bulletData.size, // Pass size
+            bulletData.color // Pass color
           )
         );
       }
 
       // Mini-boss secondary weapon
       if (miniBoss.canFireSecondary()) {
-        const bulletsData = miniBoss.fireSecondary();
+        const bulletsData = miniBoss.fireSecondary(this.player.x, this.player.y); // Pass player coordinates
         bulletsData.forEach((bulletData) => {
           this.enemyBullets.push(
             new Bullet(
@@ -716,10 +729,26 @@ class BlitzGame {
               bulletData.y,
               bulletData.vx,
               bulletData.vy,
-              bulletData.type
+              bulletData.type,
+              bulletData.size, // Pass size
+              bulletData.color // Pass color
             )
           );
         });
+      }
+
+      // Mini-boss dive enemy spawn
+      if (miniBoss.canFireDiveEnemy()) {
+        const enemyData = miniBoss.fireDiveEnemy(this.player.x, this.player.y); // Pass player coordinates
+        this.enemies.push(
+          new Enemy(
+            enemyData.x,
+            enemyData.y,
+            enemyData.type,
+            enemyData.isPortrait,
+            enemyData.speed // Pass speed
+          )
+        );
       }
     });
 
@@ -806,7 +835,7 @@ class BlitzGame {
 
     // Check for mini-boss spawn at 60 seconds
     if (
-      this.gameTime >= 60 &&
+      this.gameTime >= 45 &&
       this.gamePhase === 3 &&
       this.miniBosses.length === 0
     ) {
@@ -870,6 +899,24 @@ class BlitzGame {
     // Update boss fight
     if (this.gamePhase === 6) {
       this.updateBossFight();
+    }
+    
+    // Handle boss dialog delay phase
+    if (this.gamePhase === 'WAITING_FOR_BOSS_DIALOG') {
+        // Check if all other enemies are cleared
+        if (this.enemies.length === 0 &&
+            this.asteroids.length === 0 &&
+            this.enemyBullets.length === 0 &&
+            this.enemyLasers.length === 0 &&
+            this.enemyPulseCircles.length === 0) {
+
+            this.bossDialogTimer += deltaTime; // Increment timer using deltaTime
+            if (this.bossDialogTimer >= 5000) { // 5 seconds
+                this.gamePhase = 5; // Transition to boss dialog phase
+                this.showBossDialog();
+                console.log("Boss dialog initiated after delay.");
+            }
+        }
     }
     
     this.checkCollisions();
@@ -1041,10 +1088,10 @@ class BlitzGame {
 
             // Check if all mini-bosses are defeated
             if (this.miniBosses.length === 0 && this.gamePhase === 4) {
-              // All mini-bosses defeated - trigger boss dialog
-              this.gamePhase = 5; // Boss dialog phase
-              this.showBossDialog();
-              console.log("All mini-bosses defeated! Starting boss dialog.");
+              // All mini-bosses defeated - initiate boss dialog delay
+              this.gamePhase = 'WAITING_FOR_BOSS_DIALOG'; // New phase for delay
+              this.bossDialogTimer = 0; // Reset timer
+              console.log("All mini-bosses defeated! Waiting for boss dialog.");
             }
           }
 
@@ -1752,7 +1799,7 @@ class BlitzGame {
       const weaponData = this.level1Boss.fireSecondary();
       weaponData.forEach(data => {
         if (data.type === 'laser') {
-          this.enemyLasers.push(new Laser(data.x, data.y, data.angle, 0, data.color));
+          this.enemyLasers.push(new Laser(data.x, data.y, data.angle, data.speed, data.color));
         }
       });
     }
@@ -1763,6 +1810,20 @@ class BlitzGame {
         if (data.type === 'pulse') {
           this.enemyPulseCircles.push(new PulseCircle(data.x, data.y, data.maxRadius, data.color));
         }
+      });
+    }
+
+    // New: Spiral bullet attack
+    if (this.level1Boss.canFireSpiral()) {
+      const bulletsData = this.level1Boss.fireSpiral();
+      bulletsData.forEach(bulletData => {
+        this.enemyBullets.push(new Bullet(
+          bulletData.x,
+          bulletData.y,
+          bulletData.vx,
+          bulletData.vy,
+          bulletData.type
+        ));
       });
     }
   }

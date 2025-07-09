@@ -26,7 +26,7 @@ export class Player {
     this.rollAngle = 0; // Initialize rollAngle property
   }
 
-  update(keys, enemies, asteroids, isPortrait, autoaimEnabled = true) {
+  update(keys, enemies, asteroids, isPortrait, autoaimEnabled = true, mainWeaponLevel = 1) {
     // Handle dash
     if (this.isDashing) {
       this.x += this.dashVx;
@@ -64,31 +64,56 @@ export class Player {
 
     // Predictive aim - only if autoaim is enabled
     if (autoaimEnabled && keys.fire && (enemies.length > 0 || asteroids.length > 0)) {
-      let closestTarget = null;
-      let minDistance = Infinity;
+        let target = null;
+        let minDistance = Infinity;
 
-      // Combine enemies and asteroids for targeting
-      const targets = [...enemies, ...asteroids];
+        // First, prioritize enemies that can shoot
+        const shootingEnemyTypes = ['straight', 'sine', 'zigzag'];
+        let closestShootingEnemy = null;
+        let minShootingEnemyDistance = Infinity;
 
-      for (const target of targets) {
-        const dist = Math.sqrt(
-          (target.x - this.x) ** 2 + (target.y - this.y) ** 2
-        );
-        if (dist < minDistance) {
-          minDistance = dist;
-          closestTarget = target;
+        for (const enemy of enemies) {
+            if (shootingEnemyTypes.includes(enemy.type)) {
+                const dist = Math.sqrt(
+                    (enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2
+                );
+                if (dist < minShootingEnemyDistance) {
+                    minShootingEnemyDistance = dist;
+                    closestShootingEnemy = enemy;
+                }
+            }
         }
-      }
 
-      if (closestTarget) {
-        const bulletSpeed = 10; // Assuming a bullet speed, adjust as needed
-        const timeToTarget = minDistance / bulletSpeed;
+        if (closestShootingEnemy) {
+            target = closestShootingEnemy;
+            minDistance = minShootingEnemyDistance;
+        } else {
+            // If no shooting enemies, prioritize by proximity among all enemies and asteroids
+            const allTargets = [...enemies, ...asteroids];
+            for (const t of allTargets) { // Renamed 'target' to 't' to avoid conflict
+                const dist = Math.sqrt(
+                    (t.x - this.x) ** 2 + (t.y - this.y) ** 2
+                );
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    target = t;
+                }
+            }
+        }
 
-        const predictedX = closestTarget.x + (closestTarget.vx || 0) * timeToTarget;
-        const predictedY = closestTarget.y + (closestTarget.vy || 0) * timeToTarget;
+        if (target) {
+          if (mainWeaponLevel === 5) { // If primary weapon is laser (level 5)
+              this.angle = Math.atan2(target.y - this.y, target.x - this.x); // Aim directly
+          } else {
+              const bulletSpeed = 10; // Assuming a bullet speed, adjust as needed
+              const timeToTarget = minDistance / bulletSpeed;
 
-        this.angle = Math.atan2(predictedY - this.y, predictedX - this.x);
-      }
+              const predictedX = target.x + (target.vx || 0) * timeToTarget;
+              const predictedY = target.y + (target.vy || 0) * timeToTarget;
+
+              this.angle = Math.atan2(predictedY - this.y, predictedX - this.x);
+          }
+        }
     }
 
     // Dash mechanic - dash in movement direction
@@ -167,17 +192,17 @@ export class Player {
         this.shootCooldown = 1; // Allow continuous firing
       } else if (this.mainWeaponLevel === 1) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 10, "#00ff88", isPortrait)
+          new BulletClass(this.x, this.y, this.angle, 10, "#00ff88", isPortrait, 4) // Speed 4
         ); // Cool green
         this.shootCooldown = 45; // Slower (0.75 seconds at 60fps)
       } else if (this.mainWeaponLevel === 2) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 14, "#00ffcc", isPortrait)
+          new BulletClass(this.x, this.y, this.angle, 14, "#00ffcc", isPortrait, GAME_CONFIG.BULLET_SPEED)
         ); // Teal, faster
         this.shootCooldown = 15; // Faster
       } else if (this.mainWeaponLevel === 3) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 14, "#00ffff", isPortrait)
+          new BulletClass(this.x, this.y, this.angle, 14, "#00ffff", isPortrait, GAME_CONFIG.BULLET_SPEED)
         ); // Cyan
         bullets.push(
           new BulletClass(
@@ -186,7 +211,8 @@ export class Player {
             this.angle + 0.1,
             14,
             "#00ffff",
-            isPortrait
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
           )
         );
         bullets.push(
@@ -196,13 +222,14 @@ export class Player {
             this.angle - 0.1,
             14,
             "#00ffff",
-            isPortrait
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
           )
         );
         this.shootCooldown = 15; // Same as level 2
       } else if (this.mainWeaponLevel >= 4) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 18, "#4488ff", isPortrait)
+          new BulletClass(this.x, this.y, this.angle, 18, "#4488ff", isPortrait, GAME_CONFIG.BULLET_SPEED)
         ); // Cool blue, fast
         bullets.push(
           new BulletClass(
@@ -211,7 +238,8 @@ export class Player {
             this.angle + 0.1,
             18,
             "#4488ff",
-            isPortrait
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
           )
         );
         bullets.push(
@@ -221,7 +249,8 @@ export class Player {
             this.angle - 0.1,
             18,
             "#4488ff",
-            isPortrait
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
           )
         );
         this.shootCooldown = 8; // Very fast
@@ -239,7 +268,8 @@ export class Player {
             this.angle + Math.PI / 4, // 45 degree diagonal
             8,
             "#8844ff",
-            isPortrait
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
           )
         );
       }
@@ -253,7 +283,8 @@ export class Player {
             this.angle - Math.PI / 4, // -45 degree diagonal
             8,
             "#8844ff",
-            isPortrait
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
           )
         );
       }
@@ -294,7 +325,8 @@ export class Player {
             this.angle + Math.PI / 6, // 30 degree
             8,
             "#8844ff",
-            isPortrait
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
           )
         );
         bullets.push(
@@ -304,7 +336,8 @@ export class Player {
             this.angle - Math.PI / 6, // -30 degree
             8,
             "#8844ff",
-            isPortrait
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
           )
         );
         
@@ -329,7 +362,8 @@ export class Player {
             ship.initialAngle, // Use initialAngle
             8,
             secondShipBulletColor,
-            isPortrait
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
           )
         );
       });
