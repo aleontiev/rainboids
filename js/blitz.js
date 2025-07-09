@@ -26,7 +26,7 @@ class BlitzGame {
     // Death animation properties
     this.deathAnimationActive = false;
     this.deathAnimationTimer = 0;
-    this.deathAnimationDuration = 60; // 1 second at 60fps
+    this.deathAnimationDuration = 90; // 1.5 seconds at 60fps
     this.sceneOpacity = 1.0;
     this.gameOverOpacity = 0.0;
     this.deathPosition = { x: 0, y: 0 };
@@ -556,14 +556,15 @@ class BlitzGame {
     // Play dramatic player explosion sound
     this.playSound(this.sounds.playerExplosion);
 
-    // Create initial explosion effect for player death
-    this.createExplosion(this.player.x, this.player.y);
+    // Create rainbow explosion where ship was
+    this.createRainbowExplosion(this.player.x, this.player.y);
 
     // Start death animation sequence
     this.deathAnimationActive = true;
     this.deathAnimationTimer = 0;
     this.sceneOpacity = 1.0;
     this.gameOverOpacity = 0.0;
+    this.deathPosition = { x: this.player.x, y: this.player.y };
     
     // Change game state to prevent normal game updates
     this.gameState = "DEATH_ANIMATION";
@@ -2152,20 +2153,7 @@ class BlitzGame {
   updateDeathAnimation() {
     this.deathAnimationTimer++;
     
-    // Create medium rainbow explosions around the player for the first 2 seconds
-    if (this.deathAnimationTimer < 120) {
-      if (this.deathAnimationTimer % 30 === 0) {
-        this.createDeathRainbowExplosion(this.player.x, this.player.y);
-      }
-    }
-    
-    // Start fading out scene in the last second
-    if (this.deathAnimationTimer > 180) {
-      const fadeProgress = (this.deathAnimationTimer - 180) / 60; // 0 to 1 over 1 second
-      this.sceneOpacity = Math.max(0, 1 - fadeProgress);
-    }
-    
-    // End death animation and show game over screen
+    // After 1.5 seconds, start fading out everything
     if (this.deathAnimationTimer >= this.deathAnimationDuration) {
       this.deathAnimationActive = false;
       this.gameState = "GAME_OVER";
@@ -2176,20 +2164,32 @@ class BlitzGame {
       document.getElementById("final-score-value").textContent = this.score.toLocaleString();
       document.getElementById("high-score-value").textContent = this.highScore.toLocaleString();
       
-      // Start fade in game over screen
-      const gameOverElement = document.getElementById("game-over");
-      gameOverElement.style.display = "flex";
-      gameOverElement.style.opacity = "0";
-      
-      // Animate game over screen fade in
-      let fadeInTimer = 0;
-      const fadeInInterval = setInterval(() => {
-        fadeInTimer += 16; // ~60fps
-        const progress = fadeInTimer / 1000; // 1 second fade in
-        gameOverElement.style.opacity = Math.min(1, progress);
+      // Start fade out everything, then show game over screen
+      let fadeOutTimer = 0;
+      const fadeOutInterval = setInterval(() => {
+        fadeOutTimer += 16; // ~60fps
+        const progress = fadeOutTimer / 1000; // 1 second fade out
+        this.sceneOpacity = Math.max(0, 1 - progress);
         
         if (progress >= 1) {
-          clearInterval(fadeInInterval);
+          clearInterval(fadeOutInterval);
+          
+          // Show game over screen after fade out
+          const gameOverElement = document.getElementById("game-over");
+          gameOverElement.style.display = "flex";
+          gameOverElement.style.opacity = "0";
+          
+          // Animate game over screen fade in
+          let fadeInTimer = 0;
+          const fadeInInterval = setInterval(() => {
+            fadeInTimer += 16; // ~60fps
+            const progress = fadeInTimer / 1000; // 1 second fade in
+            gameOverElement.style.opacity = Math.min(1, progress);
+            
+            if (progress >= 1) {
+              clearInterval(fadeInInterval);
+            }
+          }, 16);
         }
       }, 16);
     }
