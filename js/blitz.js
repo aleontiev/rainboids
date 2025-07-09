@@ -22,7 +22,7 @@ class BlitzGame {
     this.score = 0;
     this.lives = 1;
     this.highScore = this.loadHighScore();
-    
+
     // Death animation properties
     this.deathAnimationActive = false;
     this.deathAnimationTimer = 0;
@@ -63,7 +63,7 @@ class BlitzGame {
     this.gamePhase = 1; // 1: asteroids only, 2: enemies start, 3: increased spawn, 4: mini-boss, 5: boss dialog, 6: boss fight, 7: victory
     this.miniBosses = [];
     this.level1Boss = null;
-    
+
     // Boss dialog system
     this.bossDialogState = 0; // 0: hidden, 1: "...", 2: threat message, 3: closed
     this.bossDialogActive = false;
@@ -78,7 +78,7 @@ class BlitzGame {
     // Cheat toggles
     this.autoaimEnabled = false; // Default off
     this.allUpgradesState = null; // Store state before all upgrades
-    
+
     // Audio state
     this.firstGameStart = true; // Track if this is the first game start
 
@@ -94,7 +94,7 @@ class BlitzGame {
 
   loadHighScore() {
     try {
-      return parseInt(localStorage.getItem('rainboids-high-score') || '0');
+      return parseInt(localStorage.getItem("rainboids-high-score") || "0");
     } catch (e) {
       return 0;
     }
@@ -104,7 +104,7 @@ class BlitzGame {
     try {
       if (score > this.highScore) {
         this.highScore = score;
-        localStorage.setItem('rainboids-high-score', score.toString());
+        localStorage.setItem("rainboids-high-score", score.toString());
       }
     } catch (e) {
       // localStorage not available
@@ -143,7 +143,7 @@ class BlitzGame {
     this.backgroundMusic = new Audio("bgm.mp3");
     this.backgroundMusic.loop = true;
     this.backgroundMusic.volume = 0.3;
-    
+
     // Audio state tracking
     this.sfxMuted = false;
     this.musicMuted = false;
@@ -199,14 +199,13 @@ class BlitzGame {
         synthdef.sound_vol = 0.1; // More subdued
         break;
       case "playerExplosion":
-        // Custom player explosion - extremely subtle and soft
+        // Custom player explosion - subtle and soft
         synthdef = params.explosion();
-        synthdef.p_base_freq = 0.1 + Math.random() * 0.05; // Even lower frequency
-        synthdef.p_env_sustain = 0.4 + Math.random() * 0.1; // Longer sustain for smoothness
-        synthdef.p_env_decay = 0.8 + Math.random() * 0.2; // Very long decay
-        synthdef.p_repeat_speed = 0.02 + Math.random() * 0.02; // Much slower repeat
-        synthdef.p_lpf_freq = 0.2 + Math.random() * 0.1; // Heavy low-pass filtering
-        synthdef.sound_vol = 0.04; // Extremely subtle volume
+        synthdef.p_base_freq = 0.2 + Math.random() * 0.1;
+        synthdef.p_env_sustain = 0.1 + Math.random() * 0.1;
+        synthdef.p_env_decay = 0.2 + Math.random() * 0.2;
+        synthdef.p_lpf_freq = 0.4 + Math.random() * 0.2;
+        synthdef.sound_vol = 0.02;
         break;
       case "powerUp":
         synthdef = params.powerUp();
@@ -247,6 +246,18 @@ class BlitzGame {
         e.stopPropagation();
         if (this.gameState === "GAME_OVER") {
           this.restartGame();
+        }
+      });
+    }
+
+    // Start button
+    const startBtn = document.getElementById("start-btn");
+    if (startBtn) {
+      startBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.gameState === "TITLE") {
+          startBtn.classList.add("clicked");
+          this.startGame();
         }
       });
     }
@@ -352,14 +363,14 @@ class BlitzGame {
     // Volume button
     // Setup audio controls in pause dialog
     this.setupAudioControls();
-    
+
     // Auto-pause when user navigates away from page
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && this.gameState === "PLAYING") {
         this.pauseGame();
       }
     });
-    
+
     // Also handle window blur/focus events for additional coverage
     window.addEventListener("blur", () => {
       if (this.gameState === "PLAYING") {
@@ -373,16 +384,19 @@ class BlitzGame {
     const volumeButton = document.getElementById("volume-btn");
     if (volumeButton) {
       const updateVolumeIcon = () => {
-        const icon = volumeButton.querySelector('i');
+        const icon = volumeButton.querySelector("i");
         if (icon) {
-          icon.setAttribute('data-lucide', this.sfxMuted ? 'volume-x' : 'volume-2');
-          if (typeof lucide !== 'undefined') {
+          icon.setAttribute(
+            "data-lucide",
+            this.sfxMuted ? "volume-x" : "volume-2"
+          );
+          if (typeof lucide !== "undefined") {
             lucide.createIcons();
           }
         }
-        volumeButton.classList.toggle('muted', this.sfxMuted);
+        volumeButton.classList.toggle("muted", this.sfxMuted);
       };
-      
+
       volumeButton.addEventListener("click", (e) => {
         e.stopPropagation();
         this.sfxMuted = !this.sfxMuted;
@@ -392,23 +406,32 @@ class BlitzGame {
         updateVolumeIcon();
         updateMusicIcon();
       });
-      
+      volumeButton.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.sfxMuted = !this.sfxMuted;
+        this.musicMuted = this.sfxMuted;
+        this.backgroundMusic.muted = this.musicMuted;
+        updateVolumeIcon();
+        updateMusicIcon();
+      });
+
       updateVolumeIcon();
     }
 
     // Music button (music only)
     const musicButton = document.getElementById("music-btn");
     const updateMusicIcon = () => {
-      const icon = musicButton.querySelector('i');
+      const icon = musicButton.querySelector("i");
       if (icon) {
-        icon.setAttribute('data-lucide', 'music');
-        if (typeof lucide !== 'undefined') {
+        icon.setAttribute("data-lucide", "music");
+        if (typeof lucide !== "undefined") {
           lucide.createIcons();
         }
       }
-      musicButton.classList.toggle('muted', this.musicMuted);
+      musicButton.classList.toggle("muted", this.musicMuted);
     };
-    
+
     if (musicButton) {
       musicButton.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -416,7 +439,14 @@ class BlitzGame {
         this.backgroundMusic.muted = this.musicMuted;
         updateMusicIcon();
       });
-      
+      musicButton.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.musicMuted = !this.musicMuted;
+        this.backgroundMusic.muted = this.musicMuted;
+        updateMusicIcon();
+      });
+
       updateMusicIcon();
     }
   }
@@ -489,7 +519,7 @@ class BlitzGame {
     this.setupBackgroundStars();
 
     document.getElementById("game-over").style.display = "none";
-    
+
     // Reset boss and miniboss state
     this.miniBosses = []; // Clear minibosses
     this.level1Boss = null; // Clear boss
@@ -501,9 +531,11 @@ class BlitzGame {
 
     // Resume audio if it was already initialized
     if (this.audioReady && this.backgroundMusic.paused) {
-      this.backgroundMusic.play().catch((e) => console.log("Audio resume failed:", e));
+      this.backgroundMusic
+        .play()
+        .catch((e) => console.log("Audio resume failed:", e));
     }
-    
+
     this.updateUI();
   }
 
@@ -552,32 +584,72 @@ class BlitzGame {
     this.powerups.push(new Powerup(x, y, type, this.isPortrait));
   }
 
+  spawnMiniBoss(type) {
+    let x, y;
+    if (this.isPortrait) {
+      const centerX = this.canvas.width / 2;
+      const spacing = 120;
+      x = type === "alpha" ? centerX - spacing : centerX + spacing;
+      y = -100; // Start above screen
+    } else {
+      const centerY = this.canvas.height / 2;
+      const spacing = 150;
+      x = this.canvas.width + 100; // Start off-screen right
+      y = type === "alpha" ? centerY - spacing : centerY + spacing;
+    }
+    this.miniBosses.push(
+      new MiniBoss(x, y, type, this.isPortrait, this.canvas.width)
+    );
+  }
+
   gameOver() {
     // Play dramatic player explosion sound
     this.playSound(this.sounds.playerExplosion);
 
     // Create initial explosion effect for player death
-    this.createExplosion(this.player.x, this.player.y);
+    this.createDeathRainbowExplosion(this.player.x, this.player.y);
 
     // Start death animation sequence
     this.deathAnimationActive = true;
     this.deathAnimationTimer = 0;
     this.sceneOpacity = 1.0;
     this.gameOverOpacity = 0.0;
-    
+
     // Change game state to prevent normal game updates
     this.gameState = "DEATH_ANIMATION";
   }
 
   updateGamePhase() {
-    if (this.gameTime < 10) {
-      this.gamePhase = 1; // Asteroids only
-    } else if (this.gameTime < 30) {
-      this.gamePhase = 2; // Enemies start spawning
-    } else if (this.gameTime < 60) {
-      this.gamePhase = 3; // Increased spawn rates
+    // Phase 1: Asteroids and enemies
+    if (this.gameTime < 30) {
+      this.gamePhase = 1;
+    } else if (
+      this.gameTime >= 30 &&
+      this.gameTime < 35 &&
+      this.miniBosses.length === 0
+    ) {
+      // Phase 2: First miniboss
+      this.gamePhase = 2;
+      this.spawnMiniBoss("alpha");
+    } else if (this.gameTime >= 35 && this.miniBosses.length === 1) {
+      // Phase 2: Second miniboss
+      this.spawnMiniBoss("beta");
+    } else if (this.miniBosses.length === 0 && this.gamePhase === 2) {
+      // Phase 3: Post-miniboss cleanup
+      this.gamePhase = 3;
+      this.enemies.forEach((enemy) =>
+        this.createEnemyExplosion(enemy.x, enemy.y)
+      );
+      this.enemies = [];
+      setTimeout(() => {
+        this.spawnPowerup();
+        this.spawnPowerup();
+        setTimeout(() => {
+          this.gamePhase = 4; // Boss dialog
+          this.showBossDialog();
+        }, 5000);
+      }, 5000);
     }
-    // Phase 4 is set when mini-bosses spawn
   }
 
   getAsteroidSpawnRate() {
@@ -701,24 +773,31 @@ class BlitzGame {
   }
 
   update(deltaTime, slowdownFactor = 1.0) {
-    if (this.gameState !== "PLAYING" && !this.deathAnimationActive) return;
+    if (this.gameState === "DEATH_ANIMATION") {
+      slowdownFactor = 0.25;
+    } else if (this.gameState !== "PLAYING") {
+      return;
+    }
 
     this.gameTime += deltaTime / 1000; // Convert ms to seconds
 
     const input = this.inputHandler.getInput();
 
     // Update player
-    this.player.update(
-      input,
-      this.enemies,
-      this.asteroids,
-      this.isPortrait,
-      this.autoaimEnabled,
-      this.player.mainWeaponLevel // Pass mainWeaponLevel
-    );
+    if (this.gameState !== "DEATH_ANIMATION") {
+      this.player.update(
+        input,
+        this.enemies,
+        this.asteroids,
+        this.isPortrait,
+        this.autoaimEnabled,
+        this.player.mainWeaponLevel // Pass mainWeaponLevel
+      );
+    }
 
     // Player shooting
     if (input.fire) {
+      document.body.classList.add("firing");
       this.player.shoot(
         this.bullets,
         this.sounds.shoot,
@@ -727,6 +806,8 @@ class BlitzGame {
         HomingMissile,
         this.isPortrait
       );
+    } else {
+      document.body.classList.remove("firing");
     }
 
     // Update bullets
@@ -760,7 +841,9 @@ class BlitzGame {
       );
     });
 
-    this.enemyLasers = this.enemyLasers.filter((laser) => laser.update(slowdownFactor));
+    this.enemyLasers = this.enemyLasers.filter((laser) =>
+      laser.update(slowdownFactor)
+    );
 
     this.enemyPulseCircles = this.enemyPulseCircles.filter((circle) =>
       circle.update(slowdownFactor)
@@ -812,7 +895,10 @@ class BlitzGame {
 
       // Mini-boss secondary weapon
       if (miniBoss.canFireSecondary()) {
-        const bulletsData = miniBoss.fireSecondary(this.player.x, this.player.y); // Pass player coordinates
+        const bulletsData = miniBoss.fireSecondary(
+          this.player.x,
+          this.player.y
+        ); // Pass player coordinates
         bulletsData.forEach((bulletData) => {
           this.enemyBullets.push(
             new Bullet(
@@ -955,105 +1041,56 @@ class BlitzGame {
     // Spawn enemies based on current phase
     this.enemySpawnTimer++;
     const enemySpawnRate = this.getEnemySpawnRate();
-    if (this.enemySpawnTimer > enemySpawnRate && this.gamePhase >= 2 && this.gamePhase <= 4) {
+    if (
+      this.enemySpawnTimer > enemySpawnRate &&
+      this.gamePhase >= 2 &&
+      this.gamePhase <= 4
+    ) {
       this.spawnEnemy();
       this.enemySpawnTimer = 0;
     }
 
     // Check for mini-boss spawn at 60 seconds
     if (
-      this.gameTime >= 45 &&
-      this.gamePhase === 3 &&
+      this.gameTime >= 30 &&
+      this.gamePhase === 1 &&
       this.miniBosses.length === 0
     ) {
-      console.log("Spawning mini-bosses at time:", this.gameTime);
-      console.log("Method exists?", typeof this.spawnMiniBosses);
-      console.log("this object:", this);
-      try {
-        // Spawn two mini-bosses directly inline to avoid method call issues
-        let alphaX, alphaY, betaX, betaY;
+      this.gamePhase = 2; // Mini-boss phase
+      this.spawnMiniBoss("alpha");
+      setTimeout(() => {
+        this.spawnMiniBoss("beta");
+      }, 5000); // 5 seconds after the first miniboss
+    } else if (this.gamePhase === 2 && this.miniBosses.length === 0) {
+      // All mini-bosses defeated - initiate post-miniboss cleanup
+      this.gamePhase = 3; // Post-miniboss cleanup phase
+      this.enemies.forEach((enemy) =>
+        this.createEnemyExplosion(enemy.x, enemy.y)
+      );
+      this.enemies = [];
+      this.enemyBullets = [];
+      this.enemyLasers = [];
+      this.enemyPulseCircles = [];
+      this.asteroids = []; // Clear asteroids too
 
-        if (this.isPortrait) {
-          // Portrait mode: spawn at top of screen like other enemies
-          const centerX = this.canvas.width / 2;
-          const spacing = 120;
+      setTimeout(() => {
+        this.spawnPowerup();
+        this.spawnPowerup();
+        setTimeout(() => {
+          this.gamePhase = 4; // Boss dialog phase
+          this.showBossDialog();
+        }, 5000); // 5 seconds after powerups appear
+      }, 5000); // 5 seconds after clearing screen
 
-          // Alpha mini-boss (left side)
-          alphaX = centerX - spacing;
-          alphaY = -100; // Start above screen
+      this.checkCollisions();
 
-          // Beta mini-boss (right side)
-          betaX = centerX + spacing;
-          betaY = -100; // Start above screen
-        } else {
-          // Landscape mode: spawn from right side like other enemies
-          const centerY = this.canvas.height / 2;
-          const spacing = 150;
-
-          // Alpha mini-boss (top)
-          alphaX = this.canvas.width + 100; // Start off-screen right
-          alphaY = centerY - spacing;
-
-          // Beta mini-boss (bottom)
-          betaX = this.canvas.width + 100; // Start off-screen right
-          betaY = centerY + spacing;
-        }
-
-        console.log("Creating mini-bosses - Portrait mode:", this.isPortrait);
-        console.log("Alpha mini-boss at:", alphaX, alphaY);
-        console.log("Beta mini-boss at:", betaX, betaY);
-
-        this.miniBosses.push(
-          new MiniBoss(
-            alphaX,
-            alphaY,
-            "alpha",
-            this.isPortrait,
-            this.canvas.width
-          )
-        );
-        this.miniBosses.push(
-          new MiniBoss(betaX, betaY, "beta", this.isPortrait, this.canvas.width)
-        );
-
-        console.log("Mini-bosses spawned, total:", this.miniBosses.length);
-        this.gamePhase = 4; // Mini-boss phase
-      } catch (error) {
-        console.error("Error spawning mini-bosses:", error);
+      // Check boss collisions
+      if (this.gamePhase === 5) {
+        this.checkBossCollisions();
       }
-    }
 
-    // Update boss fight
-    if (this.gamePhase === 6) {
-      this.updateBossFight(slowdownFactor);
+      this.updateUI(); // Update UI elements like timer
     }
-    
-    // Handle boss dialog delay phase
-    if (this.gamePhase === 'WAITING_FOR_BOSS_DIALOG') {
-        // Check if all other enemies are cleared
-        if (this.enemies.length === 0 &&
-            this.asteroids.length === 0 &&
-            this.enemyBullets.length === 0 &&
-            this.enemyLasers.length === 0 &&
-            this.enemyPulseCircles.length === 0) {
-
-            this.bossDialogTimer += deltaTime; // Increment timer using deltaTime
-            if (this.bossDialogTimer >= 5000) { // 5 seconds
-                this.gamePhase = 5; // Transition to boss dialog phase
-                this.showBossDialog();
-                console.log("Boss dialog initiated after delay.");
-            }
-        }
-    }
-    
-    this.checkCollisions();
-    
-    // Check boss collisions
-    if (this.gamePhase === 6) {
-      this.checkBossCollisions();
-    }
-    
-    this.updateUI(); // Update UI elements like timer
   }
 
   checkCollisions() {
@@ -1216,7 +1253,7 @@ class BlitzGame {
             // Check if all mini-bosses are defeated
             if (this.miniBosses.length === 0 && this.gamePhase === 4) {
               // All mini-bosses defeated - initiate boss dialog delay
-              this.gamePhase = 'WAITING_FOR_BOSS_DIALOG'; // New phase for delay
+              this.gamePhase = "WAITING_FOR_BOSS_DIALOG"; // New phase for delay
               this.bossDialogTimer = 0; // Reset timer
               console.log("All mini-bosses defeated! Waiting for boss dialog.");
             }
@@ -1426,7 +1463,7 @@ class BlitzGame {
     if (player.isDashing) {
       return false;
     }
-    
+
     const dx = player.x - obj.x;
     const dy = player.y - obj.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1461,16 +1498,13 @@ class BlitzGame {
   }
 
   createDeathRainbowExplosion(x, y) {
-    // Create a medium-sized rainbow explosion similar to asteroids
-    this.explosions.push(new RainbowExplosion(x, y, 120));
-    
-    // Add rainbow particles scattered around the explosion
-    for (let i = 0; i < 12; i++) {
-      const angle = (i / 12) * Math.PI * 2;
-      const distance = 30 + Math.random() * 40;
+    // Create a burst of 24 rainbow particles
+    for (let i = 0; i < 24; i++) {
+      const angle = (i / 24) * Math.PI * 2;
+      const distance = 10 + Math.random() * 20;
       const particleX = x + Math.cos(angle) * distance;
       const particleY = y + Math.sin(angle) * distance;
-      
+
       // Create rainbow debris particles
       this.particles.push(new RainbowParticle(particleX, particleY));
     }
@@ -1673,7 +1707,11 @@ class BlitzGame {
 
       this.ctx.restore();
     });
-    if (this.gameState === "PLAYING" || this.gameState === "PAUSED") {
+    if (
+      this.gameState === "PLAYING" ||
+      this.gameState === "PAUSED" ||
+      this.gameState === "DEATH_ANIMATION"
+    ) {
       // Draw powerups
       this.powerups.forEach((powerup) => powerup.render(this.ctx));
 
@@ -1684,10 +1722,9 @@ class BlitzGame {
       this.textParticles.forEach((particle) => particle.render(this.ctx));
 
       // Draw game objects
-      this.player.render(this.ctx);
-
-      // Draw target indicator for mouse position (desktop only)
-      this.renderTargetIndicator();
+      if (this.gameState !== "DEATH_ANIMATION") {
+        this.player.render(this.ctx);
+      }
 
       this.bullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyBullets.forEach((bullet) => bullet.render(this.ctx));
@@ -1696,20 +1733,20 @@ class BlitzGame {
       this.asteroids.forEach((asteroid) => asteroid.render(this.ctx));
       this.enemies.forEach((enemy) => enemy.render(this.ctx));
       this.miniBosses.forEach((miniBoss) => miniBoss.render(this.ctx));
-      
+
       // Render level 1 boss
       if (this.level1Boss) {
         this.level1Boss.render(this.ctx);
       }
       this.particles.forEach((particle) => particle.render(this.ctx));
     }
-    
+
     // Render death animation effects
     if (this.deathAnimationActive) {
       // Draw explosions during death animation
       this.explosions.forEach((explosion) => explosion.render(this.ctx));
       this.particles.forEach((particle) => particle.render(this.ctx));
-      
+
       // Apply scene fade effect
       if (this.sceneOpacity < 1) {
         this.ctx.fillStyle = `rgba(0, 0, 0, ${1 - this.sceneOpacity})`;
@@ -1722,29 +1759,21 @@ class BlitzGame {
     const input = this.inputHandler.getInput();
     if (input.mousePosition) {
       const { x, y } = input.mousePosition;
-      
-      // Draw crosshair target indicator
+
+      // Draw small 4-pointed star
       this.ctx.save();
       this.ctx.strokeStyle = "#ff4444";
       this.ctx.lineWidth = 2;
       this.ctx.globalAlpha = 0.8;
-      
-      // Draw crosshair
-      const size = 20;
+
+      const size = 8;
       this.ctx.beginPath();
-      // Vertical line
       this.ctx.moveTo(x, y - size);
       this.ctx.lineTo(x, y + size);
-      // Horizontal line
       this.ctx.moveTo(x - size, y);
       this.ctx.lineTo(x + size, y);
       this.ctx.stroke();
-      
-      // Draw circle around crosshair
-      this.ctx.beginPath();
-      this.ctx.arc(x, y, 8, 0, Math.PI * 2);
-      this.ctx.stroke();
-      
+
       this.ctx.restore();
     }
   }
@@ -1758,7 +1787,8 @@ class BlitzGame {
   resumeGame() {
     this.gameState = "PLAYING";
     document.getElementById("pause-overlay").style.display = "none";
-    document.body.style.cursor = "none";
+    document.body.style.cursor =
+      'url(\'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2z"/></svg>\') 6 6, auto';
   }
 
   setupCheatButtons() {
@@ -1861,92 +1891,93 @@ class BlitzGame {
     // Godmode button
     const godmodeBtn = document.getElementById("godmode-btn");
     if (godmodeBtn) {
-      godmodeBtn.classList.toggle('active', this.player.godMode);
+      godmodeBtn.classList.toggle("active", this.player.godMode);
     }
 
     // All Upgrades button
     const allUpgradesBtn = document.getElementById("all-upgrades-btn");
     if (allUpgradesBtn) {
-      allUpgradesBtn.classList.toggle('active', this.allUpgradesState !== null);
+      allUpgradesBtn.classList.toggle("active", this.allUpgradesState !== null);
     }
 
     // Autoaim button
     const autoaimBtn = document.getElementById("autoaim-btn");
     if (autoaimBtn) {
-      autoaimBtn.classList.toggle('active', this.autoaimEnabled);
+      autoaimBtn.classList.toggle("active", this.autoaimEnabled);
     }
   }
 
   initializeLucideIcons() {
     // Initialize Lucide icons
-    if (typeof lucide !== 'undefined') {
+    if (typeof lucide !== "undefined") {
       lucide.createIcons();
     }
   }
 
   setupBossDialog() {
-    const bossDialog = document.getElementById('boss-dialog');
-    const levelCleared = document.getElementById('level-cleared');
-    
+    const bossDialog = document.getElementById("boss-dialog");
+    const levelCleared = document.getElementById("level-cleared");
+
     // Boss dialog click handler
-    bossDialog.addEventListener('click', () => this.advanceBossDialog());
-    bossDialog.addEventListener('touchstart', (e) => {
+    bossDialog.addEventListener("click", () => this.advanceBossDialog());
+    bossDialog.addEventListener("touchstart", (e) => {
       e.preventDefault();
       this.advanceBossDialog();
     });
-    
+
     // Level cleared click handler
-    levelCleared.addEventListener('click', () => this.restartGame());
-    levelCleared.addEventListener('touchstart', (e) => {
+    levelCleared.addEventListener("click", () => this.restartGame());
+    levelCleared.addEventListener("touchstart", (e) => {
       e.preventDefault();
       this.restartGame();
     });
-    
+
     // Space key handler for dialog
-    document.addEventListener('keydown', (e) => {
-      if (e.key === ' ' || e.key === 'Space') {
+    document.addEventListener("keydown", (e) => {
+      if (e.key === " " || e.key === "Space") {
         if (this.bossDialogActive) {
           e.preventDefault();
           this.advanceBossDialog();
-        } else if (this.gameState === 'LEVEL_CLEARED') {
+        } else if (this.gameState === "LEVEL_CLEARED") {
           e.preventDefault();
           this.restartGame();
         }
       }
     });
   }
-  
+
   showBossDialog() {
     this.bossDialogState = 1;
     this.bossDialogActive = true;
-    this.gameState = 'BOSS_DIALOG';
-    document.getElementById('boss-dialog').style.display = 'block';
-    document.getElementById('boss-text').textContent = '...';
+    this.gameState = "BOSS_DIALOG";
+    document.getElementById("boss-dialog").style.display = "block";
+    document.getElementById("boss-text").textContent = "...";
   }
-  
+
   advanceBossDialog() {
     if (!this.bossDialogActive) return;
-    
+
     this.bossDialogState++;
-    
+
     if (this.bossDialogState === 2) {
-      document.getElementById('boss-text').textContent = 'Who dares enter my space realm? Prepare to die!';
+      document.getElementById("boss-text").textContent =
+        "Who dares enter my space realm? Prepare to die!";
     } else if (this.bossDialogState === 3) {
       this.hideBossDialog();
       this.spawnLevel1Boss();
     }
   }
-  
+
   hideBossDialog() {
     this.bossDialogActive = false;
-    document.getElementById('boss-dialog').style.display = 'none';
-    this.gameState = 'PLAYING';
-    this.gamePhase = 6; // Boss fight phase
+    document.getElementById("boss-dialog").style.display = "none";
+    this.gameState = "PLAYING";
+    this.gamePhase = 5; // Boss fight phase
   }
-  
+
   spawnLevel1Boss() {
     let bossX, bossY;
-    
+
     if (this.isPortrait) {
       bossX = this.canvas.width / 2;
       bossY = -150; // Start above screen
@@ -1954,44 +1985,56 @@ class BlitzGame {
       bossX = this.canvas.width + 150; // Start off-screen right
       bossY = this.canvas.height / 2;
     }
-    
-    this.level1Boss = new Level1Boss(bossX, bossY, this.isPortrait, this.canvas.width, this.canvas.height);
-    console.log('Level 1 Boss spawned at:', bossX, bossY);
+
+    this.level1Boss = new Level1Boss(
+      bossX,
+      bossY,
+      this.isPortrait,
+      this.canvas.width,
+      this.canvas.height
+    );
+    console.log("Level 1 Boss spawned at:", bossX, bossY);
   }
-  
+
   updateBossFight(slowdownFactor = 1.0) {
     if (!this.level1Boss) return;
-    
+
     this.level1Boss.update(slowdownFactor);
-    
+
     // Boss weapons
     if (this.level1Boss.canFirePrimary()) {
       const bulletsData = this.level1Boss.firePrimary();
-      bulletsData.forEach(bulletData => {
-        this.enemyBullets.push(new Bullet(
-          bulletData.x,
-          bulletData.y,
-          bulletData.vx,
-          bulletData.vy,
-          bulletData.type
-        ));
+      bulletsData.forEach((bulletData) => {
+        this.enemyBullets.push(
+          new Bullet(
+            bulletData.x,
+            bulletData.y,
+            bulletData.vx,
+            bulletData.vy,
+            bulletData.type
+          )
+        );
       });
     }
-    
+
     if (this.level1Boss.canFireSecondary()) {
       const weaponData = this.level1Boss.fireSecondary();
-      weaponData.forEach(data => {
-        if (data.type === 'laser') {
-          this.enemyLasers.push(new Laser(data.x, data.y, data.angle, data.speed, data.color));
+      weaponData.forEach((data) => {
+        if (data.type === "laser") {
+          this.enemyLasers.push(
+            new Laser(data.x, data.y, data.angle, data.speed, data.color)
+          );
         }
       });
     }
-    
+
     if (this.level1Boss.canFireSpecial()) {
       const weaponData = this.level1Boss.fireSpecial();
-      weaponData.forEach(data => {
-        if (data.type === 'pulse') {
-          this.enemyPulseCircles.push(new PulseCircle(data.x, data.y, data.maxRadius, data.color));
+      weaponData.forEach((data) => {
+        if (data.type === "pulse") {
+          this.enemyPulseCircles.push(
+            new PulseCircle(data.x, data.y, data.maxRadius, data.color)
+          );
         }
       });
     }
@@ -1999,51 +2042,53 @@ class BlitzGame {
     // New: Spiral bullet attack
     if (this.level1Boss.canFireSpiral()) {
       const bulletsData = this.level1Boss.fireSpiral();
-      bulletsData.forEach(bulletData => {
-        this.enemyBullets.push(new Bullet(
-          bulletData.x,
-          bulletData.y,
-          bulletData.vx,
-          bulletData.vy,
-          bulletData.type
-        ));
+      bulletsData.forEach((bulletData) => {
+        this.enemyBullets.push(
+          new Bullet(
+            bulletData.x,
+            bulletData.y,
+            bulletData.vx,
+            bulletData.vy,
+            bulletData.type
+          )
+        );
       });
     }
   }
-  
+
   checkBossCollisions() {
     if (!this.level1Boss || this.level1Boss.isDefeated) return;
-    
+
     // Player bullets vs boss
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const bullet = this.bullets[i];
       let collision = false;
-      
+
       if (bullet instanceof Laser) {
         collision = this.checkLaserCollision(bullet, this.level1Boss);
       } else {
         collision = this.checkCollision(bullet, this.level1Boss);
       }
-      
+
       if (collision) {
         if (!(bullet instanceof Laser)) {
           this.bullets.splice(i, 1);
         }
-        
+
         const result = this.level1Boss.takeDamage(5); // Boss takes reduced damage
         this.createEnemyExplosion(this.level1Boss.x, this.level1Boss.y);
         this.sounds.enemyExplosion.play();
-        
-        if (result === 'defeated') {
+
+        if (result === "defeated") {
           this.startBossDeathSequence();
         }
-        
+
         if (!(bullet instanceof Laser)) {
           break;
         }
       }
     }
-    
+
     // Player vs boss collision
     if (!this.player.isDashing && !this.player.godMode) {
       if (this.checkPlayerCollision(this.player, this.level1Boss)) {
@@ -2063,10 +2108,10 @@ class BlitzGame {
       }
     }
   }
-  
+
   startBossDeathSequence() {
-    console.log('Boss defeated! Starting death sequence...');
-    
+    console.log("Boss defeated! Starting death sequence...");
+
     // Create multiple rainbow explosions on the boss
     for (let i = 0; i < 8; i++) {
       setTimeout(() => {
@@ -2077,12 +2122,12 @@ class BlitzGame {
           this.level1Boss.y + offsetY,
           200
         );
-        
+
         // Play explosion sounds
         this.sounds.enemyExplosion.play();
       }, i * 200);
     }
-    
+
     // Final large explosion and start zoom sequence
     setTimeout(() => {
       this.createRainbowExplosion(this.level1Boss.x, this.level1Boss.y, 400);
@@ -2090,10 +2135,10 @@ class BlitzGame {
       this.startPlayerZoomSequence();
     }, 1600);
   }
-  
+
   startPlayerZoomSequence() {
-    this.gameState = 'ZOOMING';
-    
+    this.gameState = "ZOOMING";
+
     // Zoom player towards boss position
     const zoomDuration = 2000; // 2 seconds
     const startTime = Date.now();
@@ -2101,93 +2146,100 @@ class BlitzGame {
     const startY = this.player.y;
     const targetX = this.level1Boss.x;
     const targetY = this.level1Boss.y;
-    
+
     const zoomInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / zoomDuration, 1);
-      
+
       // Smooth easing
       const easedProgress = 1 - Math.pow(1 - progress, 3);
-      
+
       this.player.x = startX + (targetX - startX) * easedProgress;
       this.player.y = startY + (targetY - startY) * easedProgress;
-      
+
       if (progress >= 1) {
         clearInterval(zoomInterval);
         this.fadeToLevelCleared();
       }
     }, 16); // 60fps
   }
-  
+
   fadeToLevelCleared() {
-    this.gameState = 'LEVEL_CLEARED';
-    document.getElementById('level-cleared').style.display = 'flex';
-    
+    this.gameState = "LEVEL_CLEARED";
+    document.getElementById("level-cleared").style.display = "flex";
+
     // Fade out the canvas
-    const canvas = document.getElementById('gameCanvas');
-    canvas.style.transition = 'opacity 1s';
-    canvas.style.opacity = '0.1';
+    const canvas = document.getElementById("gameCanvas");
+    canvas.style.transition = "opacity 1s";
+    canvas.style.opacity = "0.1";
   }
 
-  gameLoop(currentTime) {
-    if (!currentTime) currentTime = 0; // For the first call
-    const deltaTime = currentTime - this.lastTime;
-    this.lastTime = currentTime;
+  gameLoop(timestamp) {
+    const deltaTime = timestamp - (this.lastTime || timestamp);
+    this.lastTime = timestamp;
 
-    if (this.gameState === "PLAYING") {
+    if (this.gameState === "PLAYING" || this.gameState === "DEATH_ANIMATION") {
       this.update(deltaTime);
     }
-    
-    // Handle death animation
-    if (this.deathAnimationActive) {
-      this.updateDeathAnimation();
-      // Continue updating game objects during death animation with 4x slowdown
-      this.update(deltaTime, 0.25); // 4x slower
-    }
-    
     this.render();
-    requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
+
+    if (this.deathAnimationActive) {
+      this.deathAnimationTimer++;
+      if (this.deathAnimationTimer > this.deathAnimationDuration) {
+        this.deathAnimationActive = false;
+        this.gameState = "GAME_OVER";
+        document.getElementById("game-over").style.display = "flex";
+        document.getElementById("final-score-value").textContent = this.score;
+        this.saveHighScore(this.score);
+        document.getElementById("high-score-value").textContent =
+          this.highScore;
+      }
+    }
+
+    requestAnimationFrame(this.gameLoop.bind(this));
   }
 
   updateDeathAnimation() {
     this.deathAnimationTimer++;
-    
+
     // Create medium rainbow explosions around the player for the first 2 seconds
     if (this.deathAnimationTimer < 120) {
       if (this.deathAnimationTimer % 30 === 0) {
         this.createDeathRainbowExplosion(this.player.x, this.player.y);
       }
     }
-    
+
     // Start fading out scene in the last second
     if (this.deathAnimationTimer > 180) {
       const fadeProgress = (this.deathAnimationTimer - 180) / 60; // 0 to 1 over 1 second
       this.sceneOpacity = Math.max(0, 1 - fadeProgress);
     }
-    
+
     // End death animation and show game over screen
     if (this.deathAnimationTimer >= this.deathAnimationDuration) {
       this.deathAnimationActive = false;
       this.gameState = "GAME_OVER";
       this.gameOverOpacity = 0;
-      
+
       // Save high score and update display
       this.saveHighScore(this.score);
-      document.getElementById("final-score-value").textContent = this.score.toLocaleString();
-      document.getElementById("high-score-value").textContent = this.highScore.toLocaleString();
-      
+      document.getElementById("final-score-value").textContent =
+        this.score.toLocaleString();
+      document.getElementById("high-score-value").textContent =
+        this.highScore.toLocaleString();
+
       // Start fade in game over screen
       const gameOverElement = document.getElementById("game-over");
       gameOverElement.style.display = "flex";
       gameOverElement.style.opacity = "0";
-      
+
       // Animate game over screen fade in
       let fadeInTimer = 0;
       const fadeInInterval = setInterval(() => {
         fadeInTimer += 16; // ~60fps
         const progress = fadeInTimer / 1000; // 1 second fade in
         gameOverElement.style.opacity = Math.min(1, progress);
-        
+
         if (progress >= 1) {
           clearInterval(fadeInInterval);
         }
@@ -2267,16 +2319,46 @@ class Powerup {
         // Flame icon (Lucide style)
         ctx.beginPath();
         ctx.moveTo(0, this.size * 0.4);
-        ctx.quadraticCurveTo(-this.size * 0.2, this.size * 0.1, -this.size * 0.1, -this.size * 0.1);
-        ctx.quadraticCurveTo(-this.size * 0.05, -this.size * 0.3, 0, -this.size * 0.4);
-        ctx.quadraticCurveTo(this.size * 0.05, -this.size * 0.3, this.size * 0.1, -this.size * 0.1);
-        ctx.quadraticCurveTo(this.size * 0.2, this.size * 0.1, 0, this.size * 0.4);
+        ctx.quadraticCurveTo(
+          -this.size * 0.2,
+          this.size * 0.1,
+          -this.size * 0.1,
+          -this.size * 0.1
+        );
+        ctx.quadraticCurveTo(
+          -this.size * 0.05,
+          -this.size * 0.3,
+          0,
+          -this.size * 0.4
+        );
+        ctx.quadraticCurveTo(
+          this.size * 0.05,
+          -this.size * 0.3,
+          this.size * 0.1,
+          -this.size * 0.1
+        );
+        ctx.quadraticCurveTo(
+          this.size * 0.2,
+          this.size * 0.1,
+          0,
+          this.size * 0.4
+        );
         ctx.stroke();
         // Inner flame
         ctx.beginPath();
         ctx.moveTo(0, this.size * 0.2);
-        ctx.quadraticCurveTo(-this.size * 0.1, this.size * 0.05, 0, -this.size * 0.2);
-        ctx.quadraticCurveTo(this.size * 0.1, this.size * 0.05, 0, this.size * 0.2);
+        ctx.quadraticCurveTo(
+          -this.size * 0.1,
+          this.size * 0.05,
+          0,
+          -this.size * 0.2
+        );
+        ctx.quadraticCurveTo(
+          this.size * 0.1,
+          this.size * 0.05,
+          0,
+          this.size * 0.2
+        );
         ctx.stroke();
         break;
 
@@ -2571,46 +2653,30 @@ class Debris {
 }
 
 class RainbowParticle {
-  constructor(x, y, scale = 1) {
+  constructor(x, y) {
     this.x = x;
     this.y = y;
-    this.vx = (Math.random() - 0.5) * 4 * scale;
-    this.vy = (Math.random() - 0.5) * 4 * scale;
-    this.life = 60;
-    this.maxLife = 60;
-    this.scale = scale;
+    this.size = 1 + Math.random() * 1; // Smaller size
+    this.speed = Math.random() * 1 + 0.5; // Slower speed
     this.angle = Math.random() * Math.PI * 2;
-    this.angularVelocity = (Math.random() - 0.5) * 0.1;
-    this.size = 3 + Math.random() * 2;
-    this.colors = [
-      "#ff0000", "#ff8800", "#ffff00", "#00ff00", 
-      "#0088ff", "#4400ff", "#ff00ff"
-    ];
-    this.colorIndex = Math.floor(Math.random() * this.colors.length);
+    this.life = 10 + Math.random() * 10; // Shorter life
+    this.maxLife = this.life;
+    this.color = `hsl(${Math.random() * 360}, 100%, 70%)`;
   }
 
   update(slowdownFactor = 1.0) {
-    this.x += this.vx * slowdownFactor;
-    this.y += this.vy * slowdownFactor;
-    this.vx *= 0.96;
-    this.vy *= 0.96;
-    this.angle += this.angularVelocity * slowdownFactor;
+    this.x += Math.cos(this.angle) * this.speed * slowdownFactor;
+    this.y += Math.sin(this.angle) * this.speed * slowdownFactor;
     this.life -= slowdownFactor;
-    
-    // Cycle through rainbow colors
-    if (Math.floor(this.life / slowdownFactor) % 8 === 0) {
-      this.colorIndex = (this.colorIndex + 1) % this.colors.length;
-    }
   }
 
   render(ctx) {
-    const alpha = this.life / this.maxLife;
     ctx.save();
-    ctx.translate(this.x, this.y);
-    ctx.rotate(this.angle);
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = this.colors[this.colorIndex];
-    ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
+    ctx.globalAlpha = this.life / this.maxLife; // Fade out
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2); // Render as small circles
+    ctx.fill();
     ctx.restore();
   }
 }

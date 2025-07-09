@@ -291,7 +291,11 @@ body {
   background: #000;
   font-family: "Press Start 2P", cursive;
   overflow: hidden;
-  cursor: none;
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2z"/></svg>') 6 6, auto;
+}
+
+body.firing {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="lime" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2z"/></svg>') 6 6, auto;
 }
 
 #gameCanvas {
@@ -372,23 +376,23 @@ body {
 }
 
 .blitz-letter:nth-child(1) {
-  animation: letter-color-1 0.3s linear infinite;
+  animation: letter-color-1 0.2s linear infinite;
 }
 
 .blitz-letter:nth-child(2) {
-  animation: letter-color-2 0.3s linear infinite;
+  animation: letter-color-2 0.2s linear infinite;
 }
 
 .blitz-letter:nth-child(3) {
-  animation: letter-color-3 0.3s linear infinite;
+  animation: letter-color-3 0.2s linear infinite;
 }
 
 .blitz-letter:nth-child(4) {
-  animation: letter-color-4 0.3s linear infinite;
+  animation: letter-color-4 0.2s linear infinite;
 }
 
 .blitz-letter:nth-child(5) {
-  animation: letter-color-5 0.3s linear infinite;
+  animation: letter-color-5 0.2s linear infinite;
 }
 
 @keyframes rainbow-gentle {
@@ -402,108 +406,43 @@ body {
 }
 
 @keyframes letter-color-1 {
-  0% {
-    color: #ff0000;
-  }
-  20% {
-    color: #ff8800;
-  }
-  40% {
-    color: #ffff00;
-  }
-  60% {
-    color: #00ff00;
-  }
-  80% {
-    color: #0088ff;
-  }
-  100% {
-    color: #8800ff;
-  }
+  0%, 100% { color: #ff0000; }
+  20% { color: #ff8800; }
+  40% { color: #ffff00; }
+  60% { color: #00ff00; }
+  80% { color: #0088ff; }
 }
 
 @keyframes letter-color-2 {
-  0% {
-    color: #ff8800;
-  }
-  20% {
-    color: #ffff00;
-  }
-  40% {
-    color: #00ff00;
-  }
-  60% {
-    color: #0088ff;
-  }
-  80% {
-    color: #8800ff;
-  }
-  100% {
-    color: #ff0000;
-  }
+  0%, 100% { color: #ff8800; }
+  20% { color: #ffff00; }
+  40% { color: #00ff00; }
+  60% { color: #0088ff; }
+  80% { color: #8800ff; }
 }
 
 @keyframes letter-color-3 {
-  0% {
-    color: #ffff00;
-  }
-  20% {
-    color: #00ff00;
-  }
-  40% {
-    color: #0088ff;
-  }
-  60% {
-    color: #8800ff;
-  }
-  80% {
-    color: #ff0000;
-  }
-  100% {
-    color: #ff8800;
-  }
+  0%, 100% { color: #ffff00; }
+  20% { color: #00ff00; }
+  40% { color: #0088ff; }
+  60% { color: #8800ff; }
+  80% { color: #ff0000; }
 }
 
 @keyframes letter-color-4 {
-  0% {
-    color: #00ff00;
-  }
-  20% {
-    color: #0088ff;
-  }
-  40% {
-    color: #8800ff;
-  }
-  60% {
-    color: #ff0000;
-  }
-  80% {
-    color: #ff8800;
-  }
-  100% {
-    color: #ffff00;
-  }
+  0%, 100% { color: #00ff00; }
+  20% { color: #0088ff; }
+  40% { color: #8800ff; }
+  60% { color: #ff0000; }
+  80% { color: #ff8800; }
 }
 
 @keyframes letter-color-5 {
-  0% {
-    color: #0088ff;
-  }
-  20% {
-    color: #8800ff;
-  }
-  40% {
-    color: #ff0000;
-  }
-  60% {
-    color: #ff8800;
-  }
-  80% {
-    color: #ffff00;
-  }
-  100% {
-    color: #00ff00;
-  }
+  0%, 100% { color: #0088ff; }
+  20% { color: #8800ff; }
+  40% { color: #ff0000; }
+  60% { color: #ff8800; }
+  80% { color: #ffff00; }
 }
 
 #title-screen p {
@@ -589,6 +528,21 @@ body {
   transition: color 0.2s, transform 0.2s;
   padding: 20px;
   margin-top: 20px;
+}
+
+.play-button.clicked {
+  animation: rainbow-border 2s linear infinite;
+}
+
+@keyframes rainbow-border {
+  0% { border-color: #ff0000; }
+  14% { border-color: #ff8800; }
+  28% { border-color: #ffff00; }
+  42% { border-color: #00ff00; }
+  57% { border-color: #0088ff; }
+  71% { border-color: #8800ff; }
+  85% { border-color: #ff0088; }
+  100% { border-color: #ff0000; }
 }
 
 .play-button:hover {
@@ -764,10 +718,10 @@ body {
 
 .action-buttons {
   display: flex;
-  gap: 15px;
-  flex-wrap: wrap;
+  gap: 5px; /* Reduced gap */
+  flex-wrap: nowrap; /* Prevent wrapping */
   justify-content: center;
-  max-width: 400px;
+  max-width: none; /* Remove max-width constraint */
 }
 
 .icon-button {
@@ -775,15 +729,15 @@ body {
   border: none;
   color: #888;
   cursor: pointer;
-  padding: 15px;
+  padding: 10px; /* Reduced padding */
   border-radius: 8px;
   transition: color 0.2s, transform 0.1s;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
+  width: 50px; /* Reduced width */
+  height: 50px; /* Reduced height */
 }
 
 .icon-button:hover {
