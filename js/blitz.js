@@ -1,7 +1,8 @@
 // Rainboids: Blitz - A bullet hell space shooter
 import { Player } from './blitz/entities/player.js';
 import { Enemy, Bullet, Laser, PulseCircle, HomingMissile } from './blitz/entities/enemy.js';
-import { InputHandler } from './modules/input-handler.js';
+import { Asteroid } from './blitz/entities/asteroid.js';
+import { InputHandler } from './blitz/input.js';
 
 class BlitzGame {
     constructor() {
@@ -36,6 +37,7 @@ class BlitzGame {
         this.touchX = 0;
         this.touchY = 0;
         this.gameTime = 0;
+        this.lastGameTimeSeconds = 0;
         
         this.asteroidSpawnTimer = 0;
         this.enemySpawnTimer = 0;
@@ -140,6 +142,15 @@ class BlitzGame {
                 this.restartGame();
             }
         }, { passive: false });
+
+        // Any key to start/restart
+        document.addEventListener('keydown', (e) => {
+            if (this.gameState === 'TITLE') {
+                this.startGame();
+            } else if (this.gameState === 'GAME_OVER') {
+                this.restartGame();
+            }
+        });
         
         // Resize handler
         window.addEventListener('resize', () => {
@@ -157,7 +168,84 @@ class BlitzGame {
                     this.resumeGame();
                 }
             });
+            pauseButton.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+                e.preventDefault(); // Prevent default touch behavior like scrolling
+                if (this.gameState === 'PLAYING') {
+                    this.pauseGame();
+                } else if (this.gameState === 'PAUSED') {
+                    this.resumeGame();
+                }
+            }, { passive: false });
         }
+
+        // Help button (top-left UI)
+        const uiElement = document.getElementById('ui');
+        if (uiElement) {
+            uiElement.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.gameState === 'PLAYING') {
+                    this.showHelp();
+                }
+            });
+        }
+
+        // Toggle pause with 'X' or 'Escape' key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'x' || e.key === 'X' || e.key === 'Escape') {
+                if (this.gameState === 'PLAYING') {
+                    this.pauseGame();
+                } else if (this.gameState === 'PAUSED') {
+                    this.resumeGame();
+                }
+            }
+        });
+
+        // Toggle pause with 'X' button click
+        const pauseCloseButton = document.getElementById('pause-close-button');
+        if (pauseCloseButton) {
+            pauseCloseButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.gameState === 'PAUSED') { // Only resume if already paused
+                    this.resumeGame();
+                }
+            });
+            pauseCloseButton.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (this.gameState === 'PAUSED') {
+                    this.resumeGame();
+                }
+            }, { passive: false });
+        }
+
+        // Volume button
+        const volumeButton = document.getElementById('volume-button');
+        if (volumeButton) {
+            volumeButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.backgroundMusic.muted = !this.backgroundMusic.muted;
+                volumeButton.textContent = this.backgroundMusic.muted ? '🔇' : '🔊';
+            });
+            volumeButton.addEventListener('touchstart', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                this.backgroundMusic.muted = !this.backgroundMusic.muted;
+                volumeButton.textContent = this.backgroundMusic.muted ? '🔇' : '🔊';
+            }, { passive: false });
+        }
+    }
+    
+    showHelp() {
+        this.gameState = 'PAUSED';
+        document.getElementById('pause-overlay').style.display = 'flex';
+        document.body.style.cursor = 'default'; // Show cursor
+    }
+
+    hideHelp() {
+        this.gameState = 'PLAYING';
+        document.getElementById('pause-overlay').style.display = 'none';
+        document.body.style.cursor = 'none'; // Hide cursor
     }
     
     startGame() {
@@ -225,30 +313,6 @@ class BlitzGame {
     }
     
     spawnPowerup() {
-        const x = this.canvas.width + 50;
-        const y = Math.random() * this.canvas.height;
-        const types = ['shield', 'mainWeapon', 'sideWeapon', 'secondShip', 'bomb'];
-        const type = types[Math.floor(Math.random() * types.length)];
-        
-        this.powerups.push(new Powerup(x, y, type));
-    }
-    
-    gameOver() {
-        this.gameState = 'GAME_OVER';
-        document.getElementById('game-over').style.display = 'flex';
-    }
-    
-    updateUI() {
-        document.getElementById('score').textContent = this.score;
-        const timerElement = document.getElementById('timer');
-        if (timerElement) {
-            const minutes = Math.floor(this.gameTime / 3600);
-            const seconds = Math.floor((this.gameTime % 3600) / 60);
-            timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        }
-    }
-    
-    spawnAsteroid() {
         let x, y;
         if (this.isPortrait) {
             x = Math.random() * this.canvas.width;
@@ -257,9 +321,61 @@ class BlitzGame {
             x = this.canvas.width + 50;
             y = Math.random() * this.canvas.height;
         }
-        const size = 20 + Math.random() * 30;
-        const speed = 1 + Math.random() * 2;
+        const types = ['shield', 'mainWeapon', 'sideWeapon', 'secondShip', 'bomb'];
+        const type = types[Math.floor(Math.random() * types.length)];
         
+        this.powerups.push(new Powerup(x, y, type, this.isPortrait));
+    }
+    
+    gameOver() {
+        this.gameState = 'GAME_OVER';
+        document.getElementById('game-over').style.display = 'flex';
+    }
+    
+    updateUI() {
+        document.getElementById('score-value').textContent = this.score;
+        const timerElement = document.getElementById('timer-value');
+        if (timerElement && this.gameState !== 'PAUSED') {
+            const currentSeconds = Math.floor(this.gameTime);
+            if (currentSeconds !== this.lastGameTimeSeconds) {
+                const minutes = Math.floor(currentSeconds / 60);
+                const seconds = Math.floor(currentSeconds % 60);
+                timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                this.lastGameTimeSeconds = currentSeconds;
+            }
+        }
+    }
+    
+    spawnAsteroid(type = 'large', x = null, y = null) {
+        let size;
+        let speed;
+        switch (type) {
+            case 'large':
+                size = 50 + Math.random() * 30;
+                speed = 0.5 + Math.random() * 0.5;
+                break;
+            case 'medium':
+                size = 30 + Math.random() * 15;
+                speed = 1 + Math.random() * 0.5;
+                break;
+            case 'small':
+                size = 15 + Math.random() * 10;
+                speed = 1.5 + Math.random() * 0.5;
+                break;
+            default:
+                size = 50; // Default size
+                speed = 1; // Default speed
+        }
+
+        if (x === null) {
+            if (this.isPortrait) {
+                x = Math.random() * this.canvas.width;
+                y = -50;
+            } else {
+                x = this.canvas.width + 50;
+                y = Math.random() * this.canvas.height;
+            }
+        }
         this.asteroids.push(new Asteroid(x, y, size, speed, this.isPortrait));
     }
     
@@ -281,12 +397,12 @@ class BlitzGame {
     update() {
         if (this.gameState !== 'PLAYING') return;
 
-        this.gameTime++;
+        this.gameTime += 1/60;
         
         const input = this.inputHandler.getInput();
 
         // Update player
-        this.player.update(input, this.enemies, this.isPortrait);
+        this.player.update(input, this.enemies, this.asteroids, this.isPortrait);
         
         // Player shooting
         if (input.fire) {
@@ -384,8 +500,15 @@ class BlitzGame {
         
         // Spawn asteroids
         this.asteroidSpawnTimer++;
-        if (this.asteroidSpawnTimer > 60) {
-            this.spawnAsteroid();
+        if (this.asteroidSpawnTimer > 120) { // Reduced frequency (every 2 seconds)
+            const rand = Math.random();
+            let type = 'medium';
+            if (rand < 0.1) { // 10% large
+                type = 'large';
+            } else if (rand > 0.8) { // 20% small
+                type = 'small';
+            }
+            this.spawnAsteroid(type);
             this.asteroidSpawnTimer = 0;
         }
         
@@ -397,6 +520,7 @@ class BlitzGame {
         }
         
         this.checkCollisions();
+        this.updateUI(); // Update UI elements like timer
     }
     
     checkCollisions() {
@@ -406,21 +530,23 @@ class BlitzGame {
                 if (this.checkCollision(this.bullets[i], this.asteroids[j])) {
                     this.bullets.splice(i, 1);
                     const asteroid = this.asteroids[j];
-                    if (asteroid.takeDamage(1)) {
+                    const damageResult = asteroid.takeDamage(1);
+                    this.createDebris(asteroid.x, asteroid.y, '#ffffff'); // Always create debris on hit
+                    if (damageResult) {
                         this.asteroids.splice(j, 1);
                         this.score += 100;
                         this.updateUI();
 
-                        if (asteroid.size > 30) {
-                            // Break into smaller asteroids
-                            for (let k = 0; k < 2; k++) {
-                                const newSize = asteroid.size / 2;
-                                const newSpeed = asteroid.speed * 1.5;
-                                this.asteroids.push(new Asteroid(asteroid.x, asteroid.y, newSize, newSpeed, this.isPortrait));
+                        if (damageResult === 'breakIntoMedium') {
+                            for (let k = 0; k < 3; k++) {
+                                this.spawnAsteroid('medium', asteroid.x, asteroid.y);
                             }
-                        } else {
-                            // Create dust explosion
-                            this.createDebris(asteroid.x, asteroid.y, '#ffffff');
+                        } else if (damageResult === 'breakIntoSmall') {
+                            for (let k = 0; k < 3; k++) {
+                                this.spawnAsteroid('small', asteroid.x, asteroid.y);
+                            }
+                        } else if (damageResult === 'destroyed') {
+                            // Debris already created above
                         }
                         this.sounds.explosion.play();
                     }
@@ -448,7 +574,11 @@ class BlitzGame {
         if (!this.player.isDashing && !this.player.godMode) {
             for (let i = this.asteroids.length - 1; i >= 0; i--) {
                 if (this.checkPlayerCollision(this.player, this.asteroids[i])) {
-                    if (this.player.shield > 0) {
+                    if (this.player.secondShip.length > 0) {
+                        const destroyedShip = this.player.secondShip.pop(); // Remove one companion ship
+                        this.createExplosion(destroyedShip.x, destroyedShip.y); // Explosion at companion ship's position
+                        this.updateUI();
+                    } else if (this.player.shield > 0) {
                         this.player.shield--;
                         this.createExplosion(this.player.x, this.player.y);
                         this.updateUI();
@@ -465,7 +595,11 @@ class BlitzGame {
         if (!this.player.isDashing && !this.player.godMode) {
             for (let i = this.enemies.length - 1; i >= 0; i--) {
                 if (this.checkPlayerCollision(this.player, this.enemies[i])) {
-                    if (this.player.shield > 0) {
+                    if (this.player.secondShip.length > 0) {
+                        const destroyedShip = this.player.secondShip.pop();
+                        this.createExplosion(destroyedShip.x, destroyedShip.y);
+                        this.updateUI();
+                    } else if (this.player.shield > 0) {
                         this.player.shield--;
                         this.createExplosion(this.player.x, this.player.y);
                         this.updateUI();
@@ -482,7 +616,12 @@ class BlitzGame {
         if (!this.player.isDashing && !this.player.godMode) {
             for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
                 if (this.checkPlayerCollision(this.player, this.enemyBullets[i])) {
-                    if (this.player.shield > 0) {
+                    if (this.player.secondShip.length > 0) {
+                        const destroyedShip = this.player.secondShip.pop();
+                        this.createExplosion(destroyedShip.x, destroyedShip.y);
+                        this.enemyBullets.splice(i, 1); // Remove enemy bullet
+                        this.updateUI();
+                    } else if (this.player.shield > 0) {
                         this.player.shield--;
                         this.enemyBullets.splice(i, 1);
                         this.createExplosion(this.player.x, this.player.y);
@@ -500,7 +639,11 @@ class BlitzGame {
         if (!this.player.isDashing && !this.player.godMode) {
             for (let i = this.enemyLasers.length - 1; i >= 0; i--) {
                 if (this.checkPlayerLaserCollision(this.player, this.enemyLasers[i])) {
-                    if (this.player.shield > 0) {
+                    if (this.player.secondShip.length > 0) {
+                        const destroyedShip = this.player.secondShip.pop();
+                        this.createExplosion(destroyedShip.x, destroyedShip.y);
+                        this.updateUI();
+                    } else if (this.player.shield > 0) {
                         this.player.shield--;
                         this.createExplosion(this.player.x, this.player.y);
                         this.updateUI();
@@ -517,7 +660,12 @@ class BlitzGame {
         if (!this.player.isDashing && !this.player.godMode) {
             for (let i = this.enemyPulseCircles.length - 1; i >= 0; i--) {
                 if (this.checkPlayerCollision(this.player, this.enemyPulseCircles[i])) {
-                    if (this.player.shield > 0) {
+                    if (this.player.secondShip.length > 0) {
+                        const destroyedShip = this.player.secondShip.pop();
+                        this.createExplosion(destroyedShip.x, destroyedShip.y);
+                        this.enemyPulseCircles.splice(i, 1); // Remove pulse circle
+                        this.updateUI();
+                    } else if (this.player.shield > 0) {
                         this.player.shield--;
                         this.enemyPulseCircles.splice(i, 1);
                         this.createExplosion(this.player.x, this.player.y);
@@ -600,7 +748,7 @@ class BlitzGame {
     collectPowerup(powerup) {
         switch (powerup.type) {
             case 'shield':
-                this.player.shield = Math.min(this.player.shield + 3, 5);
+                this.player.shield = Math.min(this.player.shield + 1, 3); // Max 3 shields
                 break;
             case 'mainWeapon':
                 this.player.mainWeaponLevel = Math.min(this.player.mainWeaponLevel + 1, 3);
@@ -609,15 +757,16 @@ class BlitzGame {
                 this.player.sideWeaponLevel = Math.min(this.player.sideWeaponLevel + 1, 2);
                 break;
             case 'secondShip':
-                // Randomly position above or below
-                const offset = Math.random() < 0.5 ? -40 : 40;
-                this.player.secondShip = { 
-                    x: this.player.x, 
-                    y: this.player.y + offset, 
-                    angle: this.player.angle,
-                    offset: offset
-                };
-                this.player.secondShipTimer = 900; // 15 seconds
+                if (this.player.secondShip.length < 2) { // Max 2 companion ships
+                    const offset = (this.player.secondShip.length === 0) ? -40 : 40; // First one above, second below
+                    this.player.secondShip.push({ 
+                        x: this.player.x, 
+                        y: this.player.y + offset, 
+                        initialAngle: this.player.angle, // Store initial angle
+                        offset: offset
+                    });
+                    this.player.secondShipTimer = 900; // Reset timer for all companion ships
+                }
                 break;
             case 'bomb':
                 const bombRadius = 750; // 5x larger radius
@@ -780,11 +929,13 @@ class BlitzGame {
     pauseGame() {
         this.gameState = 'PAUSED';
         document.getElementById('pause-overlay').style.display = 'flex';
+        document.body.style.cursor = 'default';
     }
     
     resumeGame() {
         this.gameState = 'PLAYING';
         document.getElementById('pause-overlay').style.display = 'none';
+        document.body.style.cursor = 'none';
     }
     
     setupCheatButtons() {
@@ -836,108 +987,18 @@ class BlitzGame {
 
 
 
-class Asteroid {
-    constructor(x, y, size, speed, isPortrait) {
-        this.x = x;
-        this.y = y;
-        this.size = size;
-        this.speed = speed;
-        this.isPortrait = isPortrait;
-        this.angle = Math.random() * Math.PI * 2;
-        this.rotationSpeed = (Math.random() - 0.5) * 0.02; // Slower rotation
-        this.health = Math.floor(size / 10);
-        
-        // Generate more vertices for detailed shape
-        this.vertices = [];
-        const numVertices = 12 + Math.floor(Math.random() * 8); // 12-20 vertices
-        
-        for (let i = 0; i < numVertices; i++) {
-            const angle = (i / numVertices) * Math.PI * 2;
-            const radius = this.size * (0.7 + Math.random() * 0.6); // Vary radius
-            this.vertices.push({
-                x: Math.cos(angle) * radius,
-                y: Math.sin(angle) * radius
-            });
-        }
-        
-        // Generate interior lines for detail
-        this.interiorLines = [];
-        const numInteriorLines = 3 + Math.floor(Math.random() * 4); // 3-6 interior lines
-        
-        for (let i = 0; i < numInteriorLines; i++) {
-            const angle1 = Math.random() * Math.PI * 2;
-            const angle2 = Math.random() * Math.PI * 2;
-            const radius1 = this.size * (0.2 + Math.random() * 0.5);
-            const radius2 = this.size * (0.2 + Math.random() * 0.5);
-            
-            this.interiorLines.push({
-                start: {
-                    x: Math.cos(angle1) * radius1,
-                    y: Math.sin(angle1) * radius1
-                },
-                end: {
-                    x: Math.cos(angle2) * radius2,
-                    y: Math.sin(angle2) * radius2
-                }
-            });
-        }
-    }
 
-    takeDamage(damage) {
-        this.health -= damage;
-        return this.health <= 0;
-    }
-    
-    update() {
-        if (this.isPortrait) {
-            this.y += this.speed;
-        } else {
-            this.x -= this.speed;
-        }
-        this.angle += this.rotationSpeed;
-    }
-    
-    render(ctx) {
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
-        
-        ctx.strokeStyle = '#888';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        
-        // Draw using pre-generated vertices
-        this.vertices.forEach((vertex, i) => {
-            if (i === 0) {
-                ctx.moveTo(vertex.x, vertex.y);
-            } else {
-                ctx.lineTo(vertex.x, vertex.y);
-            }
-        });
-        ctx.closePath();
-        ctx.stroke();
-        
-        // Draw interior lines for detail
-        this.interiorLines.forEach(line => {
-            ctx.beginPath();
-            ctx.moveTo(line.start.x, line.start.y);
-            ctx.lineTo(line.end.x, line.end.y);
-            ctx.stroke();
-        });
-        
-        ctx.restore();
-    }
-}
 
 
 class Powerup {
-    constructor(x, y, type) {
+    constructor(x, y, type, isPortrait) {
         this.x = x;
         this.y = y;
         this.type = type;
         this.size = 20;
         this.speed = 1;
         this.pulseTimer = 0;
+        this.isPortrait = isPortrait;
         this.colors = {
             shield: '#00aaff', // Blue
             mainWeapon: '#8844ff', // Purple
@@ -948,7 +1009,11 @@ class Powerup {
     }
     
     update() {
-        this.x -= this.speed;
+        if (this.isPortrait) {
+            this.y += this.speed;
+        } else {
+            this.x -= this.speed;
+        }
         this.pulseTimer += 0.1;
     }
     

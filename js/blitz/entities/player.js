@@ -20,13 +20,13 @@ export class Player {
     this.shield = 0;
     this.mainWeaponLevel = 1;
     this.sideWeaponLevel = 0;
-    this.secondShip = null;
+    this.secondShip = []; // Change to an array
     this.secondShipTimer = 0;
     this.godMode = false;
     this.rollAngle = 0; // Initialize rollAngle property
   }
 
-  update(keys, enemies, isPortrait) {
+  update(keys, enemies, asteroids, isPortrait) {
     // Handle dash
     if (this.isDashing) {
       this.x += this.dashVx;
@@ -62,6 +62,35 @@ export class Player {
       this.angle = 0; // Face right
     }
 
+    // Predictive aim
+    if (keys.fire && (enemies.length > 0 || asteroids.length > 0)) {
+      let closestTarget = null;
+      let minDistance = Infinity;
+
+      // Combine enemies and asteroids for targeting
+      const targets = [...enemies, ...asteroids];
+
+      for (const target of targets) {
+        const dist = Math.sqrt(
+          (target.x - this.x) ** 2 + (target.y - this.y) ** 2
+        );
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestTarget = target;
+        }
+      }
+
+      if (closestTarget) {
+        const bulletSpeed = 10; // Assuming a bullet speed, adjust as needed
+        const timeToTarget = minDistance / bulletSpeed;
+
+        const predictedX = closestTarget.x + (closestTarget.vx || 0) * timeToTarget;
+        const predictedY = closestTarget.y + (closestTarget.vy || 0) * timeToTarget;
+
+        this.angle = Math.atan2(predictedY - this.y, predictedX - this.x);
+      }
+    }
+
     // Dash mechanic - dash in movement direction
     if (keys.shift && this.dashCooldown <= 0 && !this.isDashing) {
       // Determine dash direction based on movement keys
@@ -87,10 +116,10 @@ export class Player {
       }
 
       this.isDashing = true;
-      this.dashFrames = this.maxDashFrames;
+      this.dashFrames = this.maxDashFrames + 30;
       this.dashVx = dashDirX * (this.dashDistance / this.maxDashFrames);
       this.dashVy = dashDirY * (this.dashDistance / this.maxDashFrames);
-      this.dashCooldown = 60; // 1 second at 60fps
+      this.dashCooldown = 120; // 2 seconds at 60fps
     }
 
     if (this.dashCooldown > 0) {
@@ -105,16 +134,15 @@ export class Player {
     if (this.secondShipTimer > 0) {
       this.secondShipTimer--;
       if (this.secondShipTimer <= 0) {
-        this.secondShip = null;
+        this.secondShip = []; // Clear the array
       }
     }
 
-    // Update second ship position (above or below player)
-    if (this.secondShip) {
-      this.secondShip.x = this.x;
-      this.secondShip.y = this.y + (this.secondShip.offset || 40); // Default to below
-      this.secondShip.angle = this.angle;
-    }
+    // Update second ship positions (above or below player)
+    this.secondShip.forEach(ship => {
+      ship.x = this.x;
+      ship.y = this.y + (ship.offset || 40); // Default to below
+    });
   }
 
   shoot(
@@ -130,8 +158,9 @@ export class Player {
       if (this.mainWeaponLevel >= 5) {
         // Rainbow laser beam
         bullets.push(
-          new LaserClass(this.x, this.y, this.angle, 20, "rainbow", isPortrait)
+          new LaserClass(this.x, this.y, this.angle, 50, "rainbow") // Pass speed, remove isPortrait
         );
+        this.shootCooldown = 1; // Allow continuous firing
       } else if (this.mainWeaponLevel === 1) {
         bullets.push(
           new BulletClass(this.x, this.y, this.angle, 10, "#00ff88", isPortrait)
@@ -258,9 +287,22 @@ export class Player {
       }
 
       // Second ship shooting
-      if (this.secondShip) {
-        this.secondShip.shoot(bullets, BulletClass, isPortrait);
-      }
+      this.secondShip.forEach(ship => {
+        let secondShipBulletColor = '#4488ff'; // Default blue for 2nd ship
+        if (this.sideWeaponLevel >= 2) { // Assuming sideWeaponLevel 2 or higher means '3rd ship' upgrade
+            secondShipBulletColor = '#ffffff'; // White for 3rd ship
+        }
+        bullets.push(
+          new BulletClass(
+            ship.x,
+            ship.y,
+            ship.initialAngle, // Use initialAngle
+            8,
+            secondShipBulletColor,
+            isPortrait
+          )
+        );
+      });
 
       this.shootCooldown = 10;
       if (shootSound) {
@@ -357,7 +399,7 @@ export class Player {
 
     // Draw shield if active
     if (this.shield > 0) {
-      ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = 0.6 * shipOpacity;
       ctx.strokeStyle = "#00aaff"; // Cool blue
       ctx.lineWidth = 4; // Thicker shield
       ctx.beginPath();
@@ -365,7 +407,7 @@ export class Player {
       ctx.stroke();
 
       // Inner shield glow
-      ctx.globalAlpha = 0.3;
+      ctx.globalAlpha = 0.3 * shipOpacity;
       ctx.strokeStyle = "#88ccff";
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -401,13 +443,13 @@ export class Player {
 
     ctx.restore();
 
-    // Draw second ship if active
-    if (this.secondShip) {
+    // Draw second ships if active
+    this.secondShip.forEach(ship => {
       ctx.save();
-      ctx.translate(this.secondShip.x, this.secondShip.y);
-      ctx.rotate(this.secondShip.angle);
+      ctx.translate(ship.x, ship.y);
+      ctx.rotate(ship.initialAngle); // Use initialAngle for rendering
 
-      ctx.globalAlpha = 0.7;
+      ctx.globalAlpha = 0.7 * shipOpacity;
       ctx.strokeStyle = "#8844ff"; // Cool purple
       ctx.lineWidth = 2;
 
@@ -421,7 +463,7 @@ export class Player {
       ctx.stroke();
 
       ctx.restore();
-    }
+    });
   }
 }
 

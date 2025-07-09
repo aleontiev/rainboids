@@ -1,69 +1,542 @@
 body {
-    margin: 0;
-    padding: 0;
-    background-color: #000;
-    color: #fff;
-    overflow: hidden;
-    font-family: 'Press Start 2P', 'Courier New', monospace;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  color: #fff;
+  overflow: hidden;
+  font-family: "Press Start 2P", "Courier New", monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
 }
 h2 {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
 
 canvas {
-    display: block;
-    background-color: #000;
-    /* Debug: Ensure canvas is visible */
-    position: relative;
-    z-index: 1;
-}
-
-.ui-element {
-    position: absolute;
-    color: #fff;
-    text-shadow: 0 0 5px rgba(255, 255, 255, 0.7);
-    z-index: 10;
+  display: block;
+  background-color: #000;
+  /* Debug: Ensure canvas is visible */
+  position: relative;
+  z-index: 1;
 }
 
 #ui {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    color: white;
-    font-family: 'Press Start 2P', cursive;
-    font-size: 24px;
-    z-index: 10;
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  color: white;
+  font-family: "Press Start 2P", cursive;
+  font-size: 24px;
+  z-index: 10;
 }
 
 #timer {
-    margin-top: 10px;
-    font-size: 20px;
+  margin-top: 10px;
 }
 
 #pause-button {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    width: 50px;
-    height: 50px;
-    background-color: rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    z-index: 10;
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 50px;
+  height: 50px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: none; /* Hidden by default for desktop */
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 10;
 }
 
 #pause-icon {
-    width: 20px;
-    height: 20px;
-    border-left: 5px solid white;
-    border-right: 5px solid white;
-    border-style: double;
-    box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  position: relative;
+}
+
+#pause-icon::before,
+#pause-icon::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 6px; /* Width of each bar */
+  height: 100%;
+  background-color: white;
+}
+
+#pause-icon::before {
+  left: 2px; /* Position of the first bar */
+}
+
+#pause-icon::after {
+  right: 2px; /* Position of the second bar */
+}
+
+@media (max-width: 768px) {
+  body #pause-button {
+    display: flex; /* Show on mobile */
+  }
+}
+@media (orientation: landscape) {
+  body #pause-button {
+    display: flex; /* Show on mobile */
+  }
+
+}
+
+.ui-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 10;
+  font-size: 24px;
+}
+
+#volume-button {
+  top: 10px;
+  right: 10px; /* Position next to pause button */
+}
+
+#pause-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: none; /* initially hidden */
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  border: 5px solid;
+  border-image: linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088) 1;
+  border-image-slice: 1;
+  border-image-repeat: stretch;
+}
+
+#pause-close-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  font-size: 2em;
+  color: white;
+  cursor: pointer;
+  z-index: 101; /* Ensure it's above the overlay */
+}
+
+#pause-content {
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 40px;
+  border-radius: 10px;
+  text-align: center;
+  max-width: 80%;
+  max-height: 80%;
+  overflow-y: auto;
+  position: relative; /* For positioning the close button */
+}
+
+#pause-content h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  background: linear-gradient(
+    45deg,
+    #ff0000,
+    #ff8800,
+    #ffff00,
+    #00ff00,
+    #0088ff,
+    #8800ff,
+    #ff0088
+  );
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-gentle 3s ease-in-out infinite;
+}
+
+#pause-controls div {
+  color: white; /* Ensure controls text is white */
+  margin-bottom: 10px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  font-family: "Press Start 2P", cursive;
+  overflow: hidden;
+  cursor: none;
+}
+
+#gameCanvas {
+  display: block;
+  background: #000;
+}
+
+#ui {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: #fff;
+  font-size: 12px;
+  z-index: 10;
+}
+
+#title-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  z-index: 100;
+}
+
+#title-screen h1 {
+  font-size: 48px;
+  margin-bottom: 20px;
+  text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.rainbow-text {
+  background: linear-gradient(
+    45deg,
+    #ff0000,
+    #ff8800,
+    #ffff00,
+    #00ff00,
+    #0088ff,
+    #8800ff,
+    #ff0088
+  );
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-gentle 3s ease-in-out infinite;
+}
+.title-container {
+}
+
+.blitz-text {
+  display: inline-block;
+}
+
+.blitz-letter {
+  display: inline-block;
+}
+
+.blitz-letter:nth-child(1) {
+  animation: letter-color-1 0.3s linear infinite;
+}
+
+.blitz-letter:nth-child(2) {
+  animation: letter-color-2 0.3s linear infinite;
+}
+
+.blitz-letter:nth-child(3) {
+  animation: letter-color-3 0.3s linear infinite;
+}
+
+.blitz-letter:nth-child(4) {
+  animation: letter-color-4 0.3s linear infinite;
+}
+
+.blitz-letter:nth-child(5) {
+  animation: letter-color-5 0.3s linear infinite;
+}
+
+@keyframes rainbow-gentle {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes letter-color-1 {
+  0% {
+    color: #ff0000;
+  }
+  20% {
+    color: #ff8800;
+  }
+  40% {
+    color: #ffff00;
+  }
+  60% {
+    color: #00ff00;
+  }
+  80% {
+    color: #0088ff;
+  }
+  100% {
+    color: #8800ff;
+  }
+}
+
+@keyframes letter-color-2 {
+  0% {
+    color: #ff8800;
+  }
+  20% {
+    color: #ffff00;
+  }
+  40% {
+    color: #00ff00;
+  }
+  60% {
+    color: #0088ff;
+  }
+  80% {
+    color: #8800ff;
+  }
+  100% {
+    color: #ff0000;
+  }
+}
+
+@keyframes letter-color-3 {
+  0% {
+    color: #ffff00;
+  }
+  20% {
+    color: #00ff00;
+  }
+  40% {
+    color: #0088ff;
+  }
+  60% {
+    color: #8800ff;
+  }
+  80% {
+    color: #ff0000;
+  }
+  100% {
+    color: #ff8800;
+  }
+}
+
+@keyframes letter-color-4 {
+  0% {
+    color: #00ff0;
+  }
+  20% {
+    color: #0088ff;
+  }
+  40% {
+    color: #8800ff;
+  }
+  60% {
+    color: #ff0000;
+  }
+  80% {
+    color: #ff8800;
+  }
+  100% {
+    color: #ffff00;
+  }
+}
+
+@keyframes letter-color-5 {
+  0% {
+    color: #0088ff;
+  }
+  20% {
+    color: #8800ff;
+  }
+  40% {
+    color: #ff0000;
+  }
+  60% {
+    color: #ff8800;
+  }
+  80% {
+    color: #ffff0;
+  }
+  100% {
+    color: #00ff00;
+  }
+}
+
+#title-screen p {
+  font-size: 16px;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+#game-over {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  z-index: 100;
+}
+
+#game-over h1 {
+  font-size: 36px;
+  margin-bottom: 20px;
+  color: #ff4444;
+}
+
+#controls {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  color: #fff;
+  font-size: 10px;
+  z-index: 10;
+}
+
+.rotate-icon {
+  font-size: 48px;
+  margin: 20px;
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(90deg);
+  }
+}
+
+@media (max-width: 768px) {
+  #controls {
+    display: none;
+  }
+}
+
+/* New styles for pause overlay */
+#pause-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: none; /* initially hidden */
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  border: 5px solid;
+  border-image: linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088) 1;
+  border-image-slice: 1;
+  border-image-repeat: stretch;
+}
+
+#pause-close-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  font-size: 2em;
+  color: white;
+  cursor: pointer;
+  z-index: 101; /* Ensure it's above the overlay */
+}
+
+#pause-content {
+  background-color: rgba(0, 0, 0, 0.8);
+  padding: 40px;
+  border-radius: 10px;
+  text-align: center;
+  max-width: 80%;
+  max-height: 80%;
+  overflow-y: auto;
+  position: relative; /* For positioning the close button */
+}
+
+#pause-content h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  background: linear-gradient(
+    45deg,
+    #ff0000,
+    #ff8800,
+    #ffff00,
+    #00ff00,
+    #0088ff,
+    #8800ff,
+    #ff0088
+  );
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-gentle 3s ease-in-out infinite;
+}
+
+#pause-controls div {
+  color: white; /* Ensure controls text is white */
+  margin-bottom: 10px;
+}
+
+@media (max-width: 768px) and (orientation: portrait) {
+  .title-container {
+    white-space: pre;
+    flex-direction: column;
+  }
+  .rainbow-text {
+    transform: scale(0.8);
+  }
+}
+
+#pause-cheats button {
+  background-color: #333;
+  color: white;
+  border: 2px solid #888;
+  padding: 10px 20px;
+  margin: 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: "Press Start 2P", cursive;
+  font-size: 14px;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+#pause-cheats button:hover {
+  background-color: #555;
+  border-color: #fff;
 }

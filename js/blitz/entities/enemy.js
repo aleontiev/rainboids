@@ -289,6 +289,137 @@ export class Enemy {
     }
 }
 
+class Asteroid {
+    constructor(x, y, type, isPortrait) {
+        this.x = x;
+        this.y = y;
+        this.type = type; // 'large', 'medium', 'small'
+        this.isPortrait = isPortrait;
+        
+        switch (this.type) {
+            case 'large':
+                this.size = 50;
+                this.health = 3;
+                break;
+            case 'medium':
+                this.size = 30;
+                this.health = 2;
+                break;
+            case 'small':
+                this.size = 15;
+                this.health = 1;
+                break;
+        }
+        this.speed = 1 + Math.random() * 2;
+        this.angle = Math.random() * Math.PI * 2;
+        this.rotationSpeed = (Math.random() - 0.5) * 0.02; // Slower rotation
+        
+        // Initial velocity based on orientation
+        if (this.isPortrait) {
+            this.vx = (Math.random() - 0.5) * 1; // Small horizontal movement
+            this.vy = this.speed; // Downward movement
+        } else {
+            this.vx = -this.speed; // Leftward movement
+            this.vy = (Math.random() - 0.5) * 1; // Small vertical movement
+        }
+        
+        // Generate more vertices for detailed shape
+        this.vertices = [];
+        const numVertices = 12 + Math.floor(Math.random() * 8); // 12-20 vertices
+        
+        for (let i = 0; i < numVertices; i++) {
+            const angle = (i / numVertices) * Math.PI * 2;
+            const radius = this.size * (0.7 + Math.random() * 0.6); // Vary radius
+            this.vertices.push({
+                x: Math.cos(angle) * radius,
+                y: Math.sin(angle) * radius
+            });
+        }
+        
+        // Generate interior lines for detail
+        this.interiorLines = [];
+        const numInteriorLines = 3 + Math.floor(Math.random() * 4); // 3-6 interior lines
+        
+        for (let i = 0; i < numInteriorLines; i++) {
+            const angle1 = Math.random() * Math.PI * 2;
+            const angle2 = Math.random() * Math.PI * 2;
+            const radius1 = this.size * (0.2 + Math.random() * 0.5);
+            const radius2 = this.size * (0.2 + Math.random() * 0.5);
+            
+            this.interiorLines.push({
+                start: {
+                    x: Math.cos(angle1) * radius1,
+                    y: Math.sin(angle1) * radius1
+                },
+                end: {
+                    x: Math.cos(angle2) * radius2,
+                    y: Math.sin(angle2) * radius2
+                }
+            });
+        }
+    }
+
+    takeDamage(damage) {
+        this.health -= damage;
+        if (this.health <= 0) {
+            if (this.type === 'large') {
+                return 'medium';
+            } else if (this.type === 'medium') {
+                return 'small';
+            } else {
+                return 'destroyed'; // Indicates final destruction
+            }
+        }
+        return null; // Not destroyed yet
+    }
+    
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.angle += this.rotationSpeed;
+    }
+    
+    render(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 2;
+        
+        // Draw based on size/type
+        if (this.type === 'small') {
+            ctx.fillStyle = '#666';
+            ctx.beginPath();
+            ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        } else {
+            // Draw using pre-generated vertices
+            ctx.beginPath();
+            this.vertices.forEach((vertex, i) => {
+                if (i === 0) {
+                    ctx.moveTo(vertex.x, vertex.y);
+                } else {
+                    ctx.lineTo(vertex.x, vertex.y);
+                }
+            });
+            ctx.closePath();
+            ctx.stroke();
+            
+            // Draw interior lines for detail
+            this.interiorLines.forEach(line => {
+                ctx.beginPath();
+                ctx.moveTo(line.start.x, line.start.y);
+                ctx.lineTo(line.end.x, line.end.y);
+                ctx.stroke();
+            });
+        }
+        
+        ctx.restore();
+    }
+}
+
 export class Bullet {
     constructor(x, y, angle, size, color, isPortrait) {
         this.x = x;
@@ -334,10 +465,10 @@ export class Laser {
         this.x = x;
         this.y = y;
         this.angle = angle;
-        this.speed = speed;
+        this.speed = 50; // Very fast
         this.color = color;
-        this.width = 5;
-        this.life = 20;
+        this.width = 10; // Thicker laser
+        this.life = 60; // Longer life (1 second)
     }
 
     update() {
@@ -352,7 +483,7 @@ export class Laser {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         if (this.color === 'rainbow') {
-            const gradient = ctx.createLinearGradient(-100, 0, 100, 0);
+            const gradient = ctx.createLinearGradient(0, -this.width / 2, 0, this.width / 2);
             gradient.addColorStop(0, 'red');
             gradient.addColorStop(1 / 6, 'orange');
             gradient.addColorStop(2 / 6, 'yellow');
@@ -367,7 +498,7 @@ export class Laser {
         ctx.lineWidth = this.width;
         ctx.beginPath();
         ctx.moveTo(0, 0);
-        ctx.lineTo(100, 0);
+        ctx.lineTo(200, 0); // Make it longer
         ctx.stroke();
         ctx.restore();
     }
