@@ -38,7 +38,6 @@ class BlitzGame {
         this.touchY = 0;
         this.gameTime = 0;
         this.lastGameTimeSeconds = 0;
-        this.lastTime = 0; // For deltaTime calculation
         
         this.asteroidSpawnTimer = 0;
         this.enemySpawnTimer = 0;
@@ -47,6 +46,7 @@ class BlitzGame {
         this.powerups = [];
         this.explosions = [];
         this.powerupSpawnTimer = 0;
+        this.textParticles = []; // For score popups
         
         this.setupBackgroundStars();
         this.setupAudio();
@@ -496,6 +496,12 @@ class BlitzGame {
             return explosion.life > 0;
         });
         
+        // Update text particles
+        this.textParticles = this.textParticles.filter(particle => {
+            particle.update();
+            return particle.life > 0;
+        });
+        
         // Spawn powerups occasionally
         this.powerupSpawnTimer++;
         if (this.powerupSpawnTimer > 600 + Math.random() * 900) {
@@ -835,7 +841,12 @@ class BlitzGame {
                 this.player.shield = Math.min(this.player.shield + 1, 3); // Max 3 shields
                 break;
             case 'mainWeapon':
-                this.player.mainWeaponLevel = Math.min(this.player.mainWeaponLevel + 1, 3);
+                if (this.player.mainWeaponLevel >= 5) { // Max level reached
+                    this.score += 1000;
+                    this.textParticles.push(new TextParticle(powerup.x, powerup.y, '+1000', '#ffff00', 25, 45)); // Yellow, larger, faster fade
+                } else {
+                    this.player.mainWeaponLevel = Math.min(this.player.mainWeaponLevel + 1, 5); // Max level is 5
+                }
                 break;
             case 'sideWeapon':
                 this.player.sideWeaponLevel = Math.min(this.player.sideWeaponLevel + 1, 2);
@@ -995,6 +1006,9 @@ class BlitzGame {
             
             // Draw explosions
             this.explosions.forEach(explosion => explosion.render(this.ctx));
+            
+            // Draw text particles
+            this.textParticles.forEach(particle => particle.render(this.ctx));
             
             // Draw game objects
             this.player.render(this.ctx);
@@ -1424,6 +1438,38 @@ class Debris {
         ctx.moveTo(0, -this.size);
         ctx.lineTo(0, this.size);
         ctx.stroke();
+        ctx.restore();
+    }
+}
+
+class TextParticle {
+    constructor(x, y, text, color = '#ffffff', size = 20, life = 60) {
+        this.x = x;
+        this.y = y;
+        this.text = text;
+        this.color = color;
+        this.size = size;
+        this.life = life;
+        this.maxLife = life;
+        this.vy = -0.5; // Move upwards
+        this.vx = (Math.random() - 0.5) * 0.5; // Slight horizontal drift
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life--;
+    }
+
+    render(ctx) {
+        const alpha = this.life / this.maxLife;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = this.color;
+        ctx.font = `${this.size}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.text, this.x, this.y);
         ctx.restore();
     }
 }

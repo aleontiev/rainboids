@@ -155,17 +155,19 @@ export class Player {
       if (this.mainWeaponLevel >= 5) {
         // Rainbow laser beam
         bullets.push(
-          new LaserClass(this.x, this.y, this.angle, 50, "rainbow") // Pass speed, remove isPortrait
+          new LaserClass(this.x, this.y, this.angle, 50, "rainbow")
         );
         this.shootCooldown = 1; // Allow continuous firing
       } else if (this.mainWeaponLevel === 1) {
         bullets.push(
           new BulletClass(this.x, this.y, this.angle, 10, "#00ff88", isPortrait)
         ); // Cool green
+        this.shootCooldown = 30; // Slow
       } else if (this.mainWeaponLevel === 2) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 12, "#00ffcc", isPortrait)
-        ); // Teal
+          new BulletClass(this.x, this.y, this.angle, 14, "#00ffcc", isPortrait)
+        ); // Teal, faster
+        this.shootCooldown = 15; // Faster
       } else if (this.mainWeaponLevel === 3) {
         bullets.push(
           new BulletClass(this.x, this.y, this.angle, 14, "#00ffff", isPortrait)
@@ -190,16 +192,17 @@ export class Player {
             isPortrait
           )
         );
+        this.shootCooldown = 15; // Same as level 2
       } else if (this.mainWeaponLevel >= 4) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 16, "#4488ff", isPortrait)
-        ); // Cool blue
+          new BulletClass(this.x, this.y, this.angle, 18, "#4488ff", isPortrait)
+        ); // Cool blue, fast
         bullets.push(
           new BulletClass(
             this.x,
             this.y,
             this.angle + 0.1,
-            16,
+            18,
             "#4488ff",
             isPortrait
           )
@@ -209,11 +212,12 @@ export class Player {
             this.x,
             this.y,
             this.angle - 0.1,
-            16,
+            18,
             "#4488ff",
             isPortrait
           )
         );
+        this.shootCooldown = 8; // Very fast
       }
 
       // Side weapons
