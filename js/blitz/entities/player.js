@@ -10,6 +10,7 @@ export class Player {
     this.speed = GAME_CONFIG.PLAYER_SPEED;
     this.angle = 0;
     this.shootCooldown = 0;
+    this.homingMissileCooldown = 0;
     this.dashCooldown = 0;
     this.dashDistance = GAME_CONFIG.DASH_DISTANCE;
     this.isDashing = false;
@@ -127,6 +128,10 @@ export class Player {
 
     if (this.shootCooldown > 0) {
       this.shootCooldown--;
+    }
+
+    if (this.homingMissileCooldown > 0) {
+      this.homingMissileCooldown--;
     }
 
     // Update second ship positions (above or below player)
@@ -257,33 +262,51 @@ export class Player {
         );
       }
       if (this.sideWeaponLevel >= 3) {
-        bullets.push(
-          new HomingMissileClass(this.x, this.y, this.angle, 6, "#ff00ff")
-        ); // Magenta
+        if (this.homingMissileCooldown <= 0) {
+          // Level 3: 1 homing missile, perpendicular to player
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2, 6, "#ff00ff")
+          );
+          this.homingMissileCooldown = 60; // 1 second cooldown
+        }
       }
       if (this.sideWeaponLevel >= 4) {
-        bullets.push(
-          new HomingMissileClass(this.x, this.y, this.angle + 0.2, 6, "#ff00ff")
-        );
-        bullets.push(
-          new HomingMissileClass(this.x, this.y, this.angle - 0.2, 6, "#ff00ff")
-        );
+        if (this.homingMissileCooldown <= 0) {
+          // Level 4: 2 homing missiles, spread out
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 - 0.2, 6, "#ff00ff")
+          );
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 + 0.2, 6, "#ff00ff")
+          );
+          this.homingMissileCooldown = 60; // 1 second cooldown
+        }
       }
       if (this.sideWeaponLevel >= 5) {
-        bullets.push(
-          new HomingMissileClass(this.x, this.y, this.angle + 0.4, 6, "#ff00ff")
-        );
-        bullets.push(
-          new HomingMissileClass(this.x, this.y, this.angle - 0.4, 6, "#ff00ff")
-        );
+        if (this.homingMissileCooldown <= 0) {
+          // Level 5: 5 homing missiles, spread out
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2, 6, "#ff00ff")
+          );
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 - 0.4, 6, "#ff00ff")
+          );
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 + 0.4, 6, "#ff00ff")
+          );
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 - 0.8, 6, "#ff00ff")
+          );
+          bullets.push(
+            new HomingMissileClass(this.x, this.y, this.angle + Math.PI / 2 + 0.8, 6, "#ff00ff")
+          );
+          this.homingMissileCooldown = 60; // 1 second cooldown
+        }
       }
 
       // Second ship shooting
       this.secondShip.forEach(ship => {
-        let secondShipBulletColor = '#4488ff'; // Default blue for 2nd ship
-        if (this.sideWeaponLevel >= 2) { // Assuming sideWeaponLevel 2 or higher means '3rd ship' upgrade
-            secondShipBulletColor = '#ffffff'; // White for 3rd ship
-        }
+        let secondShipBulletColor = '#4488ff'; // Always blue
         bullets.push(
           new BulletClass(
             ship.x,

@@ -49,7 +49,7 @@ export class Enemy {
                 this.laserBeam = null;
                 break;
             case 'pulse':
-                this.pulseInterval = 120 + Math.random() * 60;
+                this.pulseInterval = 240 + Math.random() * 120;
                 this.pulseTimer = 0;
                 break;
         }
@@ -264,64 +264,115 @@ export class Enemy {
                 break;
         }
         
-        // Draw main ship body
+        this.drawShip(ctx, color);
+        
+        ctx.restore();
+    }
+
+    drawShip(ctx, color) {
         ctx.fillStyle = color;
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
-        
-        // Draw ship shape (triangle pointing left)
-        ctx.beginPath();
-        ctx.moveTo(this.size, 0);
-        ctx.lineTo(-this.size * 0.8, -this.size * 0.6);
-        ctx.lineTo(-this.size * 0.5, 0);
-        ctx.lineTo(-this.size * 0.8, this.size * 0.6);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        
-        // Draw engine glow
+
+        switch (this.type) {
+            case 'straight':
+                // Simple triangle (default)
+                ctx.beginPath();
+                ctx.moveTo(this.size, 0);
+                ctx.lineTo(-this.size * 0.8, -this.size * 0.6);
+                ctx.lineTo(-this.size * 0.5, 0);
+                ctx.lineTo(-this.size * 0.8, this.size * 0.6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                break;
+            case 'sine':
+                // Diamond shape
+                ctx.beginPath();
+                ctx.moveTo(0, -this.size);
+                ctx.lineTo(this.size, 0);
+                ctx.lineTo(0, this.size);
+                ctx.lineTo(-this.size, 0);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                break;
+            case 'zigzag':
+                // Arrowhead shape
+                ctx.beginPath();
+                ctx.moveTo(this.size, 0);
+                ctx.lineTo(-this.size * 0.5, -this.size * 0.8);
+                ctx.lineTo(-this.size * 0.2, 0);
+                ctx.lineTo(-this.size * 0.5, this.size * 0.8);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                break;
+            case 'circle':
+                // Circle with a small triangle
+                ctx.beginPath();
+                ctx.arc(0, 0, this.size * 0.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(this.size * 0.8, 0);
+                ctx.lineTo(this.size * 0.5, -this.size * 0.3);
+                ctx.lineTo(this.size * 0.5, this.size * 0.3);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                break;
+            case 'dive':
+                // Upside-down triangle
+                ctx.beginPath();
+                ctx.moveTo(0, this.size);
+                ctx.lineTo(-this.size * 0.8, -this.size * 0.6);
+                ctx.lineTo(this.size * 0.8, -this.size * 0.6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                break;
+            case 'laser':
+                // Rectangle with a line
+                ctx.beginPath();
+                ctx.rect(-this.size * 0.8, -this.size * 0.4, this.size * 1.6, this.size * 0.8);
+                ctx.fill();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(this.size * 0.8, 0);
+                ctx.lineTo(this.size * 1.2, 0);
+                ctx.stroke();
+                break;
+            case 'pulse':
+                // Square with a dot
+                ctx.beginPath();
+                ctx.rect(-this.size * 0.5, -this.size * 0.5, this.size, this.size);
+                ctx.fill();
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(0, 0, this.size * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                break;
+        }
+
+        // Draw engine glow (common to all)
         ctx.fillStyle = '#ffaa00';
         ctx.beginPath();
         ctx.arc(-this.size * 0.5, 0, this.size * 0.3, 0, Math.PI * 2);
         ctx.fill();
-        
-        ctx.restore();
     }
 }
 
-class Asteroid {
-    constructor(x, y, type, isPortrait) {
+export class Asteroid {
+    constructor(x, y, type, isPortrait, size, speed, initialVx = null, initialVy = null) {
         this.x = x;
         this.y = y;
         this.type = type; // 'large', 'medium', 'small'
         this.isPortrait = isPortrait;
-        
-        switch (this.type) {
-            case 'large':
-                this.size = 50;
-                this.health = 3;
-                break;
-            case 'medium':
-                this.size = 30;
-                this.health = 2;
-                break;
-            case 'small':
-                this.size = 15;
-                this.health = 1;
-                break;
-        }
-        this.speed = 1 + Math.random() * 2;
-        this.angle = Math.random() * Math.PI * 2;
-        this.rotationSpeed = (Math.random() - 0.5) * 0.02; // Slower rotation
-        
-        // Initial velocity based on orientation
-        if (this.isPortrait) {
-            this.vx = (Math.random() - 0.5) * 1; // Small horizontal movement
-            this.vy = this.speed; // Downward movement
-        } else {
-            this.vx = -this.speed; // Leftward movement
-            this.vy = (Math.random() - 0.5) * 1; // Small vertical movement
-        }
+        this.size = size;
+        this.speed = speed;
+        this.health = Math.floor(size / 10);
         
         // Generate more vertices for detailed shape
         this.vertices = [];
@@ -469,12 +520,19 @@ export class Laser {
         this.color = color;
         this.width = 20; // Thicker laser
         this.life = 60; // Longer life (1 second)
+        this.colorIndex = 0;
+        this.rainbowColors = ['#ff0000', '#ff8800', '#ffff00', '#00ff00', '#0088ff', '#4400ff', '#ff00ff'];
     }
 
     update() {
         this.x += Math.cos(this.angle) * this.speed;
         this.y += Math.sin(this.angle) * this.speed;
         this.life--;
+
+        if (this.color === 'rainbow') {
+            this.colorIndex = Math.floor(Math.random() * this.rainbowColors.length);
+        }
+
         return this.life > 0;
     }
 
@@ -485,9 +543,17 @@ export class Laser {
 
         // Draw glow effect
         if (this.color === 'rainbow') {
-            ctx.globalAlpha = 0.3; // Semi-transparent glow
-            ctx.strokeStyle = '#ffffff'; // White glow
-            ctx.lineWidth = this.width * 2; // 2x thicker than the laser itself
+            ctx.globalAlpha = 0.4; // Slightly more opaque glow
+            const glowGradient = ctx.createLinearGradient(0, -this.width * 1.5, 0, this.width * 1.5);
+            glowGradient.addColorStop(0, 'red');
+            glowGradient.addColorStop(1 / 6, 'orange');
+            glowGradient.addColorStop(2 / 6, 'yellow');
+            glowGradient.addColorStop(3 / 6, 'green');
+            glowGradient.addColorStop(4 / 6, 'blue');
+            glowGradient.addColorStop(5 / 6, 'indigo');
+            glowGradient.addColorStop(1, 'violet');
+            ctx.strokeStyle = glowGradient;
+            ctx.lineWidth = this.width * 1.5; // Wider glow
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(200, 0);
@@ -496,15 +562,7 @@ export class Laser {
 
         ctx.globalAlpha = 1; // Reset alpha for the main laser
         if (this.color === 'rainbow') {
-            const gradient = ctx.createLinearGradient(0, -this.width / 2, 0, this.width / 2);
-            gradient.addColorStop(0, 'red');
-            gradient.addColorStop(1 / 6, 'orange');
-            gradient.addColorStop(2 / 6, 'yellow');
-            gradient.addColorStop(3 / 6, 'green');
-            gradient.addColorStop(4 / 6, 'blue');
-            gradient.addColorStop(5 / 6, 'indigo');
-            gradient.addColorStop(1, 'violet');
-            ctx.strokeStyle = gradient;
+            ctx.strokeStyle = this.rainbowColors[this.colorIndex];
         } else {
             ctx.strokeStyle = this.color;
         }
@@ -522,7 +580,7 @@ export class PulseCircle {
         this.x = x;
         this.y = y;
         this.radius = 5;
-        this.maxRadius = 100;
+        this.maxRadius = 200;
         this.life = 120;
         this.maxLife = 120;
         this.speed = 2;

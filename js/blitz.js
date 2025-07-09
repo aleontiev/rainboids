@@ -38,6 +38,7 @@ class BlitzGame {
         this.touchY = 0;
         this.gameTime = 0;
         this.lastGameTimeSeconds = 0;
+        this.lastTime = 0; // For deltaTime calculation
         
         this.asteroidSpawnTimer = 0;
         this.enemySpawnTimer = 0;
@@ -346,7 +347,7 @@ class BlitzGame {
         }
     }
     
-    spawnAsteroid(type = 'large', x = null, y = null) {
+    spawnAsteroid(type = 'large', x = null, y = null, vx = null, vy = null) {
         let size;
         let speed;
         switch (type) {
@@ -376,7 +377,7 @@ class BlitzGame {
                 y = Math.random() * this.canvas.height;
             }
         }
-        this.asteroids.push(new Asteroid(x, y, size, speed, this.isPortrait));
+        this.asteroids.push(new Asteroid(x, y, type, this.isPortrait, size, speed, vx, vy));
     }
     
     spawnEnemy() {
@@ -394,10 +395,10 @@ class BlitzGame {
         this.enemies.push(new Enemy(x, y, type, this.isPortrait));
     }
     
-    update() {
+    update(deltaTime) {
         if (this.gameState !== 'PLAYING') return;
 
-        this.gameTime += 1/60;
+        this.gameTime += deltaTime / 1000; // Convert ms to seconds
         
         const input = this.inputHandler.getInput();
 
@@ -443,7 +444,11 @@ class BlitzGame {
         // Update asteroids
         this.asteroids = this.asteroids.filter(asteroid => {
             asteroid.update();
-            return asteroid.x > -asteroid.size;
+            if (this.isPortrait) {
+                return asteroid.y < this.canvas.height + asteroid.size; // Keep if on screen or just off bottom
+            } else {
+                return asteroid.x > -asteroid.size; // Keep if on screen or just off left
+            }
         });
         
         // Update enemies
@@ -551,12 +556,28 @@ class BlitzGame {
                         this.updateUI();
 
                         if (damageResult === 'breakIntoMedium') {
-                            for (let k = 0; k < 3; k++) {
-                                this.spawnAsteroid('medium', asteroid.x, asteroid.y);
-                            }
+                            const baseAngle = Math.atan2(asteroid.vy, asteroid.vx);
+                            const spreadAngle = Math.PI / 6; // 30 degrees spread
+                            const newSpeed = asteroid.speed * 1.5; // Faster than original
+                            const mediumSize = 30 + Math.random() * 15;
+                            const mediumSpeed = 1 + Math.random() * 0.5;
+
+                            // Asteroid 1: slightly left
+                            let angle1 = baseAngle - spreadAngle;
+                            this.spawnAsteroid('medium', asteroid.x, asteroid.y, Math.cos(angle1) * newSpeed, Math.sin(angle1) * newSpeed, mediumSize, mediumSpeed);
+
+                            // Asteroid 2: straight ahead
+                            let angle2 = baseAngle;
+                            this.spawnAsteroid('medium', asteroid.x, asteroid.y, Math.cos(angle2) * newSpeed, Math.sin(angle2) * newSpeed, mediumSize, mediumSpeed);
+
+                            // Asteroid 3: slightly right
+                            let angle3 = baseAngle + spreadAngle;
+                            this.spawnAsteroid('medium', asteroid.x, asteroid.y, Math.cos(angle3) * newSpeed, Math.sin(angle3) * newSpeed, mediumSize, mediumSpeed);
                         } else if (damageResult === 'breakIntoSmall') {
+                            const smallSize = 15 + Math.random() * 10;
+                            const smallSpeed = 1.5 + Math.random() * 0.5;
                             for (let k = 0; k < 3; k++) {
-                                this.spawnAsteroid('small', asteroid.x, asteroid.y);
+                                this.spawnAsteroid('small', asteroid.x, asteroid.y, null, null, smallSize, smallSpeed);
                             }
                         } else if (damageResult === 'destroyed') {
                             // Debris already created above
@@ -1046,12 +1067,16 @@ class BlitzGame {
     
     
     
-    gameLoop() {
+    gameLoop(currentTime) {
+        if (!currentTime) currentTime = 0; // For the first call
+        const deltaTime = currentTime - this.lastTime;
+        this.lastTime = currentTime;
+
         if (this.gameState === 'PLAYING') {
-            this.update();
+            this.update(deltaTime);
         }
         this.render();
-        requestAnimationFrame(() => this.gameLoop());
+        requestAnimationFrame((timestamp) => this.gameLoop(timestamp));
     }
 }
 

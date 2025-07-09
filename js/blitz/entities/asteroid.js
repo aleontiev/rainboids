@@ -1,10 +1,25 @@
 export class Asteroid {
-    constructor(x, y, size, speed, isPortrait) {
+    constructor(x, y, type, isPortrait, size, speed, vx = null, vy = null) {
         this.x = x;
         this.y = y;
+        this.type = type; // Store type
+        this.isPortrait = isPortrait;
         this.size = size;
         this.speed = speed;
-        this.isPortrait = isPortrait;
+
+        if (vx === null || vy === null) {
+            if (this.isPortrait) {
+                this.vx = 0;
+                this.vy = this.speed;
+            } else {
+                this.vx = -this.speed;
+                this.vy = 0;
+            }
+        } else {
+            this.vx = vx;
+            this.vy = vy;
+        }
+
         this.angle = Math.random() * Math.PI * 2;
         this.rotationSpeed = (Math.random() - 0.5) * 0.02; // Slower rotation
         this.health = Math.floor(size / 10);
@@ -60,11 +75,8 @@ export class Asteroid {
     }
     
     update() {
-        if (this.isPortrait) {
-            this.y += this.speed;
-        } else {
-            this.x -= this.speed;
-        }
+        this.x += this.vx;
+        this.y += this.vy;
         this.angle += this.rotationSpeed;
     }
     
@@ -73,8 +85,8 @@ export class Asteroid {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         
-        ctx.fillStyle = 'black'; // Solid black background
-        ctx.strokeStyle = '#888';
+        ctx.fillStyle = '#333'; // Dark grey fill
+        ctx.strokeStyle = '#AAA'; // Lighter grey stroke
         ctx.lineWidth = 2;
         ctx.beginPath();
         
