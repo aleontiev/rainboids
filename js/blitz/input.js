@@ -11,6 +11,7 @@ export class InputHandler {
       fire: false,
       firePressed: false,
       shift: false,
+      ctrl: false,
       joystickX: 0,
       joystickY: 0,
       target: null,
@@ -75,6 +76,10 @@ export class InputHandler {
       case "ShiftRight":
         this.input.shift = true;
         break;
+      case "ControlLeft":
+      case "ControlRight":
+        this.input.ctrl = true;
+        break;
     }
   }
 
@@ -102,6 +107,10 @@ export class InputHandler {
       case "ShiftLeft":
       case "ShiftRight":
         this.input.shift = false;
+        break;
+      case "ControlLeft":
+      case "ControlRight":
+        this.input.ctrl = false;
         break;
     }
   }

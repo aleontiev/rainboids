@@ -227,9 +227,9 @@ export class Enemy {
                 this.shootCooldown = 0;
                 const angle = Math.atan2(player.y - this.y, player.x - this.x);
                 
-                // Choose a random warm color
-                const warmColors = ['#ff4500', '#ffa500', '#ffd700']; // OrangeRed, Orange, Gold
-                const randomColor = warmColors[Math.floor(Math.random() * warmColors.length)];
+                // Choose a random enemy bullet color
+                const enemyColors = ['#ff0000', '#800080', '#0000ff', '#ffa500', '#ffff00']; // Red, Purple, Blue, Orange, Yellow
+                const randomColor = enemyColors[Math.floor(Math.random() * enemyColors.length)];
                 
                 bullets.push(new Bullet(this.x, this.y, angle, 7.5, randomColor, this.isPortrait, 6.4)); // Size 7.5, random warm color, speed 6.4
             }
@@ -241,7 +241,7 @@ export class Enemy {
         const numBullets = 12; // Number of bullets in the ring
         const bulletSpeed = 3;
         const bulletSize = 8;
-        const bulletColor = '#00ff88'; // Green color for pulse bullets
+        const bulletColor = '#800080'; // Purple color for pulse bullets
         
         for (let i = 0; i < numBullets; i++) {
             const angle = (i / numBullets) * Math.PI * 2; // Evenly spaced around circle
@@ -736,7 +736,7 @@ export class MiniBoss {
                     vx: Math.cos(angleToPlayer) * bulletSpeed,
                     vy: Math.sin(angleToPlayer) * bulletSpeed,
                     size: 12, // Smaller projectiles
-                    color: '#4400ff', // Blue color for beta
+                    color: '#0000ff', // Blue color for beta
                     type: 'miniBossSecondary'
                 });
             }
@@ -794,7 +794,7 @@ export class MiniBoss {
                     vx: Math.cos(angle) * bulletSpeed,
                     vy: Math.sin(angle) * bulletSpeed,
                     size: 10, // Smaller projectiles
-                    color: '#ff4400', // Orange-red color
+                    color: '#ffa500', // Orange color
                     type: 'miniBossCircular'
                 });
             }
@@ -814,7 +814,7 @@ export class MiniBoss {
                         vx: Math.cos(baseAngle) * bulletSpeed,
                         vy: Math.sin(baseAngle) * bulletSpeed,
                         size: 8, // Smaller for cross pattern
-                        color: '#4400ff', // Blue color for beta
+                        color: '#0000ff', // Blue color for beta
                         type: 'miniBossCircular'
                     });
                 }
@@ -843,7 +843,7 @@ export class MiniBoss {
                 vx: Math.cos(angle) * bulletSpeed,
                 vy: Math.sin(angle) * bulletSpeed,
                 size: 10, // Smaller burst projectiles
-                color: '#ff8800', // Bright orange color for distinction
+                color: '#ffa500', // Orange color for distinction
                 type: 'miniBossBurst'
             });
         }
@@ -1460,7 +1460,7 @@ export class Level1Boss {
                 vx: Math.cos(angleToPlayer) * 6, // Faster bullets
                 vy: Math.sin(angleToPlayer) * 6,
                 size: 10, // Larger bullets
-                color: '#ff6666', // Light red
+                color: '#ff0000', // Red
                 type: 'boss'
             });
         }
@@ -1530,7 +1530,7 @@ export class Level1Boss {
                 angle: Math.atan2(playerY - this.y, playerX - this.x),
                 speed: this.laserSpeed, // Pass the new speed
                 length: 400,
-                color: '#ff4444'
+                color: '#ff0000'
             }];
         }
         
@@ -1551,7 +1551,7 @@ export class Level1Boss {
             x: this.x,
             y: this.y,
             maxRadius: 300,
-            color: '#ff00ff'
+            color: '#800080'
         }];
     }
     

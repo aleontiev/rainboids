@@ -32,7 +32,7 @@ export class Player {
     this.prevY = y;
   }
 
-  update(keys, enemies, asteroids, isPortrait, autoaimEnabled = true, mainWeaponLevel = 1) {
+  update(keys, enemies, asteroids, isPortrait, autoaimEnabled = true, mainWeaponLevel = 1, timeSlowActive = false) {
     // Handle dash timing
     if (this.isDashing) {
       this.dashFrames--;
@@ -41,8 +41,14 @@ export class Player {
       }
     }
 
-    // Get current speed (decreased during phase-out)
-    const currentSpeed = this.isDashing ? this.speed * 0.5 : this.speed;
+    // Get current speed (decreased during dash and time slow)
+    let currentSpeed = this.speed;
+    if (this.isDashing) {
+      currentSpeed *= 0.5; // 50% speed during dash
+    }
+    if (timeSlowActive) {
+      currentSpeed *= 0.5; // 50% speed during time slow
+    }
 
     // Handle movement - prioritize touch for mobile, keyboard for desktop
     if (keys.target) {

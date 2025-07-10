@@ -44,10 +44,10 @@ export const GAME_CONFIG = {
     BULLET_SIZE: 6, // 2x larger than original
     
     // Explosion settings
-    EXPLOSION_PARTICLES: 8,
+    EXPLOSION_PARTICLES: 12,
     EXPLOSION_SPEED: 4,
-    EXPLOSION_LIFE: 60,
-    ENEMY_EXPLOSION_SCALE: 2.5, // Make enemy explosions bigger
+    EXPLOSION_LIFE: 80,
+    ENEMY_EXPLOSION_SCALE: 3, // Make enemy explosions bigger
     
     // Asteroid settings
     ASTEROID_SPAWN_RATE: 0.01,
@@ -55,7 +55,7 @@ export const GAME_CONFIG = {
     ASTEROID_SIZE: 40,
     
     // Powerup settings
-    POWERUP_SPAWN_RATE: 0.02,
+    POWERUP_SPAWN_RATE: 0.04,
     POWERUP_SIZE: 25,
     
     // Audio settings

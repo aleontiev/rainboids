@@ -19,6 +19,7 @@
   </head>
   <body>
     <div id="title-screen">
+      <canvas id="titleCanvas"></canvas>
       <h1 class="title-container">
         <span class="rainbow-text">RAINBOIDS:</span>
         <span class="blitz-text"
@@ -49,26 +50,32 @@
       <div id="score"><i data-lucide="trophy"></i> <span id="score-value">0</span></div>
       <div id="timer"><i data-lucide="clock"></i> <span id="timer-value">0:00</span></div>
     </div>
-    <div id="skill-indicator">
-      <div id="skill-primary">
-        <span class="skill-icon"><i data-lucide="flame"></i></span>
-        <span class="skill-level" id="primary-level">1</span>
-      </div>
-      <div id="skill-secondary">
-        <span class="skill-icon"><i data-lucide="triangle"></i></span>
-        <span class="skill-level" id="secondary-level">0</span>
-      </div>
-      <div id="skill-ships">
-        <span class="skill-icon"><i data-lucide="rocket"></i></span>
-        <span class="skill-level" id="ships-level">0</span>
-      </div>
-      <div id="skill-shields">
-        <span class="skill-icon"><i data-lucide="shield"></i></span>
-        <span class="skill-level" id="shields-level">0</span>
-      </div>
-    </div>
+    <!-- Top Right: Pause Button -->
     <div id="pause-button">
       <div id="pause-icon"></div>
+    </div>
+
+    <!-- Bottom Left: Bomb Button -->
+    <div id="bomb-buttons">
+      <button id="bomb-button" class="action-btn" title="Bomb">
+        <i data-lucide="bomb"></i>
+      </button>
+    </div>
+
+    <!-- Bottom Right: Shield (Dash) and Time Slow Buttons -->
+    <div id="action-buttons">
+      <button id="shield-button" class="action-btn" title="Dash">
+        <i data-lucide="shield"></i>
+        <svg class="cooldown-ring">
+          <circle class="cooldown-circle" cx="28" cy="28" r="25"></circle>
+        </svg>
+      </button>
+      <button id="time-slow-button" class="action-btn" title="Time Slow">
+        <i data-lucide="clock"></i>
+        <svg class="cooldown-ring">
+          <circle class="cooldown-circle" cx="28" cy="28" r="25"></circle>
+        </svg>
+      </button>
     </div>
 
     <div id="pause-overlay">
@@ -121,6 +128,29 @@
                 <div class="mouse-icon">👆</div>
               </div>
               <div class="control-desc">Tap move + fire</div>
+            </div>
+          </div>
+        </div>
+        <div id="pause-credits">
+          <h3>Credits</h3>
+          <div class="credits-list">
+            <div class="credit-item">
+              <div class="ship-icon red-ship">🚀</div>
+              <div class="credit-text">
+                <span class="credit-role">Creator:</span> ant
+              </div>
+            </div>
+            <div class="credit-item">
+              <div class="ship-icon blue-ship">🚀</div>
+              <div class="credit-text">
+                <span class="credit-role">Music:</span> afeique and ...
+              </div>
+            </div>
+            <div class="credit-item">
+              <div class="ship-icon blue-ship">🚀</div>
+              <div class="credit-text">
+                <span class="credit-role">Based on:</span> <a href="https://rainboids.cat.computer" target="_blank">Rainboids</a> by afeique
+              </div>
             </div>
           </div>
         </div>

@@ -16,6 +16,8 @@ class BlitzGame {
   constructor() {
     this.canvas = document.getElementById("gameCanvas");
     this.ctx = this.canvas.getContext("2d");
+    this.titleCanvas = document.getElementById("titleCanvas");
+    this.titleCtx = this.titleCanvas.getContext("2d");
     this.resizeCanvas();
 
     this.gameState = "TITLE";
@@ -90,6 +92,17 @@ class BlitzGame {
     this.firstGameStart = true; // Track if this is the first game start
     this.musicEnabled = true; // Default music on
     this.soundEnabled = true; // Default sound on
+    
+    // Time slow functionality
+    this.timeSlowActive = false;
+    this.timeSlowDuration = 300; // 5 seconds at 60fps
+    this.timeSlowTimer = 0;
+    this.timeSlowCooldown = 0;
+    this.timeSlowCooldownMax = 300; // 5 seconds cooldown
+    
+    // Dash cooldown tracking
+    this.dashCooldown = 0;
+    this.dashCooldownMax = 300; // 5 seconds cooldown
 
     // New game phase system
     this.miniBossesDefeated = false;
@@ -145,6 +158,12 @@ class BlitzGame {
   resizeCanvas() {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
+    
+    // Also resize title canvas
+    if (this.titleCanvas) {
+      this.titleCanvas.width = window.innerWidth;
+      this.titleCanvas.height = window.innerHeight;
+    }
     
     // Determine orientation: portrait if height > width
     // This works for both mobile and desktop
@@ -271,71 +290,33 @@ class BlitzGame {
         
         this.backgroundMusic
           .play()
-          .catch((e) => console.log("Audio play failed:", e));
+          .catch((e) => console.log("initializeAudioOnFirstTouch: Audio play failed:", e));
       }
     }
   }
 
   setupEventListeners() {
     // Click/Touch to start
-    document.addEventListener("click", () => {
+
+    const starter = () => {
       if (this.gameState === "TITLE") {
         this.startGame();
       } else if (this.gameState === "GAME_OVER") {
         this.restartGame();
       }
-    });
-
-    // Start button
-    const startBtn = document.getElementById("start-button");
-    if (startBtn) {
-      startBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (this.gameState === "TITLE") {
-          this.startGame();
-        }
-      });
-      startBtn.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (this.gameState === "TITLE") {
-          this.startGame();
-        }
-      });
-    }
+    };
+    document.addEventListener("click", starter);
+    document.addEventListener("touchstart", starter);
+    document.addEventListener("keydown", starter);
 
     // Restart button
     const restartBtn = document.getElementById("restart-btn");
     if (restartBtn) {
       restartBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (this.gameState === "GAME_OVER") {
-          this.restartGame();
-        }
+        starter();
       });
     }
-
-    document.addEventListener(
-      "touchstart",
-      (e) => {
-        e.preventDefault();
-        if (this.gameState === "TITLE") {
-          this.startGame();
-        } else if (this.gameState === "GAME_OVER") {
-          this.restartGame();
-        }
-      },
-      { passive: false }
-    );
-
-    // Any key to start/restart
-    document.addEventListener("keydown", (e) => {
-      if (this.gameState === "TITLE") {
-        this.startGame();
-      } else if (this.gameState === "GAME_OVER") {
-        this.restartGame();
-      }
-    });
 
     // Resize handler
     window.addEventListener("resize", () => {
@@ -368,6 +349,60 @@ class BlitzGame {
       );
     }
 
+    // Shield/Dash button
+    const shieldButton = document.getElementById("shield-button");
+    if (shieldButton) {
+      shieldButton.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.gameState === "PLAYING") {
+          this.activateShield();
+        }
+      });
+      shieldButton.addEventListener("touchstart", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (this.gameState === "PLAYING") {
+          this.activateShield();
+        }
+      }, { passive: false });
+    }
+
+    // Time Slow button
+    const timeSlowButton = document.getElementById("time-slow-button");
+    if (timeSlowButton) {
+      timeSlowButton.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.gameState === "PLAYING") {
+          this.activateTimeSlow();
+        }
+      });
+      timeSlowButton.addEventListener("touchstart", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (this.gameState === "PLAYING") {
+          this.activateTimeSlow();
+        }
+      }, { passive: false });
+    }
+
+    // Bomb button
+    const bombButton = document.getElementById("bomb-button");
+    if (bombButton) {
+      bombButton.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.gameState === "PLAYING") {
+          this.activateBomb();
+        }
+      });
+      bombButton.addEventListener("touchstart", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (this.gameState === "PLAYING") {
+          this.activateBomb();
+        }
+      }, { passive: false });
+    }
+
     // Help button (top-left UI)
     const uiElement = document.getElementById("ui");
     if (uiElement) {
@@ -379,7 +414,7 @@ class BlitzGame {
       });
     }
 
-    // Toggle pause with 'X' or 'Escape' key
+    // Toggle pause with 'X' or 'Escape' key, and activate time slow with Ctrl
     document.addEventListener("keydown", (e) => {
       if (e.key === "x" || e.key === "X" || e.key === "Escape") {
         if (this.gameState === "PLAYING") {
@@ -387,6 +422,9 @@ class BlitzGame {
         } else if (this.gameState === "PAUSED") {
           this.resumeGame();
         }
+      } else if (e.key === "Control" && this.gameState === "PLAYING") {
+        // Activate time slow with Ctrl key
+        this.activateTimeSlow();
       }
     });
 
@@ -588,16 +626,16 @@ class BlitzGame {
 
   setupBackgroundStars() {
     const starColors = [
-      "#a6b3ff",
-      "#c3a6ff",
-      "#f3a6ff",
-      "#ffa6f8",
-      "#ffa6c7",
-      "#ff528e",
-      "#d98cff",
-      "#ff8c00",
-      "#ffffff",
-      "#ffff88",
+      "#ffffff",        // Pure white
+      "#ffffff",        // Pure white (more common)
+      "#80ffff",        // White-blue/cyan
+      "#80fff0",        // White-teal  
+      "#80ff80",        // White-green
+      "#a0ffff",        // Light white-blue
+      "#a0fff8",        // Light white-teal
+      "#a0ffa0",        // Light white-green
+      "#ffffff",        // Pure white (even more common)
+      "#c0ffff",        // Very light white-blue
     ];
     const starShapes = ["point", "diamond", "star4", "star8", "plus", "cross"];
 
@@ -606,51 +644,107 @@ class BlitzGame {
       this.backgroundStars.push({
         x: Math.random() * this.canvas.width,
         y: Math.random() * this.canvas.height,
-        size: 1 + Math.random() * 3,
+        size: 0.8 + Math.random() * 1.7, // Slightly larger: 0.8-2.5 pixels
         color: starColors[Math.floor(Math.random() * starColors.length)],
         shape: starShapes[Math.floor(Math.random() * starShapes.length)],
         twinkle: Math.random() * Math.PI * 2,
         twinkleSpeed: 0.01 + Math.random() * 0.02,
-        opacity: 0.3 + Math.random() * 0.7,
+        opacity: 0.15 + Math.random() * 0.35, // More subtle: 0.15-0.5 instead of 0.3-1.0
       });
     }
   }
 
   setupTitleScreenStars() {
     this.titleScreenStars = [];
-    // Create small white twinkling stars for title screen
-    for (let i = 0; i < 100; i++) {
+    // Create background stars matching the game's star system
+    const starColors = [
+      "#ffffff",        // Pure white (most common)
+      "#ffffff",        // Pure white
+      "#80ffff",        // White-blue/cyan
+      "#80fff0",        // White-teal  
+      "#80ff80",        // White-green
+      "#a0ffff",        // Light white-blue
+      "#a0fff8",        // Light white-teal
+      "#a0ffa0",        // Light white-green
+      "#ffffff",        // Pure white
+      "#c0ffff",        // Very light white-blue
+    ];
+    
+    for (let i = 0; i < 200; i++) {
       this.titleScreenStars.push({
         x: Math.random() * this.canvas.width,
         y: Math.random() * this.canvas.height,
-        size: Math.random() * 2 + 1,
-        opacity: Math.random() * 0.8 + 0.2,
+        size: 0.8 + Math.random() * 1.7, // Matching game background star size
+        opacity: 0.15 + Math.random() * 0.35, // Matching game opacity range
         twinkle: Math.random() * Math.PI * 2,
-        twinkleSpeed: Math.random() * 0.03 + 0.01,
+        twinkleSpeed: 0.01 + Math.random() * 0.02,
         rotation: Math.random() * Math.PI * 2,
-        rotationSpeed: (Math.random() - 0.5) * 0.02,
-        color: "#ffffff"
+        rotationSpeed: (Math.random() - 0.5) * 0.01, // Slower rotation for background stars
+        color: starColors[Math.floor(Math.random() * starColors.length)]
       });
     }
   }
 
+
   spawnShootingStar() {
-    // Spawn from top right area
-    const x = this.canvas.width + Math.random() * 200;
-    const y = -Math.random() * 200;
-    const speed = 3 + Math.random() * 2;
-    const angle = Math.PI * 1.25; // 225 degrees, towards bottom left
+    // Spawn from random edges around the viewport
+    const edge = Math.floor(Math.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
+    let x, y, targetX, targetY;
+    
+    // Spawn outside viewport, aim towards opposite side
+    const margin = 100;
+    switch(edge) {
+      case 0: // Top edge
+        x = Math.random() * (this.canvas.width + 2 * margin) - margin;
+        y = -margin;
+        targetX = Math.random() * this.canvas.width;
+        targetY = this.canvas.height + margin;
+        break;
+      case 1: // Right edge
+        x = this.canvas.width + margin;
+        y = Math.random() * (this.canvas.height + 2 * margin) - margin;
+        targetX = -margin;
+        targetY = Math.random() * this.canvas.height;
+        break;
+      case 2: // Bottom edge
+        x = Math.random() * (this.canvas.width + 2 * margin) - margin;
+        y = this.canvas.height + margin;
+        targetX = Math.random() * this.canvas.width;
+        targetY = -margin;
+        break;
+      case 3: // Left edge
+        x = -margin;
+        y = Math.random() * (this.canvas.height + 2 * margin) - margin;
+        targetX = this.canvas.width + margin;
+        targetY = Math.random() * this.canvas.height;
+        break;
+    }
+    
+    // Calculate direction vector
+    const dx = targetX - x;
+    const dy = targetY - y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const speed = 4 + Math.random() * 3; // Faster speed
+    
+    // Size matching background stars but slightly larger
+    const size = 1.0 + Math.random() * 2.5; // 1.0-3.5 pixels (matching background star range)
+    
+    // Use white, blue, or green colors as requested
+    const colors = ['#ffffff', '#4080ff', '#40ff80'];
+    const color = colors[Math.floor(Math.random() * colors.length)];
     
     this.shootingStars.push({
       x: x,
       y: y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      size: 3 + Math.random() * 2,
-      color: `hsl(${Math.random() * 360}, 100%, 70%)`, // Random rainbow color
+      vx: (dx / distance) * speed,
+      vy: (dy / distance) * speed,
+      size: size,
+      color: color,
       life: 1.0,
-      fadeSpeed: 0.005 + Math.random() * 0.01,
-      trail: []
+      fadeSpeed: 0.003 + Math.random() * 0.007, // Slower fade for longer visibility
+      trail: [],
+      rotation: Math.random() * Math.PI * 2, // Initial rotation
+      rotationSpeed: (Math.random() - 0.5) * 0.2 // Spin while moving
     });
   }
 
@@ -672,19 +766,30 @@ class BlitzGame {
       star.trail.push({ x: star.x, y: star.y, life: star.life });
       
       // Limit trail length
-      if (star.trail.length > 15) {
+      if (star.trail.length > 20) { // Longer trail for better visibility
         star.trail.shift();
       }
+      
+      // Update trail fade
+      star.trail.forEach(trailPoint => {
+        trailPoint.life *= 0.95; // Trail fades faster than star
+      });
       
       // Update position
       star.x += star.vx;
       star.y += star.vy;
       
+      // Update rotation
+      star.rotation += star.rotationSpeed;
+      
       // Fade out
       star.life -= star.fadeSpeed;
       
-      // Remove if faded out or off screen
-      if (star.life <= 0 || star.x < -100 || star.y > this.canvas.height + 100) {
+      // Remove if faded out or far off screen
+      const margin = 150;
+      if (star.life <= 0 || 
+          star.x < -margin || star.x > this.canvas.width + margin ||
+          star.y < -margin || star.y > this.canvas.height + margin) {
         this.shootingStars.splice(index, 1);
       }
     });
@@ -870,6 +975,27 @@ class BlitzGame {
 
     this.gameTime += deltaTime / 1000; // Convert ms to seconds
 
+    // Update time slow
+    if (this.timeSlowActive) {
+      this.timeSlowTimer -= 1;
+      if (this.timeSlowTimer <= 0) {
+        this.timeSlowActive = false;
+      }
+    }
+    
+    // Update time slow cooldown
+    if (this.timeSlowCooldown > 0) {
+      this.timeSlowCooldown -= 1;
+    }
+    
+    // Update dash cooldown
+    if (this.dashCooldown > 0) {
+      this.dashCooldown -= 1;
+    }
+    
+    // Update button cooldown visuals
+    this.updateCooldownVisuals();
+
     const input = this.inputHandler.getInput();
 
     // Update player
@@ -879,7 +1005,8 @@ class BlitzGame {
       this.asteroids,
       this.isPortrait,
       this.autoaimEnabled,
-      this.player.mainWeaponLevel // Pass mainWeaponLevel
+      this.player.mainWeaponLevel, // Pass mainWeaponLevel
+      this.timeSlowActive // Pass time slow state
     );
 
     // Player shooting (prevent firing during death animation)
@@ -1925,8 +2052,7 @@ class BlitzGame {
         this.player.render(this.ctx);
       }
 
-      // Draw target indicator for mouse position (desktop only)
-      this.renderTargetIndicator();
+      // (Target indicator moved to end of rendering)
 
       this.bullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyBullets.forEach((bullet) => bullet.render(this.ctx));
@@ -1955,29 +2081,42 @@ class BlitzGame {
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
       }
     }
+
+    // Draw target indicator for mouse position (desktop only) - always on top
+    this.renderTargetIndicator();
   }
 
   renderTitleScreenStars() {
-    // Render twinkling white stars
+    // Clear the title canvas
+    this.titleCtx.fillStyle = '#000000';
+    this.titleCtx.fillRect(0, 0, this.titleCanvas.width, this.titleCanvas.height);
+    
+    // Render background stars (like in game)
     this.titleScreenStars.forEach((star) => {
-      this.ctx.save();
-      this.ctx.translate(star.x, star.y);
-      this.ctx.rotate(star.rotation);
+      this.titleCtx.save();
+      this.titleCtx.translate(star.x, star.y);
+      this.titleCtx.rotate(star.rotation);
 
       const twinkleOpacity = star.opacity * (0.5 + 0.5 * Math.sin(star.twinkle));
-      this.ctx.globalAlpha = twinkleOpacity;
+      this.titleCtx.globalAlpha = twinkleOpacity;
       
-      // Draw rotating plus sign
-      this.ctx.strokeStyle = star.color;
-      this.ctx.lineWidth = 1;
-      this.ctx.beginPath();
-      this.ctx.moveTo(0, -star.size);
-      this.ctx.lineTo(0, star.size);
-      this.ctx.moveTo(-star.size, 0);
-      this.ctx.lineTo(star.size, 0);
-      this.ctx.stroke();
+      // Draw 4-pointed star shape (matching game background stars)
+      this.titleCtx.fillStyle = star.color;
+      this.titleCtx.beginPath();
+      // 4-pointed star using lines
+      const size = star.size;
+      this.titleCtx.moveTo(0, -size);
+      this.titleCtx.lineTo(size * 0.3, -size * 0.3);
+      this.titleCtx.lineTo(size, 0);
+      this.titleCtx.lineTo(size * 0.3, size * 0.3);
+      this.titleCtx.lineTo(0, size);
+      this.titleCtx.lineTo(-size * 0.3, size * 0.3);
+      this.titleCtx.lineTo(-size, 0);
+      this.titleCtx.lineTo(-size * 0.3, -size * 0.3);
+      this.titleCtx.closePath();
+      this.titleCtx.fill();
 
-      this.ctx.restore();
+      this.titleCtx.restore();
     });
 
     // Render shooting stars with trails
@@ -1985,28 +2124,59 @@ class BlitzGame {
       // Draw trail
       for (let i = 0; i < star.trail.length; i++) {
         const trailPoint = star.trail[i];
-        const trailOpacity = (i / star.trail.length) * trailPoint.life * 0.8;
+        const trailOpacity = (i / star.trail.length) * trailPoint.life * 0.6;
         
-        this.ctx.save();
-        this.ctx.globalAlpha = trailOpacity;
-        this.ctx.fillStyle = star.color;
-        const trailSize = star.size * (i / star.trail.length) * 0.5;
-        this.ctx.fillRect(trailPoint.x - trailSize/2, trailPoint.y - trailSize/2, trailSize, trailSize);
-        this.ctx.restore();
+        if (trailOpacity > 0.05) { // Only draw visible trail points
+          this.titleCtx.save();
+          this.titleCtx.globalAlpha = trailOpacity;
+          this.titleCtx.fillStyle = star.color;
+          const trailSize = star.size * (i / star.trail.length) * 0.8;
+          
+          // Draw 4-pointed star for trail too
+          this.titleCtx.translate(trailPoint.x, trailPoint.y);
+          this.titleCtx.beginPath();
+          this.titleCtx.moveTo(0, -trailSize);
+          this.titleCtx.lineTo(trailSize * 0.3, -trailSize * 0.3);
+          this.titleCtx.lineTo(trailSize, 0);
+          this.titleCtx.lineTo(trailSize * 0.3, trailSize * 0.3);
+          this.titleCtx.lineTo(0, trailSize);
+          this.titleCtx.lineTo(-trailSize * 0.3, trailSize * 0.3);
+          this.titleCtx.lineTo(-trailSize, 0);
+          this.titleCtx.lineTo(-trailSize * 0.3, -trailSize * 0.3);
+          this.titleCtx.closePath();
+          this.titleCtx.fill();
+          
+          this.titleCtx.restore();
+        }
       }
       
-      // Draw main star
-      this.ctx.save();
-      this.ctx.globalAlpha = star.life;
-      this.ctx.fillStyle = star.color;
-      this.ctx.fillRect(star.x - star.size/2, star.y - star.size/2, star.size, star.size);
+      // Draw main shooting star
+      this.titleCtx.save();
+      this.titleCtx.translate(star.x, star.y);
+      this.titleCtx.rotate(star.rotation);
+      this.titleCtx.globalAlpha = star.life;
+      this.titleCtx.fillStyle = star.color;
+      
+      // Draw larger 4-pointed star
+      const size = star.size;
+      this.titleCtx.beginPath();
+      this.titleCtx.moveTo(0, -size);
+      this.titleCtx.lineTo(size * 0.3, -size * 0.3);
+      this.titleCtx.lineTo(size, 0);
+      this.titleCtx.lineTo(size * 0.3, size * 0.3);
+      this.titleCtx.lineTo(0, size);
+      this.titleCtx.lineTo(-size * 0.3, size * 0.3);
+      this.titleCtx.lineTo(-size, 0);
+      this.titleCtx.lineTo(-size * 0.3, -size * 0.3);
+      this.titleCtx.closePath();
+      this.titleCtx.fill();
       
       // Add glow effect
-      this.ctx.shadowColor = star.color;
-      this.ctx.shadowBlur = 8;
-      this.ctx.fillRect(star.x - star.size/2, star.y - star.size/2, star.size, star.size);
+      this.titleCtx.shadowColor = star.color;
+      this.titleCtx.shadowBlur = 6;
+      this.titleCtx.fill();
       
-      this.ctx.restore();
+      this.titleCtx.restore();
     });
   }
 
@@ -2015,14 +2185,56 @@ class BlitzGame {
     if (input.mousePosition) {
       const { x, y } = input.mousePosition;
       
-      // Draw simple white crosshair
+      // Check if cursor is over any enemy or asteroid
+      let isOverTarget = false;
+      
+      // Check enemies
+      for (let enemy of this.enemies) {
+        const dist = Math.sqrt((x - enemy.x) ** 2 + (y - enemy.y) ** 2);
+        if (dist < enemy.radius + 10) { // Add 10px margin for easier targeting
+          isOverTarget = true;
+          break;
+        }
+      }
+      
+      // Check asteroids if not already over an enemy
+      if (!isOverTarget) {
+        for (let asteroid of this.asteroids) {
+          const dist = Math.sqrt((x - asteroid.x) ** 2 + (y - asteroid.y) ** 2);
+          if (dist < asteroid.radius + 10) { // Add 10px margin for easier targeting
+            isOverTarget = true;
+            break;
+          }
+        }
+      }
+      
+      // Check minibosses if not already over a target
+      if (!isOverTarget) {
+        for (let miniBoss of this.miniBosses) {
+          const dist = Math.sqrt((x - miniBoss.x) ** 2 + (y - miniBoss.y) ** 2);
+          if (dist < miniBoss.radius + 10) { // Add 10px margin for easier targeting
+            isOverTarget = true;
+            break;
+          }
+        }
+      }
+      
+      // Check level 1 boss if not already over a target
+      if (!isOverTarget && this.level1Boss) {
+        const dist = Math.sqrt((x - this.level1Boss.x) ** 2 + (y - this.level1Boss.y) ** 2);
+        if (dist < this.level1Boss.radius + 10) { // Add 10px margin for easier targeting
+          isOverTarget = true;
+        }
+      }
+      
+      // Draw crosshair with appropriate color
       this.ctx.save();
-      this.ctx.strokeStyle = "#ffffff";
+      this.ctx.strokeStyle = isOverTarget ? "#00ff00" : "#ffffff"; // Green if over target, white otherwise
       this.ctx.lineWidth = 1;
       this.ctx.globalAlpha = 1.0;
       
-      // Draw simple + crosshair (8px by 8px)
-      const size = 4; // 4px from center = 8px total
+      // Draw simple + crosshair (40px by 40px)
+      const size = 20; // 20px from center = 40px total
       this.ctx.beginPath();
       // Vertical line
       this.ctx.moveTo(x, y - size);
@@ -2046,6 +2258,105 @@ class BlitzGame {
     this.gameState = "PLAYING";
     document.getElementById("pause-overlay").style.display = "none";
     document.body.style.cursor = "none";
+  }
+
+  activateShield() {
+    // Trigger the player's dash ability
+    if (this.player && this.dashCooldown <= 0 && !this.player.isDashing) {
+      this.player.isDashing = true;
+      this.player.dashCooldown = 60; // 1 second player dash duration
+      this.player.dashFrames = 30; // 0.5 seconds of dash
+      this.dashCooldown = this.dashCooldownMax; // 5 second button cooldown
+      
+      // Play dash sound if available
+      if (this.audioContext && this.soundEnabled) {
+        this.playSound(this.sounds.dash);
+      }
+    }
+  }
+
+  activateTimeSlow() {
+    // Activate time slow if not on cooldown
+    if (this.timeSlowCooldown <= 0 && !this.timeSlowActive) {
+      this.timeSlowActive = true;
+      this.timeSlowTimer = this.timeSlowDuration;
+      this.timeSlowCooldown = this.timeSlowCooldownMax;
+      
+      // Play time slow sound if available
+      if (this.audioContext && this.soundEnabled) {
+        this.playSound(this.sounds.powerUp);
+      }
+    }
+  }
+
+  activateBomb() {
+    // Clear all enemy bullets and damage all enemies
+    this.enemyBullets = [];
+    this.enemyLasers = [];
+    this.enemyPulseCircles = [];
+    
+    // Damage all enemies
+    this.enemies.forEach(enemy => {
+      enemy.health -= 50; // Significant damage
+    });
+    
+    // Damage minibosses
+    this.miniBosses.forEach(miniBoss => {
+      miniBoss.health -= 100;
+    });
+    
+    // Damage level 1 boss
+    if (this.level1Boss) {
+      this.level1Boss.health -= 200;
+    }
+    
+    // Create explosion effect at player position
+    if (this.player) {
+      for (let i = 0; i < 10; i++) {
+        this.explosions.push(new RainbowExplosion(
+          this.player.x + (Math.random() - 0.5) * 100,
+          this.player.y + (Math.random() - 0.5) * 100,
+          60 + Math.random() * 40 // Random size
+        ));
+      }
+    }
+    
+    // Play bomb sound if available
+    if (this.audioContext && this.soundEnabled) {
+      this.playSound(this.sounds.explosion);
+    }
+  }
+
+  updateCooldownVisuals() {
+    // Update shield button cooldown
+    const shieldButton = document.getElementById('shield-button');
+    if (shieldButton) {
+      if (this.dashCooldown > 0) {
+        shieldButton.classList.add('on-cooldown');
+        const circle = shieldButton.querySelector('.cooldown-circle');
+        if (circle) {
+          const progress = this.dashCooldown / this.dashCooldownMax;
+          circle.style.strokeDashoffset = (157 * progress).toString();
+        }
+      } else {
+        shieldButton.classList.remove('on-cooldown');
+      }
+    }
+
+    // Update time slow button cooldown
+    const timeSlowButton = document.getElementById('time-slow-button');
+    if (timeSlowButton) {
+      if (this.timeSlowCooldown > 0) {
+        timeSlowButton.classList.add('on-cooldown');
+        const circle = timeSlowButton.querySelector('.cooldown-circle');
+        if (circle) {
+          const progress = this.timeSlowCooldown / this.timeSlowCooldownMax;
+          circle.style.strokeDashoffset = (157 * progress).toString();
+        }
+      } else {
+        timeSlowButton.classList.remove('on-cooldown');
+      }
+    }
   }
 
   setupCheatButtons() {
@@ -2469,7 +2780,13 @@ class BlitzGame {
     if (this.gameState === "TITLE") {
       this.updateTitleScreenStars();
     } else if (this.gameState === "PLAYING") {
-      this.update(deltaTime);
+      // Calculate time slow factor
+      let gameSlowdownFactor = 1.0;
+      if (this.timeSlowActive) {
+        gameSlowdownFactor = 0.3; // 3x slower for enemies and bullets
+      }
+      
+      this.update(deltaTime, gameSlowdownFactor);
     }
     
     // Handle death animation
