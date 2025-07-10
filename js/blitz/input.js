@@ -131,6 +131,10 @@ export class InputHandler {
       this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
       this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
       this.canvas.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
+      
+      // Track mouse position even when off-screen for aiming
+      document.addEventListener('mousemove', this.handleDocumentMouseMove.bind(this));
+      document.addEventListener('mouseup', this.handleDocumentMouseUp.bind(this));
     }
   }
 
@@ -156,8 +160,26 @@ export class InputHandler {
   }
 
   handleMouseLeave(evt) {
-    this.input.fire = false;
-    this.input.mousePosition = null;
+    // Don't stop firing when cursor leaves screen on desktop
+    // Keep the last known mouse position for aiming
+    // this.input.fire = false;  // Commented out to allow shooting off-screen
+    // this.input.mousePosition = null;  // Keep last position for aiming
+  }
+
+  handleDocumentMouseMove(evt) {
+    // Update mouse position even when cursor is outside canvas
+    const rect = this.canvas.getBoundingClientRect();
+    this.input.mousePosition = {
+      x: evt.clientX - rect.left,
+      y: evt.clientY - rect.top,
+    };
+  }
+
+  handleDocumentMouseUp(evt) {
+    // Stop firing when mouse is released anywhere on the document
+    if (evt.button === 0) { // Left mouse button
+      this.input.fire = false;
+    }
   }
 
   getInput() {

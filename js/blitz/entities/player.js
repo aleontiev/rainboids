@@ -74,7 +74,7 @@ export class Player {
 
     // Handle aiming - use mouse position for desktop, default angle for mobile
     if (keys.mousePosition) {
-      // Desktop: aim toward mouse cursor
+      // Desktop: aim toward mouse cursor (or last known position if off-screen)
       const dx = keys.mousePosition.x - this.x;
       const dy = keys.mousePosition.y - this.y;
       this.angle = Math.atan2(dy, dx);

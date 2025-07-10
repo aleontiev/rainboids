@@ -140,6 +140,9 @@ class BlitzGame {
   resizeCanvas() {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
+    
+    // Determine orientation: portrait if height > width
+    // This works for both mobile and desktop
     this.isPortrait = this.canvas.height > this.canvas.width;
   }
 
@@ -681,17 +684,14 @@ class BlitzGame {
   }
 
   updateGamePhase() {
-    if (this.gameTime < 30) {
-      this.gamePhase = 1; // Phase 1: 0-30s asteroids and enemies
-    } else if (this.gameTime >= 30 && this.miniBosses.length > 0) {
-      this.gamePhase = 2; // Phase 2: Minibosses active
-    } else if (this.gameTime >= 30 && this.miniBosses.length === 0 && !this.miniBossesDefeated) {
-      this.gamePhase = 2; // Phase 2: About to spawn minibosses
-    } else if (this.miniBossesDefeated && !this.bossDialogActive && !this.level1Boss) {
-      this.gamePhase = 3; // Phase 3: Cleanup phase before boss
-    } else if (this.level1Boss) {
-      this.gamePhase = 4; // Phase 4: Boss battle
+    // Only auto-advance to phase 2 at 30 seconds if still in phase 1
+    if (this.gameTime < 30 && this.gamePhase === 1) {
+      // Stay in phase 1: 0-30s asteroids and enemies
+    } else if (this.gameTime >= 30 && this.gamePhase === 1) {
+      // Auto-advance to phase 2 only if we're still in phase 1
+      this.gamePhase = 2; // Phase 2: Time to spawn minibosses
     }
+    // All other phase transitions are handled manually in other parts of code
   }
 
   getAsteroidSpawnRate() {
@@ -793,13 +793,23 @@ class BlitzGame {
 
   spawnEnemy() {
     let x, y;
+    
+    // Ensure canvas dimensions are valid
+    if (this.canvas.width <= 0 || this.canvas.height <= 0) {
+      console.warn('Invalid canvas dimensions for enemy spawn:', this.canvas.width, this.canvas.height);
+      return;
+    }
+    
     if (this.isPortrait) {
+      // Portrait: spawn at top edge, move down
       x = Math.random() * this.canvas.width;
       y = -50;
     } else {
+      // Landscape: spawn at right edge, move left
       x = this.canvas.width + 50;
       y = Math.random() * this.canvas.height;
     }
+    
     const types = [
       "straight",
       "sine",
@@ -1069,7 +1079,7 @@ class BlitzGame {
     // Spawn enemies based on current phase
     this.enemySpawnTimer++;
     const enemySpawnRate = this.getEnemySpawnRate();
-    if (this.enemySpawnTimer > enemySpawnRate && this.gamePhase >= 2 && this.gamePhase <= 4) {
+    if (this.enemySpawnTimer > enemySpawnRate && this.gamePhase >= 1 && this.gamePhase <= 4) {
       this.spawnEnemy();
       this.enemySpawnTimer = 0;
     }
@@ -1132,7 +1142,7 @@ class BlitzGame {
         );
 
         console.log("Mini-bosses spawned, total:", this.miniBosses.length);
-        this.gamePhase = 4; // Mini-boss phase
+        this.gamePhase = 2; // Mini-boss phase (phase 2 in the new system)
       } catch (error) {
         console.error("Error spawning mini-bosses:", error);
       }

@@ -515,7 +515,7 @@ export class MiniBoss {
         this.isPortrait = isPortrait;
         this.size = 90; // Much larger than regular enemies (was 60)
         this.speed = 0.5; // Slower movement (was 1)
-        this.maxHealth = 360; // Reduced to 1/5 of previous value (was 1800)
+        this.maxHealth = 100; // Reduced max health
         this.health = this.maxHealth;
         this.frameCount = 0;
         this.angle = isPortrait ? Math.PI / 2 : 0; // Add this line for rotation
@@ -534,17 +534,17 @@ export class MiniBoss {
         this.secondaryWeaponTimer = 0;
         this.circularWeaponTimer = 0;
         this.burstWeaponTimer = 0;
-        this.primaryWeaponCooldown = 20; // 0.33 seconds at 60fps (much faster)
-        this.secondaryWeaponCooldown = 60; // 1 second at 60fps (much faster)
-        this.circularWeaponCooldown = 180; // 3 seconds at 60fps (circular pattern)
-        this.burstWeaponCooldown = 150; // 2.5 seconds at 60fps (rapid burst)
+        this.primaryWeaponCooldown = 15; // 0.25 seconds at 60fps (even faster)
+        this.secondaryWeaponCooldown = 45; // 0.75 seconds at 60fps (faster)
+        this.circularWeaponCooldown = 120; // 2 seconds at 60fps (faster circular)
+        this.burstWeaponCooldown = 90; // 1.5 seconds at 60fps (faster burst)
         
         // Shield system
         this.godMode = true; // Start with god mode (invincible)
         this.godModeTimer = 0;
         this.godModeDuration = 300; // 5 seconds at 60fps
-        this.shield = 2.0; // 10x shield after god mode ends
-        this.maxShield = 2.0;
+        this.shield = 50; // 50 shield after god mode ends
+        this.maxShield = 50;
         
         // Visual effects
         this.hitFlash = 0;
@@ -673,7 +673,7 @@ export class MiniBoss {
             y: this.y, // Fire from center of miniboss
             vx: Math.cos(angleToPlayer) * bulletSpeed, // Aim at player
             vy: Math.sin(angleToPlayer) * bulletSpeed, // Aim at player
-            size: 15, // Much larger size (1.87x of 8)
+            size: 20, // Even larger projectiles
             color: '#ff0000', // Red color
             type: 'miniBossPrimary'
         };
@@ -685,19 +685,38 @@ export class MiniBoss {
         const bullets = [];
         const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x); // Calculate angle to player
         const bulletSpeed = 4; // Slightly slower for spread
-        const spreadAngle = 0.3; // Angle between bullets in spread
-
-        for (let i = -2; i <= 2; i++) {
-            const angle = angleToPlayer + i * spreadAngle; // Spread around player angle
-            bullets.push({
-                x: this.x,
-                y: this.y,
-                vx: Math.cos(angle) * bulletSpeed,
-                vy: Math.sin(angle) * bulletSpeed,
-                size: 15, // Much larger size (1.87x of 8)
-                color: '#ff0000', // Red color
-                type: 'miniBossSecondary'
-            });
+        
+        if (this.type === 'alpha') {
+            // Alpha: Wide spread of 7 bullets
+            const spreadAngle = 0.25; // Tighter spread
+            for (let i = -3; i <= 3; i++) {
+                const angle = angleToPlayer + i * spreadAngle;
+                bullets.push({
+                    x: this.x,
+                    y: this.y,
+                    vx: Math.cos(angle) * bulletSpeed,
+                    vy: Math.sin(angle) * bulletSpeed,
+                    size: 18, // Large projectiles for spread
+                    color: '#ff0000', // Red color
+                    type: 'miniBossSecondary'
+                });
+            }
+        } else {
+            // Beta: Alternating dual shots
+            const sideOffset = 30; // Distance from center
+            for (let side = -1; side <= 1; side += 2) {
+                const offsetX = Math.cos(angleToPlayer + Math.PI/2) * sideOffset * side;
+                const offsetY = Math.sin(angleToPlayer + Math.PI/2) * sideOffset * side;
+                bullets.push({
+                    x: this.x + offsetX,
+                    y: this.y + offsetY,
+                    vx: Math.cos(angleToPlayer) * bulletSpeed,
+                    vy: Math.sin(angleToPlayer) * bulletSpeed,
+                    size: 22, // Larger projectiles
+                    color: '#4400ff', // Blue color for beta
+                    type: 'miniBossSecondary'
+                });
+            }
         }
         return bullets;
     }
@@ -729,19 +748,43 @@ export class MiniBoss {
         this.circularWeaponTimer = 0;
         const bullets = [];
         const bulletSpeed = 3;
-        const numBullets = 12; // 360 degree pattern with 12 bullets
         
-        for (let i = 0; i < numBullets; i++) {
-            const angle = (i / numBullets) * Math.PI * 2;
-            bullets.push({
-                x: this.x,
-                y: this.y,
-                vx: Math.cos(angle) * bulletSpeed,
-                vy: Math.sin(angle) * bulletSpeed,
-                size: 15, // Same large size as other attacks
-                color: '#ff4400', // Orange-red color for distinction
-                type: 'miniBossCircular'
-            });
+        if (this.type === 'alpha') {
+            // Alpha: Full 360 degree spiral
+            const numBullets = 16; // More bullets for alpha
+            for (let i = 0; i < numBullets; i++) {
+                const angle = (i / numBullets) * Math.PI * 2;
+                bullets.push({
+                    x: this.x,
+                    y: this.y,
+                    vx: Math.cos(angle) * bulletSpeed,
+                    vy: Math.sin(angle) * bulletSpeed,
+                    size: 16, // Large projectiles
+                    color: '#ff4400', // Orange-red color
+                    type: 'miniBossCircular'
+                });
+            }
+        } else {
+            // Beta: Rotating cross pattern
+            const numArms = 4;
+            const bulletsPerArm = 3;
+            for (let arm = 0; arm < numArms; arm++) {
+                const baseAngle = (arm / numArms) * Math.PI * 2 + (this.frameCount * 0.05); // Rotating
+                for (let i = 0; i < bulletsPerArm; i++) {
+                    const distance = (i + 1) * 20; // Staggered distances
+                    const x = this.x + Math.cos(baseAngle) * distance;
+                    const y = this.y + Math.sin(baseAngle) * distance;
+                    bullets.push({
+                        x: x,
+                        y: y,
+                        vx: Math.cos(baseAngle) * bulletSpeed,
+                        vy: Math.sin(baseAngle) * bulletSpeed,
+                        size: 14, // Slightly smaller for cross pattern
+                        color: '#4400ff', // Blue color for beta
+                        type: 'miniBossCircular'
+                    });
+                }
+            }
         }
         return bullets;
     }
@@ -765,7 +808,7 @@ export class MiniBoss {
                 y: this.y,
                 vx: Math.cos(angle) * bulletSpeed,
                 vy: Math.sin(angle) * bulletSpeed,
-                size: 15, // Same large size as other attacks
+                size: 17, // Larger burst projectiles
                 color: '#ff8800', // Bright orange color for distinction
                 type: 'miniBossBurst'
             });
@@ -1268,7 +1311,7 @@ export class Level1Boss {
         this.canvasWidth = canvasWidth;
         this.canvasHeight = canvasHeight;
         this.size = 120; // Very large boss
-        this.maxHealth = 2000; // Very high health
+        this.maxHealth = 200; // Reduced health for phase 3
         this.health = this.maxHealth;
         this.frameCount = 0;
         
@@ -1282,9 +1325,11 @@ export class Level1Boss {
         this.startX = this.targetX;
         this.startY = this.targetY;
         
-        // Shield system - 2 shields
-        this.shield = 2;
-        this.maxShield = 2;
+        // Shield system - 2 shields of 100 each
+        this.shield = 200; // Total shield: 100 + 100
+        this.maxShield = 200;
+        this.shieldPhase1 = 100; // First shield
+        this.shieldPhase2 = 100; // Second shield
         
         // Attack phases - now correspond to shield destruction
         this.phase = 1; // Phase 1: First shield, Phase 2: Second shield, Phase 3: Health
@@ -1513,16 +1558,20 @@ export class Level1Boss {
         if (this.shield > 0) {
             this.shield -= damage;
             this.hitFlash = 10;
-            if (this.shield <= 0) {
+            
+            // Check phase transitions based on shield remaining
+            if (this.shield <= 100 && this.phase === 1) {
+                this.phase = 2; // Enter phase 2 when first shield (100) is destroyed
+                return 'phase_transition';
+            } else if (this.shield <= 0) {
                 this.shield = 0;
-                // Advance to next phase when shield is destroyed
-                this.phase = Math.min(this.phase + 1, 3);
+                this.phase = 3; // Enter phase 3 when all shields are destroyed
                 return 'shield_destroyed';
             }
             return 'shield_damaged';
         }
         
-        // Damage health if no shield
+        // Damage health if no shield (phase 3)
         this.health -= damage;
         this.hitFlash = 10;
         
@@ -1690,49 +1739,75 @@ export class Level1Boss {
         const barX = this.x - barWidth / 2;
         let currentY = this.y - this.size - 40;
         
-        // Shield bars (one for each shield)
-        if (this.maxShield > 0) {
-            for (let i = 0; i < this.maxShield; i++) {
-                // Shield background
-                ctx.fillStyle = '#333333';
-                ctx.fillRect(barX, currentY, barWidth, barHeight);
-                
-                // Shield bar (only show if this shield still exists)
-                if (i < this.shield) {
-                    ctx.fillStyle = '#00aaff';
-                    ctx.fillRect(barX, currentY, barWidth, barHeight);
-                }
-                
-                // Shield border
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(barX, currentY, barWidth, barHeight);
-                
-                // Shield label
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '12px "Press Start 2P"';
-                ctx.textAlign = 'center';
-                ctx.fillText(`SHIELD ${i + 1}`, this.x, currentY + 14);
-                
-                currentY += barHeight + 5;
-            }
-        }
-        
-        // Health bar (only visible if shields are destroyed)
-        if (this.shield <= 0) {
-            // Health background
+        // Phase 1 Shield (100 points)
+        if (this.phase >= 1) {
             ctx.fillStyle = '#333333';
             ctx.fillRect(barX, currentY, barWidth, barHeight);
             
-            // Health
+            if (this.shield > 100) {
+                // Phase 1 shield is full
+                ctx.fillStyle = '#0088ff';
+                ctx.fillRect(barX, currentY, barWidth, barHeight);
+            } else if (this.shield > 0 && this.phase === 1) {
+                // Phase 1 shield is partially damaged
+                const phase1Percent = (this.shield - 100) / 100;
+                ctx.fillStyle = '#0088ff';
+                ctx.fillRect(barX, currentY, barWidth * phase1Percent, barHeight);
+            }
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(barX, currentY, barWidth, barHeight);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '12px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('SHIELD 1', this.x, currentY + 14);
+            
+            currentY += barHeight + 5;
+        }
+        
+        // Phase 2 Shield (100 points)
+        if (this.phase >= 2) {
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(barX, currentY, barWidth, barHeight);
+            
+            if (this.shield > 0 && this.phase === 2) {
+                // Phase 2 shield is active
+                const phase2Percent = this.shield / 100;
+                ctx.fillStyle = '#0088ff';
+                ctx.fillRect(barX, currentY, barWidth * phase2Percent, barHeight);
+            }
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(barX, currentY, barWidth, barHeight);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '12px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('SHIELD 2', this.x, currentY + 14);
+            
+            currentY += barHeight + 5;
+        }
+        
+        // Phase 3 Health (200 points)
+        if (this.phase >= 3) {
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(barX, currentY, barWidth, barHeight);
+            
             const healthPercent = this.getHealthPercentage();
             ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
             ctx.fillRect(barX, currentY, barWidth * healthPercent, barHeight);
             
-            // Health border
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 2;
             ctx.strokeRect(barX, currentY, barWidth, barHeight);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '12px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('HEALTH', this.x, currentY + 14);
             
             currentY += barHeight + 5;
         }
