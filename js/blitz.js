@@ -86,6 +86,14 @@ class BlitzGame {
     this.musicEnabled = true; // Default music on
     this.soundEnabled = true; // Default sound on
 
+    // New game phase system
+    this.miniBossesDefeated = false;
+    this.miniBossGodModeTimer = 0;
+    this.cleanupPhaseTimer = 0;
+    this.cleanupPowerupsSpawned = false;
+    this.bossDialogActive = false;
+    this.gamePhase = 1;
+
     // Title screen stars
     this.titleScreenStars = [];
     this.shootingStars = [];
@@ -673,26 +681,29 @@ class BlitzGame {
   }
 
   updateGamePhase() {
-    if (this.gameTime < 10) {
-      this.gamePhase = 1; // Asteroids only
-    } else if (this.gameTime < 30) {
-      this.gamePhase = 2; // Enemies start spawning
-    } else if (this.gameTime < 60) {
-      this.gamePhase = 3; // Increased spawn rates
+    if (this.gameTime < 30) {
+      this.gamePhase = 1; // Phase 1: 0-30s asteroids and enemies
+    } else if (this.gameTime >= 30 && this.miniBosses.length > 0) {
+      this.gamePhase = 2; // Phase 2: Minibosses active
+    } else if (this.gameTime >= 30 && this.miniBosses.length === 0 && !this.miniBossesDefeated) {
+      this.gamePhase = 2; // Phase 2: About to spawn minibosses
+    } else if (this.miniBossesDefeated && !this.bossDialogActive && !this.level1Boss) {
+      this.gamePhase = 3; // Phase 3: Cleanup phase before boss
+    } else if (this.level1Boss) {
+      this.gamePhase = 4; // Phase 4: Boss battle
     }
-    // Phase 4 is set when mini-bosses spawn
   }
 
   getAsteroidSpawnRate() {
     switch (this.gamePhase) {
       case 1:
-        return 120; // Every 2 seconds
+        return 120; // Phase 1: Every 2 seconds
       case 2:
-        return 100; // Every 1.67 seconds
+        return 90; // Phase 2: Reduced during miniboss fight
       case 3:
-        return 80; // Every 1.33 seconds
+        return 80; // Phase 3: Cleanup phase
       case 4:
-        return 90; // Slightly reduced during mini-boss
+        return 999999; // Phase 4: No asteroids during boss
       default:
         return 120;
     }
@@ -701,13 +712,13 @@ class BlitzGame {
   getEnemySpawnRate() {
     switch (this.gamePhase) {
       case 1:
-        return 999999; // No enemies
+        return 180; // Phase 1: Every 3 seconds
       case 2:
-        return 180; // Every 3 seconds
+        return 999999; // Phase 2: No enemies during miniboss fight
       case 3:
-        return 120; // Every 2 seconds
+        return 999999; // Phase 3: No enemies during cleanup
       case 4:
-        return 150; // Slightly reduced during mini-boss
+        return 999999; // Phase 4: No enemies during boss
       default:
         return 180;
     }
@@ -1063,11 +1074,12 @@ class BlitzGame {
       this.enemySpawnTimer = 0;
     }
 
-    // Check for mini-boss spawn at 60 seconds
+    // Check for mini-boss spawn at 30 seconds
     if (
-      this.gameTime >= 45 &&
-      this.gamePhase === 3 &&
-      this.miniBosses.length === 0
+      this.gameTime >= 30 &&
+      this.gamePhase === 2 &&
+      this.miniBosses.length === 0 &&
+      !this.miniBossesDefeated
     ) {
       console.log("Spawning mini-bosses at time:", this.gameTime);
       console.log("Method exists?", typeof this.spawnMiniBosses);
@@ -1123,6 +1135,39 @@ class BlitzGame {
         this.gamePhase = 4; // Mini-boss phase
       } catch (error) {
         console.error("Error spawning mini-bosses:", error);
+      }
+    }
+
+    // Handle Phase 3: Cleanup phase after minibosses are defeated
+    if (this.gamePhase === 3) {
+      this.cleanupPhaseTimer += deltaTime;
+      
+      // Explode all remaining enemies immediately
+      if (this.cleanupPhaseTimer === 0) {
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+          const enemy = this.enemies[i];
+          this.createEnemyExplosion(enemy.x, enemy.y);
+          this.enemies.splice(i, 1);
+        }
+        // Clear all enemy bullets
+        this.enemyBullets = [];
+        this.enemyLasers = [];
+        this.enemyPulseCircles = [];
+      }
+      
+      // After 5 seconds, spawn 2 powerups and show boss dialog
+      if (this.cleanupPhaseTimer >= 5000) {
+        if (!this.cleanupPowerupsSpawned) {
+          this.spawnPowerup();
+          this.spawnPowerup();
+          this.cleanupPowerupsSpawned = true;
+        }
+        
+        // Start boss dialog after powerups are spawned
+        if (this.cleanupPhaseTimer >= 6000) {
+          this.bossDialogActive = true;
+          this.showBossDialog();
+        }
       }
     }
 
@@ -1310,21 +1355,30 @@ class BlitzGame {
             this.bullets.splice(i, 1);
           }
 
-          const result = miniBoss.takeDamage(10); // Reduced damage since they have 3x more health
-          this.createEnemyExplosion(miniBoss.x, miniBoss.y);
-          this.playSound(this.sounds.enemyExplosion);
-
-          if (result === "destroyed") {
+          const result = miniBoss.takeDamage(1);
+          
+          // Handle different damage results
+          if (result === "godmode") {
+            // No effect, no explosion for god mode
+            continue;
+          } else if (result === "shield_damaged" || result === "shield_destroyed") {
+            this.createEnemyExplosion(miniBoss.x, miniBoss.y);
+            this.playSound(this.sounds.enemyExplosion);
+          } else if (result === "damaged") {
+            this.createEnemyExplosion(miniBoss.x, miniBoss.y);
+            this.playSound(this.sounds.enemyExplosion);
+          } else if (result === "destroyed") {
             this.miniBosses.splice(j, 1);
             this.score += 1000; // High score for mini-boss defeat
             this.updateUI();
+            this.createEnemyExplosion(miniBoss.x, miniBoss.y);
+            this.playSound(this.sounds.enemyExplosion);
 
             // Check if all mini-bosses are defeated
-            if (this.miniBosses.length === 0 && this.gamePhase === 4) {
-              // All mini-bosses defeated - initiate boss dialog delay
-              this.gamePhase = 'WAITING_FOR_BOSS_DIALOG'; // New phase for delay
-              this.bossDialogTimer = 0; // Reset timer
-              console.log("All mini-bosses defeated! Waiting for boss dialog.");
+            if (this.miniBosses.length === 0) {
+              this.miniBossesDefeated = true;
+              this.cleanupPhaseTimer = 0;
+              console.log("All mini-bosses defeated! Starting cleanup phase.");
             }
           }
 
@@ -2122,6 +2176,8 @@ class BlitzGame {
     this.gameState = 'BOSS_DIALOG';
     document.getElementById('boss-dialog').style.display = 'block';
     document.getElementById('boss-text').textContent = '...';
+    // Hide skill indicator during dialog
+    document.getElementById('skill-indicator').style.display = 'none';
   }
   
   advanceBossDialog() {
@@ -2130,8 +2186,10 @@ class BlitzGame {
     this.bossDialogState++;
     
     if (this.bossDialogState === 2) {
-      document.getElementById('boss-text').textContent = 'Who dares enter my space realm? Prepare to die!';
+      document.getElementById('boss-text').textContent = 'Who dares enter my space?';
     } else if (this.bossDialogState === 3) {
+      document.getElementById('boss-text').textContent = 'Prepare to die, humans!';
+    } else if (this.bossDialogState === 4) {
       this.hideBossDialog();
       this.spawnLevel1Boss();
     }
@@ -2142,6 +2200,8 @@ class BlitzGame {
     document.getElementById('boss-dialog').style.display = 'none';
     this.gameState = 'PLAYING';
     this.gamePhase = 6; // Boss fight phase
+    // Show skill indicator again
+    document.getElementById('skill-indicator').style.display = 'flex';
   }
   
   spawnLevel1Boss() {

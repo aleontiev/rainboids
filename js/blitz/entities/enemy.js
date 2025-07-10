@@ -515,7 +515,7 @@ export class MiniBoss {
         this.isPortrait = isPortrait;
         this.size = 90; // Much larger than regular enemies (was 60)
         this.speed = 0.5; // Slower movement (was 1)
-        this.maxHealth = 1800; // 18x more health than regular enemies (6x from 300)
+        this.maxHealth = 360; // Reduced to 1/5 of previous value (was 1800)
         this.health = this.maxHealth;
         this.frameCount = 0;
         this.angle = isPortrait ? Math.PI / 2 : 0; // Add this line for rotation
@@ -539,6 +539,13 @@ export class MiniBoss {
         this.circularWeaponCooldown = 180; // 3 seconds at 60fps (circular pattern)
         this.burstWeaponCooldown = 150; // 2.5 seconds at 60fps (rapid burst)
         
+        // Shield system
+        this.godMode = true; // Start with god mode (invincible)
+        this.godModeTimer = 0;
+        this.godModeDuration = 300; // 5 seconds at 60fps
+        this.shield = 2.0; // 10x shield after god mode ends
+        this.maxShield = 2.0;
+        
         // Visual effects
         this.hitFlash = 0;
         this.chargingSecondary = 0;
@@ -549,6 +556,14 @@ export class MiniBoss {
     
     update(playerX, playerY, slowdownFactor = 1.0) {
         this.frameCount += slowdownFactor;
+        
+        // Handle god mode timer
+        if (this.godMode) {
+            this.godModeTimer += slowdownFactor;
+            if (this.godModeTimer >= this.godModeDuration) {
+                this.godMode = false;
+            }
+        }
         
         // Movement logic
         if (this.movePattern === 'entering') {
@@ -615,6 +630,23 @@ export class MiniBoss {
     }
     
     takeDamage(damage) {
+        // God mode prevents all damage
+        if (this.godMode) {
+            return 'godmode';
+        }
+        
+        // Shield absorbs damage first
+        if (this.shield > 0) {
+            this.shield -= damage;
+            this.hitFlash = 10;
+            if (this.shield <= 0) {
+                this.shield = 0;
+                return 'shield_destroyed';
+            }
+            return 'shield_damaged';
+        }
+        
+        // Damage health if no shield
         this.health -= damage;
         this.hitFlash = 10;
         if (this.health <= 0) {
@@ -763,8 +795,19 @@ export class MiniBoss {
             this.drawBetaShip(ctx);
         }
         
-        // Draw health bar
-        this.drawHealthBar(ctx);
+        // Draw shield bar and health bar
+        this.drawShieldAndHealthBar(ctx);
+        
+        // God mode effect
+        if (this.godMode) {
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 4;
+            ctx.globalAlpha = 0.7 + 0.3 * Math.sin(this.frameCount * 0.2);
+            ctx.beginPath();
+            ctx.arc(0, 0, this.size + 15, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
         
         // Secondary weapon charging effect
         if (this.chargingSecondary > 0 && this.size > 0) {
@@ -851,25 +894,44 @@ export class MiniBoss {
         ctx.fill();
     }
     
-    drawHealthBar(ctx) {
-        const barWidth = this.size * 1.8; // Slightly wider for larger mini-bosses
-        const barHeight = 8; // Slightly taller for better visibility
-        const barY = -this.size - 20; // Further from the ship
+    drawShieldAndHealthBar(ctx) {
+        const barWidth = this.size * 1.8;
+        const barHeight = 8;
+        const currentY = -this.size - 20;
         
-        // Background
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(-barWidth / 2, barY, barWidth, barHeight);
+        // Single combined bar (shield takes priority over health)
+        if (!this.godMode) {
+            // Background
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(-barWidth / 2, currentY, barWidth, barHeight);
+            
+            if (this.shield > 0) {
+                // Shield bar (blue)
+                const shieldPercent = Math.max(0, this.shield / this.maxShield);
+                ctx.fillStyle = '#0088ff';
+                const shieldBarWidth = Math.max(0, barWidth * shieldPercent);
+                ctx.fillRect(-barWidth / 2, currentY, shieldBarWidth, barHeight);
+            } else {
+                // Health bar (green)
+                const healthPercent = Math.max(0, this.health / this.maxHealth);
+                ctx.fillStyle = '#00ff00';
+                const healthBarWidth = Math.max(0, barWidth * healthPercent);
+                ctx.fillRect(-barWidth / 2, currentY, healthBarWidth, barHeight);
+            }
+            
+            // Border
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(-barWidth / 2, currentY, barWidth, barHeight);
+        }
         
-        // Health bar
-        const healthPercent = Math.max(0, this.health / this.maxHealth);
-        ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
-        const healthBarWidth = Math.max(0, barWidth * healthPercent);
-        ctx.fillRect(-barWidth / 2, barY, healthBarWidth, barHeight);
-        
-        // Border
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(-barWidth / 2, barY, barWidth, barHeight);
+        // God mode indicator
+        if (this.godMode) {
+            ctx.fillStyle = '#00ffff';
+            ctx.font = '12px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('INVINCIBLE', 0, currentY + 6);
+        }
     }
 }
 
@@ -1220,8 +1282,12 @@ export class Level1Boss {
         this.startX = this.targetX;
         this.startY = this.targetY;
         
-        // Attack phases
-        this.phase = 1; // Phase 1-4, different attack patterns
+        // Shield system - 2 shields
+        this.shield = 2;
+        this.maxShield = 2;
+        
+        // Attack phases - now correspond to shield destruction
+        this.phase = 1; // Phase 1: First shield, Phase 2: Second shield, Phase 3: Health
         this.phaseTimer = 0;
         this.phaseDuration = 600; // 10 seconds per phase
         
@@ -1443,6 +1509,20 @@ export class Level1Boss {
     }
     
     takeDamage(damage) {
+        // Shield absorbs damage first
+        if (this.shield > 0) {
+            this.shield -= damage;
+            this.hitFlash = 10;
+            if (this.shield <= 0) {
+                this.shield = 0;
+                // Advance to next phase when shield is destroyed
+                this.phase = Math.min(this.phase + 1, 3);
+                return 'shield_destroyed';
+            }
+            return 'shield_damaged';
+        }
+        
+        // Damage health if no shield
         this.health -= damage;
         this.hitFlash = 10;
         
@@ -1608,26 +1688,59 @@ export class Level1Boss {
         const barWidth = 300;
         const barHeight = 20;
         const barX = this.x - barWidth / 2;
-        const barY = this.y - this.size - 40;
+        let currentY = this.y - this.size - 40;
         
-        // Background
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(barX, barY, barWidth, barHeight);
+        // Shield bars (one for each shield)
+        if (this.maxShield > 0) {
+            for (let i = 0; i < this.maxShield; i++) {
+                // Shield background
+                ctx.fillStyle = '#333333';
+                ctx.fillRect(barX, currentY, barWidth, barHeight);
+                
+                // Shield bar (only show if this shield still exists)
+                if (i < this.shield) {
+                    ctx.fillStyle = '#00aaff';
+                    ctx.fillRect(barX, currentY, barWidth, barHeight);
+                }
+                
+                // Shield border
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(barX, currentY, barWidth, barHeight);
+                
+                // Shield label
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '12px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText(`SHIELD ${i + 1}`, this.x, currentY + 14);
+                
+                currentY += barHeight + 5;
+            }
+        }
         
-        // Health
-        const healthPercent = this.getHealthPercentage();
-        ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
-        ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
-        
-        // Border
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        // Health bar (only visible if shields are destroyed)
+        if (this.shield <= 0) {
+            // Health background
+            ctx.fillStyle = '#333333';
+            ctx.fillRect(barX, currentY, barWidth, barHeight);
+            
+            // Health
+            const healthPercent = this.getHealthPercentage();
+            ctx.fillStyle = healthPercent > 0.5 ? '#00ff00' : healthPercent > 0.25 ? '#ffff00' : '#ff0000';
+            ctx.fillRect(barX, currentY, barWidth * healthPercent, barHeight);
+            
+            // Health border
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(barX, currentY, barWidth, barHeight);
+            
+            currentY += barHeight + 5;
+        }
         
         // Boss name
         ctx.fillStyle = '#ffffff';
         ctx.font = '16px "Press Start 2P"';
         ctx.textAlign = 'center';
-        ctx.fillText('SPACE OVERLORD', this.x, barY - 10);
+        ctx.fillText('SPACE OVERLORD', this.x, this.y - this.size - 60);
     }
 }
