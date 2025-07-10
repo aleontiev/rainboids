@@ -998,6 +998,11 @@ class BlitzGame {
 
     const input = this.inputHandler.getInput();
 
+    // Handle Ctrl key for time slow activation
+    if (input.ctrl) {
+      this.activateTimeSlow();
+    }
+
     // Update player
     this.player.update(
       input,
