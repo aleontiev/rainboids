@@ -126,7 +126,8 @@ export class Enemy {
                     this.pulseTimer += slowdownFactor;
                     if (this.pulseTimer > this.pulseInterval) {
                         this.pulseTimer = 0;
-                        pulseCircles.push(new PulseCircle(this.x, this.y));
+                        // Create ring of bullets instead of pulse circle
+                        this.firePulseRing(bullets);
                     }
                     break;
             }
@@ -204,7 +205,8 @@ export class Enemy {
                     this.pulseTimer++;
                     if (this.pulseTimer > this.pulseInterval) {
                         this.pulseTimer = 0;
-                        pulseCircles.push(new PulseCircle(this.x, this.y));
+                        // Create ring of bullets instead of pulse circle
+                        this.firePulseRing(bullets);
                     }
                     break;
             }
@@ -231,6 +233,27 @@ export class Enemy {
                 
                 bullets.push(new Bullet(this.x, this.y, angle, 7.5, randomColor, this.isPortrait, 6.4)); // Size 7.5, random warm color, speed 6.4
             }
+        }
+    }
+    
+    firePulseRing(bullets) {
+        // Create a ring of bullets shooting outward in all directions
+        const numBullets = 12; // Number of bullets in the ring
+        const bulletSpeed = 3;
+        const bulletSize = 8;
+        const bulletColor = '#00ff88'; // Green color for pulse bullets
+        
+        for (let i = 0; i < numBullets; i++) {
+            const angle = (i / numBullets) * Math.PI * 2; // Evenly spaced around circle
+            bullets.push(new Bullet(
+                this.x, 
+                this.y, 
+                angle, 
+                bulletSize, 
+                bulletColor, 
+                this.isPortrait, 
+                bulletSpeed
+            ));
         }
     }
     
@@ -821,10 +844,10 @@ export class MiniBoss {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle); // Add this line for rotation
         
-        // Hit flash effect
+        // Hit flash effect (red blink when damaged)
         if (this.hitFlash > 0) {
-            ctx.fillStyle = '#ffffff';
-            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = '#ff0000';
+            ctx.globalAlpha = 0.6;
             ctx.beginPath();
             ctx.arc(0, 0, this.size + 5, 0, Math.PI * 2);
             ctx.fill();
@@ -852,16 +875,7 @@ export class MiniBoss {
             ctx.globalAlpha = 1;
         }
         
-        // Secondary weapon charging effect
-        if (this.chargingSecondary > 0 && this.size > 0) {
-            ctx.strokeStyle = '#ff4444';
-            ctx.lineWidth = 3;
-            ctx.globalAlpha = this.chargingSecondary;
-            ctx.beginPath();
-            ctx.arc(0, 0, Math.max(1, this.size + 10), 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.globalAlpha = 1;
-        }
+        // Remove red charging outline effect
         
         ctx.restore();
     }

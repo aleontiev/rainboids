@@ -62,7 +62,7 @@ class BlitzGame {
     this.enemySpawnTimer = 0;
 
     // Game progression
-    this.gamePhase = 1; // 1: asteroids only, 2: enemies start, 3: increased spawn, 4: mini-boss, 5: boss dialog, 6: boss fight, 7: victory
+    this.gamePhase = 1; // 1: asteroids and enemies (0-30s), 2: miniboss spawn/battle, 3: cleanup phase, 4: boss dialog, 5: boss fight
     this.miniBosses = [];
     this.level1Boss = null;
     
@@ -841,8 +841,8 @@ class BlitzGame {
       this.player.mainWeaponLevel // Pass mainWeaponLevel
     );
 
-    // Player shooting
-    if (input.fire) {
+    // Player shooting (prevent firing during death animation)
+    if (input.fire && !this.deathAnimationActive) {
       this.player.shoot(
         this.bullets,
         this.sounds.shoot,
@@ -915,38 +915,45 @@ class BlitzGame {
     });
 
     // Update mini-bosses
-    this.miniBosses.forEach((miniBoss) => {
+    this.miniBosses.forEach((miniBoss, index) => {
+      console.log(`MiniBoss ${index}: position (${miniBoss.x}, ${miniBoss.y}), timers: primary=${miniBoss.primaryWeaponTimer}/${miniBoss.primaryWeaponCooldown}, secondary=${miniBoss.secondaryWeaponTimer}/${miniBoss.secondaryWeaponCooldown}`);
       miniBoss.update(this.player.x, this.player.y, slowdownFactor); // Pass player coordinates
 
       // Mini-boss primary weapon
       if (miniBoss.canFirePrimary()) {
+        console.log(`MiniBoss ${index} firing primary weapon at player (${this.player.x}, ${this.player.y})`);
         const bulletData = miniBoss.firePrimary(this.player.x, this.player.y); // Pass player coordinates
+        const angle = Math.atan2(bulletData.vy, bulletData.vx);
+        const speed = Math.sqrt(bulletData.vx * bulletData.vx + bulletData.vy * bulletData.vy);
         this.enemyBullets.push(
           new Bullet(
             bulletData.x,
             bulletData.y,
-            bulletData.vx,
-            bulletData.vy,
-            bulletData.type,
-            bulletData.size, // Pass size
-            bulletData.color // Pass color
+            angle,
+            bulletData.size,
+            bulletData.color,
+            this.isPortrait,
+            speed
           )
         );
+        console.log(`Created miniboss bullet: angle=${angle}, speed=${speed}, size=${bulletData.size}, color=${bulletData.color}`);
       }
 
       // Mini-boss secondary weapon
       if (miniBoss.canFireSecondary()) {
         const bulletsData = miniBoss.fireSecondary(this.player.x, this.player.y); // Pass player coordinates
         bulletsData.forEach((bulletData) => {
+          const angle = Math.atan2(bulletData.vy, bulletData.vx);
+          const speed = Math.sqrt(bulletData.vx * bulletData.vx + bulletData.vy * bulletData.vy);
           this.enemyBullets.push(
             new Bullet(
               bulletData.x,
               bulletData.y,
-              bulletData.vx,
-              bulletData.vy,
-              bulletData.type,
-              bulletData.size, // Pass size
-              bulletData.color // Pass color
+              angle,
+              bulletData.size,
+              bulletData.color,
+              this.isPortrait,
+              speed
             )
           );
         });
@@ -956,15 +963,17 @@ class BlitzGame {
       if (miniBoss.canFireCircular()) {
         const bulletsData = miniBoss.fireCircular(this.player.x, this.player.y);
         bulletsData.forEach((bulletData) => {
+          const angle = Math.atan2(bulletData.vy, bulletData.vx);
+          const speed = Math.sqrt(bulletData.vx * bulletData.vx + bulletData.vy * bulletData.vy);
           this.enemyBullets.push(
             new Bullet(
               bulletData.x,
               bulletData.y,
-              bulletData.vx,
-              bulletData.vy,
-              bulletData.type,
+              angle,
               bulletData.size,
-              bulletData.color
+              bulletData.color,
+              this.isPortrait,
+              speed
             )
           );
         });
@@ -974,15 +983,17 @@ class BlitzGame {
       if (miniBoss.canFireBurst()) {
         const bulletsData = miniBoss.fireBurst(this.player.x, this.player.y);
         bulletsData.forEach((bulletData) => {
+          const angle = Math.atan2(bulletData.vy, bulletData.vx);
+          const speed = Math.sqrt(bulletData.vx * bulletData.vx + bulletData.vy * bulletData.vy);
           this.enemyBullets.push(
             new Bullet(
               bulletData.x,
               bulletData.y,
-              bulletData.vx,
-              bulletData.vy,
-              bulletData.type,
+              angle,
               bulletData.size,
-              bulletData.color
+              bulletData.color,
+              this.isPortrait,
+              speed
             )
           );
         });
@@ -1079,7 +1090,7 @@ class BlitzGame {
     // Spawn enemies based on current phase
     this.enemySpawnTimer++;
     const enemySpawnRate = this.getEnemySpawnRate();
-    if (this.enemySpawnTimer > enemySpawnRate && this.gamePhase >= 1 && this.gamePhase <= 4) {
+    if (this.enemySpawnTimer > enemySpawnRate && this.gamePhase >= 1 && this.gamePhase <= 2) {
       this.spawnEnemy();
       this.enemySpawnTimer = 0;
     }
@@ -1175,14 +1186,16 @@ class BlitzGame {
         
         // Start boss dialog after powerups are spawned
         if (this.cleanupPhaseTimer >= 6000) {
+          this.gamePhase = 4; // Transition to phase 4: boss dialog
           this.bossDialogActive = true;
           this.showBossDialog();
+          console.log("Transitioning to Phase 4: Boss Dialog");
         }
       }
     }
 
     // Update boss fight
-    if (this.gamePhase === 6) {
+    if (this.gamePhase === 5) {
       this.updateBossFight(slowdownFactor);
     }
     
@@ -1209,7 +1222,7 @@ class BlitzGame {
       this.checkCollisions();
       
       // Check boss collisions
-      if (this.gamePhase === 6) {
+      if (this.gamePhase === 5) {
         this.checkBossCollisions();
       }
     }
@@ -2209,7 +2222,8 @@ class BlitzGame {
     this.bossDialogActive = false;
     document.getElementById('boss-dialog').style.display = 'none';
     this.gameState = 'PLAYING';
-    this.gamePhase = 6; // Boss fight phase
+    this.gamePhase = 5; // Phase 5: Boss fight phase
+    console.log("Transitioning to Phase 5: Boss Battle");
     // Show skill indicator again
     document.getElementById('skill-indicator').style.display = 'flex';
   }
