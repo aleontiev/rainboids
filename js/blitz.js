@@ -11,6 +11,10 @@ import {
 } from "./blitz/entities/enemy.js";
 import { Asteroid } from "./blitz/entities/asteroid.js";
 import { InputHandler } from "./blitz/input.js";
+import { TitleScreen } from "./blitz/title-screen.js";
+import { UIManager } from "./blitz/ui-manager.js";
+import { EffectsSystem } from "./blitz/effects-system.js";
+import { AudioManager } from "./blitz/audio-manager.js";
 
 class BlitzGame {
   constructor() {
@@ -55,9 +59,15 @@ class BlitzGame {
     this.inputHandler = new InputHandler(this.canvas);
     this.isMobile = this.detectMobile();
     
+    // Initialize modules
+    this.titleScreen = new TitleScreen(this.titleCanvas, this.titleCtx);
+    this.uiManager = new UIManager(this);
+    this.effectsSystem = new EffectsSystem(this);
+    this.audioManager = new AudioManager();
+    
     // Set up audio initialization callback for mobile
     this.inputHandler.onFirstTouch = () => {
-      this.initializeAudioOnFirstTouch();
+      this.audioManager.initializeAudioOnFirstTouch();
     };
     this.touchActive = false;
     this.touchX = 0;
@@ -100,15 +110,15 @@ class BlitzGame {
     this.timeSlowCooldown = 0;
     this.timeSlowCooldownMax = 300; // 5 seconds cooldown
     
-    // Dash cooldown tracking
-    this.dashCooldown = 0;
-    this.dashCooldownMax = 300; // 5 seconds cooldown
+    // Shield cooldown tracking
+    this.shieldCooldown = 0;
+    this.shieldCooldownMax = 300; // 5 seconds cooldown
     
     // Bomb system  
     this.bombCount = 0; // Players start with no bombs
     
     // Flash states for abilities coming off cooldown
-    this.dashFlashTimer = 0;
+    this.shieldFlashTimer = 0;
     this.timeSlowFlashTimer = 0;
 
     // New game phase system
@@ -119,13 +129,8 @@ class BlitzGame {
     this.bossDialogActive = false;
     this.gamePhase = 1;
 
-    // Title screen stars
-    this.titleScreenStars = [];
-    this.shootingStars = [];
-
     this.setupBackgroundStars();
-    this.setupTitleScreenStars();
-    this.setupAudio();
+    this.audioManager.setupAudio();
     this.setupEventListeners();
     this.setupCheatButtons();
     this.setupBossDialog();
@@ -995,13 +1000,13 @@ class BlitzGame {
       this.timeSlowCooldown -= 1;
     }
     
-    // Update dash cooldown
-    if (this.dashCooldown > 0) {
-      this.dashCooldown -= 1;
+    // Update shield cooldown
+    if (this.shieldCooldown > 0) {
+      this.shieldCooldown -= 1;
     }
     
     // Update button cooldown visuals
-    this.updateCooldownVisuals();
+    this.uiManager.updateCooldownVisuals();
 
     const input = this.inputHandler.getInput();
 
@@ -1010,7 +1015,7 @@ class BlitzGame {
       this.activateTimeSlow();
     }
     
-    // Handle Right Click for dash/shield activation
+    // Handle Right Click for shield activation
     if (input.rightClick) {
       this.activateShield();
     }
@@ -1992,7 +1997,7 @@ class BlitzGame {
 
     // Draw title screen stars
     if (this.gameState === "TITLE") {
-      this.renderTitleScreenStars();
+      this.titleScreen.render();
     }
 
     if (this.gameState === "PLAYING" || this.gameState === "PAUSED" || this.gameState === "DEATH_ANIMATION") {
@@ -2227,17 +2232,15 @@ class BlitzGame {
   }
 
   activateShield() {
-    // Trigger the player's dash ability
-    if (this.player && this.dashCooldown <= 0 && !this.player.isDashing) {
-      this.player.isDashing = true;
-      this.player.dashCooldown = 60; // 1 second player dash duration
-      this.player.dashFrames = 30; // 0.5 seconds of dash
-      this.dashCooldown = this.dashCooldownMax; // 5 second button cooldown
+    // Trigger the player's shield ability
+    if (this.player && this.shieldCooldown <= 0 && !this.player.isShielding) {
+      this.player.isShielding = true;
+      this.player.shieldCooldown = 60; // 1 second player shield duration
+      this.player.shieldFrames = 30; // 0.5 seconds of shield
+      this.shieldCooldown = this.shieldCooldownMax; // 5 second button cooldown
       
-      // Play dash sound if available
-      if (this.audioContext && this.soundEnabled) {
-        this.playSound(this.sounds.dash);
-      }
+      // Play shield sound if available
+      this.audioManager.playSound(this.audioManager.sounds.dash); // TODO: rename sound to 'shield'
     }
   }
 
@@ -2249,9 +2252,7 @@ class BlitzGame {
       this.timeSlowCooldown = this.timeSlowCooldownMax;
       
       // Play time slow sound if available
-      if (this.audioContext && this.soundEnabled) {
-        this.playSound(this.sounds.powerUp);
-      }
+      this.audioManager.playSound(this.audioManager.sounds.powerUp);
       return true; // Ability was activated
     }
     return false; // Ability was on cooldown
@@ -2304,9 +2305,9 @@ class BlitzGame {
     }
     
     // Create spectacular chain explosion effect covering entire screen
-    this.createChainExplosion();
+    this.effectsSystem.createChainExplosion();
     
-    this.updateUI();
+    this.uiManager.updateUI();
     return true; // Bomb was used
   }
   
@@ -2347,26 +2348,26 @@ class BlitzGame {
     // Update shield button cooldown
     const shieldButton = document.getElementById('shield-button');
     if (shieldButton) {
-      const wasCooldown = this.dashCooldown > 1;
-      if (this.dashCooldown > 0) {
+      const wasCooldown = this.shieldCooldown > 1;
+      if (this.shieldCooldown > 0) {
         shieldButton.classList.add('on-cooldown');
         const circle = shieldButton.querySelector('.cooldown-circle');
         if (circle) {
-          const progress = this.dashCooldown / this.dashCooldownMax;
+          const progress = this.shieldCooldown / this.shieldCooldownMax;
           circle.style.strokeDashoffset = (157 * progress).toString();
         }
       } else {
         shieldButton.classList.remove('on-cooldown');
         // Trigger flash when coming off cooldown
-        if (wasCooldown && this.dashCooldown <= 0) {
-          this.dashFlashTimer = 30; // Flash for 0.5 seconds at 60fps
+        if (wasCooldown && this.shieldCooldown <= 0) {
+          this.shieldFlashTimer = 30; // Flash for 0.5 seconds at 60fps
         }
       }
       
       // Handle flash effect
-      if (this.dashFlashTimer > 0) {
-        this.dashFlashTimer--;
-        const flashIntensity = Math.sin(this.dashFlashTimer * 0.3) * 0.5 + 0.5;
+      if (this.shieldFlashTimer > 0) {
+        this.shieldFlashTimer--;
+        const flashIntensity = Math.sin(this.shieldFlashTimer * 0.3) * 0.5 + 0.5;
         shieldButton.style.backgroundColor = `rgba(0, 255, 136, ${flashIntensity * 0.3})`;
         shieldButton.style.borderColor = `rgba(0, 255, 136, ${flashIntensity * 0.8})`;
       } else {
@@ -2865,7 +2866,7 @@ class BlitzGame {
     this.lastTime = currentTime;
 
     if (this.gameState === "TITLE") {
-      this.updateTitleScreenStars();
+      this.titleScreen.update();
     } else if (this.gameState === "PLAYING") {
       // Calculate time slow factor
       let gameSlowdownFactor = 1.0;

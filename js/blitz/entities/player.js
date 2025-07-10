@@ -11,13 +11,13 @@ export class Player {
     this.angle = 0;
     this.shootCooldown = 0;
     this.homingMissileCooldown = 0;
-    this.dashCooldown = 0;
-    this.dashDistance = GAME_CONFIG.DASH_DISTANCE;
-    this.isDashing = false;
-    this.dashFrames = 0;
-    this.dashVx = 0;
-    this.dashVy = 0;
-    this.maxDashFrames = GAME_CONFIG.DASH_FRAMES;
+    this.shieldCooldown = 0;
+    this.shieldDistance = GAME_CONFIG.DASH_DISTANCE; // TODO: rename config
+    this.isShielding = false;
+    this.shieldFrames = 0;
+    this.shieldVx = 0;
+    this.shieldVy = 0;
+    this.maxShieldFrames = GAME_CONFIG.DASH_FRAMES; // TODO: rename config
     this.shield = 0;
     this.mainWeaponLevel = 1;
     this.sideWeaponLevel = 0;
@@ -33,18 +33,18 @@ export class Player {
   }
 
   update(keys, enemies, asteroids, isPortrait, autoaimEnabled = true, mainWeaponLevel = 1, timeSlowActive = false) {
-    // Handle dash timing
-    if (this.isDashing) {
-      this.dashFrames--;
-      if (this.dashFrames <= 0) {
-        this.isDashing = false;
+    // Handle shield timing
+    if (this.isShielding) {
+      this.shieldFrames--;
+      if (this.shieldFrames <= 0) {
+        this.isShielding = false;
       }
     }
 
-    // Get current speed (decreased during dash and time slow)
+    // Get current speed (decreased during shield and time slow)
     let currentSpeed = this.speed;
-    if (this.isDashing) {
-      currentSpeed *= 0.5; // 50% speed during dash
+    if (this.isShielding) {
+      currentSpeed *= 0.5; // 50% speed during shield
     }
     if (timeSlowActive) {
       currentSpeed *= 0.5; // 50% speed during time slow
@@ -246,11 +246,11 @@ export class Player {
         }
     }
 
-    // Dash mechanic is now handled by the main game loop via activateShield()
-    // This section only handles dash state updates
+    // Shield mechanic is now handled by the main game loop via activateShield()
+    // This section only handles shield state updates
 
-    if (this.dashCooldown > 0) {
-      this.dashCooldown--;
+    if (this.shieldCooldown > 0) {
+      this.shieldCooldown--;
     }
 
     if (this.shootCooldown > 0) {
@@ -284,8 +284,8 @@ export class Player {
     HomingMissileClass,
     isPortrait
   ) {
-    // Cannot shoot while dashing
-    if (this.isDashing) {
+    // Cannot shoot while shielding
+    if (this.isShielding) {
       return;
     }
     
@@ -487,21 +487,21 @@ export class Player {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle + this.rollAngle);
 
-    // Dash fade effect - fade to completely invisible and back
+    // Shield fade effect - fade to completely invisible and back
     let shipOpacity = 1;
-    if (this.isDashing) {
-      const dashProgress =
-        (this.maxDashFrames - this.dashFrames) / this.maxDashFrames;
-      if (dashProgress < 0.5) {
+    if (this.isShielding) {
+      const shieldProgress =
+        (this.maxShieldFrames - this.shieldFrames) / this.maxShieldFrames;
+      if (shieldProgress < 0.5) {
         // Fade out in first half (1.0 -> 0.0)
-        shipOpacity = 1 - dashProgress * 2;
+        shipOpacity = 1 - shieldProgress * 2;
       } else {
         // Fade in during second half (0.0 -> 1.0)
-        shipOpacity = (dashProgress - 0.5) * 2;
+        shipOpacity = (shieldProgress - 0.5) * 2;
       }
 
       // Ensure complete invisibility at the midpoint
-      if (Math.abs(dashProgress - 0.5) < 0.1) {
+      if (Math.abs(shieldProgress - 0.5) < 0.1) {
         shipOpacity = 0;
       }
     }
@@ -509,7 +509,7 @@ export class Player {
     ctx.globalAlpha = shipOpacity;
 
     // Draw filled green arrow (2.5x visual size)
-    ctx.fillStyle = this.isDashing ? "#ffaa00" : "#00ff88"; // Gold when dashing, green normally
+    ctx.fillStyle = this.isShielding ? "#ffaa00" : "#00ff88"; // Gold when shielding, green normally
     
     const visualSize = this.size * 2.5; // 2.5x larger visual size
     
