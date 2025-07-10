@@ -29,7 +29,7 @@ export const COLORS = {
 export const GAME_CONFIG = {
     // Player settings
     PLAYER_SPEED: 6,
-    PLAYER_SIZE: 15,
+    PLAYER_SIZE: 11,
     PLAYER_HITBOX: 3,
     DASH_DISTANCE: 150,
     DASH_FRAMES: 40,
@@ -55,7 +55,7 @@ export const GAME_CONFIG = {
     ASTEROID_SIZE: 40,
     
     // Powerup settings
-    POWERUP_SPAWN_RATE: 0.005,
+    POWERUP_SPAWN_RATE: 0.01,
     POWERUP_SIZE: 20,
     
     // Audio settings

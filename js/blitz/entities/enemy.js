@@ -1452,14 +1452,15 @@ export class Level1Boss {
         const bullets = [];
         const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x); // Aim at actual player position
         
-        // Phase 1: Single bullets
+        // Phase 1: Precision single shots (First Shield Phase)
         if (this.phase === 1) {
             bullets.push({
                 x: this.x,
                 y: this.y,
-                vx: Math.cos(angleToPlayer) * 4,
-                vy: Math.sin(angleToPlayer) * 4,
-                size: 7.5, // At least as large as normal enemy bullets
+                vx: Math.cos(angleToPlayer) * 6, // Faster bullets
+                vy: Math.sin(angleToPlayer) * 6,
+                size: 10, // Larger bullets
+                color: '#ff6666', // Light red
                 type: 'boss'
             });
         }
@@ -1513,7 +1514,7 @@ export class Level1Boss {
         return this.secondaryWeaponTimer >= this.secondaryCooldown;
     }
     
-    fireSecondary() {
+    fireSecondary(playerX, playerY) {
         if (!this.canFireSecondary()) return [];
         this.secondaryWeaponTimer = 0;
         
@@ -1526,7 +1527,7 @@ export class Level1Boss {
                 type: 'laser',
                 x: this.x,
                 y: this.y,
-                angle: Math.atan2(0 - this.y, 0 - this.x),
+                angle: Math.atan2(playerY - this.y, playerX - this.x),
                 speed: this.laserSpeed, // Pass the new speed
                 length: 400,
                 color: '#ff4444'

@@ -2308,7 +2308,7 @@ class BlitzGame {
     }
     
     if (this.level1Boss.canFireSecondary()) {
-      const weaponData = this.level1Boss.fireSecondary();
+      const weaponData = this.level1Boss.fireSecondary(this.player.x, this.player.y);
       weaponData.forEach(data => {
         if (data.type === 'laser') {
           this.enemyLasers.push(new Laser(data.x, data.y, data.angle, data.speed, data.color));
