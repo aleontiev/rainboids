@@ -52,6 +52,11 @@ class BlitzGame {
 
     this.inputHandler = new InputHandler(this.canvas);
     this.isMobile = this.detectMobile();
+    
+    // Set up audio initialization callback for mobile
+    this.inputHandler.onFirstTouch = () => {
+      this.initializeAudioOnFirstTouch();
+    };
     this.touchActive = false;
     this.touchX = 0;
     this.touchY = 0;
@@ -159,10 +164,8 @@ class BlitzGame {
       dash: this.generateSfxrSound("powerUp"),
     };
 
-    // Background music
-    this.backgroundMusic = new Audio("bgm.mp3");
-    this.backgroundMusic.loop = true;
-    this.backgroundMusic.volume = 0.3;
+    // Background music (will be initialized after user interaction)
+    this.backgroundMusic = null;
     
     // Audio state tracking
     this.sfxMuted = false;
@@ -240,7 +243,7 @@ class BlitzGame {
 
     return {
       play: () => {
-        if (!this.audioReady || this.backgroundMusic.muted) return;
+        if (!this.audioReady || (this.backgroundMusic && this.backgroundMusic.muted)) return;
         try {
           sfxr.play(synthdef);
         } catch (e) {
@@ -248,6 +251,29 @@ class BlitzGame {
         }
       },
     };
+  }
+
+  initializeAudioOnFirstTouch() {
+    // Initialize audio context on first touch for mobile compatibility
+    if (!this.audioReady) {
+      this.audioReady = true;
+      
+      // Create background music object only if we're not on the title screen
+      if (this.gameState !== "TITLE" && !this.backgroundMusic) {
+        this.backgroundMusic = new Audio("bgm.mp3");
+        this.backgroundMusic.loop = true;
+        this.backgroundMusic.volume = 0.3;
+        
+        // Apply current mute state if applicable
+        if (this.musicMuted) {
+          this.backgroundMusic.muted = true;
+        }
+        
+        this.backgroundMusic
+          .play()
+          .catch((e) => console.log("Audio play failed:", e));
+      }
+    }
   }
 
   setupEventListeners() {
@@ -426,7 +452,9 @@ class BlitzGame {
         this.sfxMuted = !this.sfxMuted;
         // Also mute/unmute music when all sounds are toggled
         this.musicMuted = this.sfxMuted;
-        this.backgroundMusic.muted = this.musicMuted;
+        if (this.backgroundMusic) {
+          this.backgroundMusic.muted = this.musicMuted;
+        }
         updateVolumeIcon();
         updateMusicIcon();
       });
@@ -451,7 +479,9 @@ class BlitzGame {
       musicButton.addEventListener("click", (e) => {
         e.stopPropagation();
         this.musicMuted = !this.musicMuted;
-        this.backgroundMusic.muted = this.musicMuted;
+        if (this.backgroundMusic) {
+          this.backgroundMusic.muted = this.musicMuted;
+        }
         updateMusicIcon();
       });
       
@@ -482,9 +512,20 @@ class BlitzGame {
     document.getElementById("title-screen").style.display = "none";
     document.getElementById("game-over").style.display = "none";
 
-    // Start audio only on first game start (after user interaction)
+    // Initialize and start audio only on first game start (after user interaction)
     if (this.firstGameStart) {
       this.audioReady = true;
+      
+      // Create background music object now that user has interacted
+      this.backgroundMusic = new Audio("bgm.mp3");
+      this.backgroundMusic.loop = true;
+      this.backgroundMusic.volume = 0.3;
+      
+      // Apply current mute state if applicable
+      if (this.musicMuted) {
+        this.backgroundMusic.muted = true;
+      }
+      
       this.backgroundMusic
         .play()
         .catch((e) => console.log("Audio play failed:", e));
@@ -538,7 +579,7 @@ class BlitzGame {
     this.bossDialogActive = false; // Reset boss dialog active flag
 
     // Resume audio if it was already initialized
-    if (this.audioReady && this.backgroundMusic.paused) {
+    if (this.audioReady && this.backgroundMusic && this.backgroundMusic.paused) {
       this.backgroundMusic.play().catch((e) => console.log("Audio resume failed:", e));
     }
     
@@ -699,7 +740,7 @@ class BlitzGame {
       case 1:
         return 120; // Phase 1: Every 2 seconds
       case 2:
-        return 90; // Phase 2: Reduced during miniboss fight
+        return 180; // Phase 2: Much less frequent during miniboss fight (every 3 seconds)
       case 3:
         return 80; // Phase 3: Cleanup phase
       case 4:
@@ -916,12 +957,10 @@ class BlitzGame {
 
     // Update mini-bosses
     this.miniBosses.forEach((miniBoss, index) => {
-      console.log(`MiniBoss ${index}: position (${miniBoss.x}, ${miniBoss.y}), timers: primary=${miniBoss.primaryWeaponTimer}/${miniBoss.primaryWeaponCooldown}, secondary=${miniBoss.secondaryWeaponTimer}/${miniBoss.secondaryWeaponCooldown}`);
       miniBoss.update(this.player.x, this.player.y, slowdownFactor); // Pass player coordinates
 
       // Mini-boss primary weapon
       if (miniBoss.canFirePrimary()) {
-        console.log(`MiniBoss ${index} firing primary weapon at player (${this.player.x}, ${this.player.y})`);
         const bulletData = miniBoss.firePrimary(this.player.x, this.player.y); // Pass player coordinates
         const angle = Math.atan2(bulletData.vy, bulletData.vx);
         const speed = Math.sqrt(bulletData.vx * bulletData.vx + bulletData.vy * bulletData.vy);
@@ -936,7 +975,6 @@ class BlitzGame {
             speed
           )
         );
-        console.log(`Created miniboss bullet: angle=${angle}, speed=${speed}, size=${bulletData.size}, color=${bulletData.color}`);
       }
 
       // Mini-boss secondary weapon
@@ -999,9 +1037,9 @@ class BlitzGame {
         });
       }
 
-      // Mini-boss dive enemy spawn
-      if (miniBoss.canFireDiveEnemy()) {
-        const enemyData = miniBoss.fireDiveEnemy(this.player.x, this.player.y); // Pass player coordinates
+      // Mini-boss small enemy spawn
+      if (miniBoss.canSpawnEnemy()) {
+        const enemyData = miniBoss.spawnEnemy(this.player.x, this.player.y); // Pass player coordinates
         this.enemies.push(
           new Enemy(
             enemyData.x,
@@ -1152,6 +1190,9 @@ class BlitzGame {
           new MiniBoss(betaX, betaY, "beta", this.isPortrait, this.canvas.width)
         );
 
+        // Spawn extra powerup when minibosses appear
+        this.spawnPowerup();
+
         console.log("Mini-bosses spawned, total:", this.miniBosses.length);
         this.gamePhase = 2; // Mini-boss phase (phase 2 in the new system)
       } catch (error) {
@@ -1162,9 +1203,11 @@ class BlitzGame {
     // Handle Phase 3: Cleanup phase after minibosses are defeated
     if (this.gamePhase === 3) {
       this.cleanupPhaseTimer += deltaTime;
+      console.log(`Cleanup phase running: timer=${this.cleanupPhaseTimer}, powerupsSpawned=${this.cleanupPowerupsSpawned}`);
       
-      // Explode all remaining enemies immediately
-      if (this.cleanupPhaseTimer === 0) {
+      // Explode all remaining enemies immediately (only once)
+      if (!this.cleanupEnemiesExploded) {
+        this.cleanupEnemiesExploded = true;
         for (let i = this.enemies.length - 1; i >= 0; i--) {
           const enemy = this.enemies[i];
           this.createEnemyExplosion(enemy.x, enemy.y);
@@ -1401,7 +1444,9 @@ class BlitzGame {
             if (this.miniBosses.length === 0) {
               this.miniBossesDefeated = true;
               this.cleanupPhaseTimer = 0;
-              console.log("All mini-bosses defeated! Starting cleanup phase.");
+              this.cleanupEnemiesExploded = false; // Flag to track if we've exploded enemies
+              this.gamePhase = 3; // Transition to cleanup phase
+              console.log("All mini-bosses defeated! Starting cleanup phase - transitioning to phase 3");
             }
           }
 
@@ -2250,7 +2295,7 @@ class BlitzGame {
     
     // Boss weapons
     if (this.level1Boss.canFirePrimary()) {
-      const bulletsData = this.level1Boss.firePrimary();
+      const bulletsData = this.level1Boss.firePrimary(this.player.x, this.player.y);
       bulletsData.forEach(bulletData => {
         this.enemyBullets.push(new Bullet(
           bulletData.x,

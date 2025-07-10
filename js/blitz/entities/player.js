@@ -41,8 +41,8 @@ export class Player {
       }
     }
 
-    // Get current speed (increased during dash)
-    const currentSpeed = this.isDashing ? this.speed * 2 : this.speed;
+    // Get current speed (decreased during phase-out)
+    const currentSpeed = this.isDashing ? this.speed * 0.5 : this.speed;
 
     // Handle movement - prioritize touch for mobile, keyboard for desktop
     if (keys.target) {
@@ -506,49 +506,19 @@ export class Player {
 
     ctx.globalAlpha = shipOpacity;
 
-    // Draw intricate ship design
-    ctx.strokeStyle = this.isDashing ? "#ffaa00" : "#00ff88"; // Gold when dashing, cool green normally
-    ctx.lineWidth = 2;
-
-    // Main hull
+    // Draw filled green arrow (2.5x visual size)
+    ctx.fillStyle = this.isDashing ? "#ffaa00" : "#00ff88"; // Gold when dashing, green normally
+    
+    const visualSize = this.size * 2.5; // 2.5x larger visual size
+    
+    // Simple arrow shape
     ctx.beginPath();
-    ctx.moveTo(this.size, 0);
-    ctx.lineTo(-this.size, -this.size / 2);
-    ctx.lineTo(-this.size / 2, 0);
-    ctx.lineTo(-this.size, this.size / 2);
+    ctx.moveTo(visualSize, 0); // Arrow tip
+    ctx.lineTo(-visualSize / 2, -visualSize / 2); // Top left
+    ctx.lineTo(-visualSize / 4, 0); // Middle left
+    ctx.lineTo(-visualSize / 2, visualSize / 2); // Bottom left
     ctx.closePath();
-    ctx.stroke();
-
-    // Wing details
-    ctx.beginPath();
-    ctx.moveTo(-this.size / 2, -this.size / 3);
-    ctx.lineTo(-this.size / 4, -this.size / 4);
-    ctx.lineTo(0, -this.size / 6);
-    ctx.moveTo(-this.size / 2, this.size / 3);
-    ctx.lineTo(-this.size / 4, this.size / 4);
-    ctx.lineTo(0, this.size / 6);
-    ctx.stroke();
-
-    // Cockpit
-    ctx.beginPath();
-    ctx.arc(this.size / 3, 0, this.size / 6, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Engine exhausts
-    ctx.beginPath();
-    ctx.moveTo(-this.size, -this.size / 4);
-    ctx.lineTo(-this.size * 1.2, -this.size / 4);
-    ctx.moveTo(-this.size, this.size / 4);
-    ctx.lineTo(-this.size * 1.2, this.size / 4);
-    ctx.stroke();
-
-    // Nose cone detail
-    ctx.beginPath();
-    ctx.moveTo(this.size, 0);
-    ctx.lineTo(this.size / 2, -this.size / 8);
-    ctx.lineTo(this.size / 2, this.size / 8);
-    ctx.closePath();
-    ctx.stroke();
+    ctx.fill();
 
     // Dash trail effect removed for cleaner dash visual
 
@@ -558,7 +528,7 @@ export class Player {
       ctx.strokeStyle = "#00aaff"; // Cool blue
       ctx.lineWidth = 4; // Thicker shield
       ctx.beginPath();
-      ctx.arc(0, 0, this.size + 10, 0, Math.PI * 2); // Slightly larger
+      ctx.arc(0, 0, visualSize + 10, 0, Math.PI * 2); // Slightly larger than visual ship
       ctx.stroke();
 
       // Inner shield glow
@@ -566,7 +536,7 @@ export class Player {
       ctx.strokeStyle = "#88ccff";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(0, 0, this.size + 8, 0, Math.PI * 2);
+      ctx.arc(0, 0, visualSize + 8, 0, Math.PI * 2);
       ctx.stroke();
     }
 
@@ -576,7 +546,7 @@ export class Player {
       ctx.strokeStyle = "#ffff00"; // Golden glow
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(0, 0, this.size + 15, 0, Math.PI * 2);
+      ctx.arc(0, 0, visualSize + 15, 0, Math.PI * 2);
       ctx.stroke();
 
       // Pulsing effect
@@ -584,7 +554,7 @@ export class Player {
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(0, 0, this.size + 17, 0, Math.PI * 2);
+      ctx.arc(0, 0, visualSize + 17, 0, Math.PI * 2);
       ctx.stroke();
     }
 
@@ -608,12 +578,13 @@ export class Player {
       ctx.strokeStyle = "#8844ff"; // Cool purple
       ctx.lineWidth = 2;
 
-      // Simplified second ship design
+      // Simplified second ship design (using same visual size scaling)
+      const secondShipVisualSize = this.size * 2.5 * 0.8; // Same scaling as main ship
       ctx.beginPath();
-      ctx.moveTo(this.size * 0.8, 0);
-      ctx.lineTo(-this.size * 0.8, -this.size / 3);
-      ctx.lineTo(-this.size * 0.4, 0);
-      ctx.lineTo(-this.size * 0.8, this.size / 3);
+      ctx.moveTo(secondShipVisualSize, 0);
+      ctx.lineTo(-secondShipVisualSize, -secondShipVisualSize / 2.4);
+      ctx.lineTo(-secondShipVisualSize * 0.5, 0);
+      ctx.lineTo(-secondShipVisualSize, secondShipVisualSize / 2.4);
       ctx.closePath();
       ctx.stroke();
 

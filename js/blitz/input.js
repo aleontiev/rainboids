@@ -19,6 +19,8 @@ export class InputHandler {
 
     this.joystickActive = false;
     this.joystickMaxDist = 0;
+    this.firstTouch = true;
+    this.onFirstTouch = null;
 
     this.setupKeyboardControls();
     this.setupTouchControls();
@@ -114,6 +116,16 @@ export class InputHandler {
 
   handleTouch(evt) {
     evt.preventDefault();
+    
+    // Initialize audio context on first touch (mobile requirement)
+    if (this.firstTouch) {
+      this.firstTouch = false;
+      // Notify game that audio can be initialized
+      if (this.onFirstTouch) {
+        this.onFirstTouch();
+      }
+    }
+    
     const touchPos = this.getTouchPos(evt);
     this.input.target = touchPos;
     this.input.fire = true;

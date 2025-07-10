@@ -573,8 +573,8 @@ export class MiniBoss {
         this.hitFlash = 0;
         this.chargingSecondary = 0;
         this.playerRef = null; // To store player reference for aiming
-        this.diveSpawnTimer = 0;
-        this.diveSpawnCooldown = 300; // 5 seconds cooldown for spawning divers
+        this.enemySpawnTimer = 0;
+        this.enemySpawnCooldown = 200; // 3.3 seconds cooldown for spawning enemies (faster than before)
     }
     
     update(playerX, playerY, slowdownFactor = 1.0) {
@@ -630,7 +630,7 @@ export class MiniBoss {
         this.secondaryWeaponTimer += slowdownFactor;
         this.circularWeaponTimer += slowdownFactor;
         this.burstWeaponTimer += slowdownFactor;
-        this.diveSpawnTimer += slowdownFactor; // Increment dive spawn timer
+        this.enemySpawnTimer += slowdownFactor; // Increment enemy spawn timer
         
         // Reduce hit flash
         if (this.hitFlash > 0) {
@@ -644,11 +644,11 @@ export class MiniBoss {
             this.chargingSecondary = 0;
         }
 
-        // Spawn dive enemy periodically
-        if (this.canFireDiveEnemy()) {
+        // Spawn enemy periodically
+        if (this.canSpawnEnemy()) {
             // This will be handled in BlitzGame.update()
             // We just reset the timer here
-            this.diveSpawnTimer = 0;
+            this.enemySpawnTimer = 0;
         }
     }
     
@@ -689,14 +689,14 @@ export class MiniBoss {
     firePrimary(playerX, playerY) { // Added playerX, playerY
         this.primaryWeaponTimer = 0;
         const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x); // Calculate angle to player
-        const bulletSpeed = 5; // Adjust as needed
+        const bulletSpeed = 2; // Further reduced speed
         // Return bullet data for the main game to create
         return {
             x: this.x, // Fire from center of miniboss
             y: this.y, // Fire from center of miniboss
             vx: Math.cos(angleToPlayer) * bulletSpeed, // Aim at player
             vy: Math.sin(angleToPlayer) * bulletSpeed, // Aim at player
-            size: 20, // Even larger projectiles
+            size: 12, // Smaller projectiles
             color: '#ff0000', // Red color
             type: 'miniBossPrimary'
         };
@@ -707,19 +707,19 @@ export class MiniBoss {
         this.chargingSecondary = 0;
         const bullets = [];
         const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x); // Calculate angle to player
-        const bulletSpeed = 4; // Slightly slower for spread
+        const bulletSpeed = 1.8; // Further reduced speed for spread
         
         if (this.type === 'alpha') {
-            // Alpha: Wide spread of 7 bullets
-            const spreadAngle = 0.25; // Tighter spread
-            for (let i = -3; i <= 3; i++) {
+            // Alpha: Further reduced spread of 3 bullets
+            const spreadAngle = 0.2; // Tighter spread
+            for (let i = -1; i <= 1; i++) {
                 const angle = angleToPlayer + i * spreadAngle;
                 bullets.push({
                     x: this.x,
                     y: this.y,
                     vx: Math.cos(angle) * bulletSpeed,
                     vy: Math.sin(angle) * bulletSpeed,
-                    size: 18, // Large projectiles for spread
+                    size: 10, // Smaller projectiles for spread
                     color: '#ff0000', // Red color
                     type: 'miniBossSecondary'
                 });
@@ -735,7 +735,7 @@ export class MiniBoss {
                     y: this.y + offsetY,
                     vx: Math.cos(angleToPlayer) * bulletSpeed,
                     vy: Math.sin(angleToPlayer) * bulletSpeed,
-                    size: 22, // Larger projectiles
+                    size: 12, // Smaller projectiles
                     color: '#4400ff', // Blue color for beta
                     type: 'miniBossSecondary'
                 });
@@ -744,21 +744,32 @@ export class MiniBoss {
         return bullets;
     }
 
-    canFireDiveEnemy() {
-        return this.diveSpawnTimer >= this.diveSpawnCooldown;
+    canSpawnEnemy() {
+        return this.enemySpawnTimer >= this.enemySpawnCooldown;
     }
     
-    fireDiveEnemy(playerX, playerY) {
-        this.diveSpawnTimer = 0;
-        // Spawn a faster dive enemy
-        const fasterDiveSpeed = 3; // Adjust as needed
+    spawnEnemy(playerX, playerY) {
+        this.enemySpawnTimer = 0;
+        
+        // Randomly choose enemy type
+        const enemyTypes = ['straight', 'sine', 'zigzag', 'dive'];
+        const randomType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+        
+        // Adjust speed based on enemy type
+        let speed = 2; // Base speed
+        if (randomType === 'dive') {
+            speed = 3; // Faster dive enemies
+        } else if (randomType === 'straight') {
+            speed = 2.5; // Slightly faster straight enemies
+        }
+        
         return {
             x: this.x,
             y: this.y,
-            type: 'dive',
+            type: randomType,
             isPortrait: this.isPortrait,
-            speed: fasterDiveSpeed,
-            targetX: playerX, // Pass player's current position as target
+            speed: speed,
+            targetX: playerX, // Pass player's current position as target for dive enemies
             targetY: playerY
         };
     }
@@ -770,11 +781,11 @@ export class MiniBoss {
     fireCircular(playerX, playerY) {
         this.circularWeaponTimer = 0;
         const bullets = [];
-        const bulletSpeed = 3;
+        const bulletSpeed = 1.5; // Further reduced speed
         
         if (this.type === 'alpha') {
             // Alpha: Full 360 degree spiral
-            const numBullets = 16; // More bullets for alpha
+            const numBullets = 12; // Reduced bullets for alpha
             for (let i = 0; i < numBullets; i++) {
                 const angle = (i / numBullets) * Math.PI * 2;
                 bullets.push({
@@ -782,15 +793,15 @@ export class MiniBoss {
                     y: this.y,
                     vx: Math.cos(angle) * bulletSpeed,
                     vy: Math.sin(angle) * bulletSpeed,
-                    size: 16, // Large projectiles
+                    size: 10, // Smaller projectiles
                     color: '#ff4400', // Orange-red color
                     type: 'miniBossCircular'
                 });
             }
         } else {
-            // Beta: Rotating cross pattern
+            // Beta: Reduced rotating cross pattern
             const numArms = 4;
-            const bulletsPerArm = 3;
+            const bulletsPerArm = 2; // Reduced from 3 to 2
             for (let arm = 0; arm < numArms; arm++) {
                 const baseAngle = (arm / numArms) * Math.PI * 2 + (this.frameCount * 0.05); // Rotating
                 for (let i = 0; i < bulletsPerArm; i++) {
@@ -802,7 +813,7 @@ export class MiniBoss {
                         y: y,
                         vx: Math.cos(baseAngle) * bulletSpeed,
                         vy: Math.sin(baseAngle) * bulletSpeed,
-                        size: 14, // Slightly smaller for cross pattern
+                        size: 8, // Smaller for cross pattern
                         color: '#4400ff', // Blue color for beta
                         type: 'miniBossCircular'
                     });
@@ -820,10 +831,10 @@ export class MiniBoss {
         this.burstWeaponTimer = 0;
         const bullets = [];
         const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x);
-        const bulletSpeed = 6;
+        const bulletSpeed = 2.5; // Further reduced speed
         
-        // Fire 6 bullets in rapid succession (simulated by slight angle variations)
-        for (let i = 0; i < 6; i++) {
+        // Fire 2 bullets in rapid succession (simulated by slight angle variations)
+        for (let i = 0; i < 2; i++) {
             const angleVariation = (Math.random() - 0.5) * 0.1; // Small random spread
             const angle = angleToPlayer + angleVariation;
             bullets.push({
@@ -831,7 +842,7 @@ export class MiniBoss {
                 y: this.y,
                 vx: Math.cos(angle) * bulletSpeed,
                 vy: Math.sin(angle) * bulletSpeed,
-                size: 17, // Larger burst projectiles
+                size: 10, // Smaller burst projectiles
                 color: '#ff8800', // Bright orange color for distinction
                 type: 'miniBossBurst'
             });
@@ -1325,7 +1336,7 @@ export class Level1Boss {
         this.canvasWidth = canvasWidth;
         this.canvasHeight = canvasHeight;
         this.size = 120; // Very large boss
-        this.maxHealth = 200; // Reduced health for phase 3
+        this.maxHealth = 2000; // 10x increased health (was 200)
         this.health = this.maxHealth;
         this.frameCount = 0;
         
@@ -1339,11 +1350,11 @@ export class Level1Boss {
         this.startX = this.targetX;
         this.startY = this.targetY;
         
-        // Shield system - 2 shields of 100 each
-        this.shield = 200; // Total shield: 100 + 100
-        this.maxShield = 200;
-        this.shieldPhase1 = 100; // First shield
-        this.shieldPhase2 = 100; // Second shield
+        // Shield system - 2 shields of 1000 each (10x increased)
+        this.shield = 2000; // Total shield: 1000 + 1000
+        this.maxShield = 2000;
+        this.shieldPhase1 = 1000; // First shield (10x increased)
+        this.shieldPhase2 = 1000; // Second shield (10x increased)
         
         // Attack phases - now correspond to shield destruction
         this.phase = 1; // Phase 1: First shield, Phase 2: Second shield, Phase 3: Health
@@ -1434,12 +1445,12 @@ export class Level1Boss {
         return this.primaryWeaponTimer >= this.primaryCooldown;
     }
     
-    firePrimary() {
+    firePrimary(playerX, playerY) {
         if (!this.canFirePrimary()) return [];
         this.primaryWeaponTimer = 0;
         
         const bullets = [];
-        const angleToPlayer = Math.atan2(0 - this.y, 0 - this.x); // Aim at approximate player area
+        const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x); // Aim at actual player position
         
         // Phase 1: Single bullets
         if (this.phase === 1) {
