@@ -531,7 +531,7 @@ export class Enemy {
 }
 
 export class MiniBoss {
-    constructor(x, y, type, isPortrait, canvasWidth = 800) {
+    constructor(x, y, type, isPortrait, canvasWidth = 700) {
         this.x = x;
         this.y = y;
         this.type = type; // 'alpha' or 'beta'
@@ -557,15 +557,15 @@ export class MiniBoss {
         this.secondaryWeaponTimer = 0;
         this.circularWeaponTimer = 0;
         this.burstWeaponTimer = 0;
-        this.primaryWeaponCooldown = 15; // 0.25 seconds at 60fps (even faster)
-        this.secondaryWeaponCooldown = 45; // 0.75 seconds at 60fps (faster)
+        this.primaryWeaponCooldown = 60; // 0.25 seconds at 60fps (even faster)
+        this.secondaryWeaponCooldown = 90; // 0.75 seconds at 60fps (faster)
         this.circularWeaponCooldown = 120; // 2 seconds at 60fps (faster circular)
         this.burstWeaponCooldown = 90; // 1.5 seconds at 60fps (faster burst)
         
         // Shield system
         this.godMode = true; // Start with god mode (invincible)
         this.godModeTimer = 0;
-        this.godModeDuration = 300; // 5 seconds at 60fps
+        this.godModeDuration = 1000; // 5 seconds at 60fps
         this.shield = 50; // 50 shield after god mode ends
         this.maxShield = 50;
         

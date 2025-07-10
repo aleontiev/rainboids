@@ -55,8 +55,8 @@ export const GAME_CONFIG = {
     ASTEROID_SIZE: 40,
     
     // Powerup settings
-    POWERUP_SPAWN_RATE: 0.01,
-    POWERUP_SIZE: 20,
+    POWERUP_SPAWN_RATE: 0.02,
+    POWERUP_SIZE: 25,
     
     // Audio settings
     AUDIO_VOLUME: 0.1,

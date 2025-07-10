@@ -1596,6 +1596,9 @@ class BlitzGame {
   }
 
   checkCollision(obj1, obj2) {
+    if (!obj1 || !obj2) {
+        return false;
+    }
     const dx = obj1.x - obj2.x;
     const dy = obj1.y - obj2.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
