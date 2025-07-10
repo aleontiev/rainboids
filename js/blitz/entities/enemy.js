@@ -1471,41 +1471,8 @@ export class Level1Boss {
             ctx.globalAlpha = 0.5;
         }
         
-        // Main boss body - large menacing design
-        ctx.strokeStyle = this.isDefeated ? '#666666' : '#ff4444';
-        ctx.fillStyle = this.isDefeated ? '#333333' : '#cc2222';
-        ctx.lineWidth = 4;
-        
-        // Core body
-        ctx.beginPath();
-        ctx.arc(0, 0, this.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        
-        // Inner details
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(0, 0, this.size * 0.7, 0, Math.PI * 2);
-        ctx.stroke();
-        
-        // Weapon hardpoints
-        for (let i = 0; i < 6; i++) {
-            const angle = (i / 6) * Math.PI * 2;
-            const x = Math.cos(angle) * this.size * 0.8;
-            const y = Math.sin(angle) * this.size * 0.8;
-            
-            ctx.fillStyle = '#ffff00';
-            ctx.beginPath();
-            ctx.arc(x, y, 8, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        
-        // Central eye/core
-        ctx.fillStyle = '#00ffff';
-        ctx.beginPath();
-        ctx.arc(0, 0, this.size * 0.2, 0, Math.PI * 2);
-        ctx.fill();
+        // Draw giant miniboss-style ship (scaled up Alpha design)
+        this.drawGiantMiniBoss(ctx);
         
         // Pulsing effect based on phase
         if (this.phase >= 2) {
@@ -1521,6 +1488,120 @@ export class Level1Boss {
         
         // Health bar
         this.renderHealthBar(ctx);
+    }
+    
+    drawGiantMiniBoss(ctx) {
+        // Giant Alpha mini-boss design with angry eyes
+        const baseColor = this.isDefeated ? '#666666' : '#ff4444';
+        const lightColor = this.isDefeated ? '#999999' : '#ffaaaa';
+        const weaponColor = this.isDefeated ? '#444444' : '#ff6666';
+        
+        ctx.fillStyle = baseColor;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 4;
+        
+        // Main hull (scaled up from miniboss)
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.8, -this.size * 0.3, this.size * 1.6, this.size * 0.6);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Command tower
+        ctx.fillStyle = lightColor;
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.2, -this.size * 0.5, this.size * 0.6, this.size * 1.0);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Weapon arrays (larger and more menacing)
+        ctx.fillStyle = weaponColor;
+        ctx.beginPath();
+        ctx.rect(this.size * 0.5, -this.size * 0.5, this.size * 0.4, this.size * 0.25);
+        ctx.rect(this.size * 0.5, this.size * 0.25, this.size * 0.4, this.size * 0.25);
+        ctx.rect(-this.size * 0.9, -this.size * 0.4, this.size * 0.3, this.size * 0.2);
+        ctx.rect(-this.size * 0.9, this.size * 0.2, this.size * 0.3, this.size * 0.2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Additional armor plating
+        ctx.fillStyle = baseColor;
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.6, -this.size * 0.7, this.size * 0.4, this.size * 0.15);
+        ctx.rect(-this.size * 0.6, this.size * 0.55, this.size * 0.4, this.size * 0.15);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Engine glow (larger)
+        ctx.fillStyle = '#ffaa00';
+        ctx.beginPath();
+        ctx.arc(-this.size * 0.8, -this.size * 0.2, this.size * 0.15, 0, Math.PI * 2);
+        ctx.arc(-this.size * 0.8, this.size * 0.2, this.size * 0.15, 0, Math.PI * 2);
+        ctx.arc(-this.size * 0.8, 0, this.size * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // ANGRY EYES on the command tower
+        this.drawAngryEyes(ctx);
+    }
+    
+    drawAngryEyes(ctx) {
+        const eyeColor = this.isDefeated ? '#444444' : '#ff0000';
+        const pupilColor = this.isDefeated ? '#222222' : '#000000';
+        
+        // Left angry eye
+        ctx.fillStyle = eyeColor;
+        ctx.beginPath();
+        ctx.ellipse(-this.size * 0.1, -this.size * 0.15, this.size * 0.08, this.size * 0.06, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Left pupil
+        ctx.fillStyle = pupilColor;
+        ctx.beginPath();
+        ctx.arc(-this.size * 0.12, -this.size * 0.12, this.size * 0.03, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Right angry eye
+        ctx.fillStyle = eyeColor;
+        ctx.beginPath();
+        ctx.ellipse(this.size * 0.1, -this.size * 0.15, this.size * 0.08, this.size * 0.06, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Right pupil
+        ctx.fillStyle = pupilColor;
+        ctx.beginPath();
+        ctx.arc(this.size * 0.12, -this.size * 0.12, this.size * 0.03, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Angry eyebrows
+        ctx.strokeStyle = this.isDefeated ? '#666666' : '#ff0000';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        // Left eyebrow (angled down toward center)
+        ctx.moveTo(-this.size * 0.18, -this.size * 0.25);
+        ctx.lineTo(-this.size * 0.05, -this.size * 0.22);
+        // Right eyebrow (angled down toward center)
+        ctx.moveTo(this.size * 0.18, -this.size * 0.25);
+        ctx.lineTo(this.size * 0.05, -this.size * 0.22);
+        ctx.stroke();
+        
+        // Angry mouth/grille
+        ctx.strokeStyle = this.isDefeated ? '#666666' : '#ff4444';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Downward curved mouth
+        ctx.moveTo(-this.size * 0.12, this.size * 0.05);
+        ctx.quadraticCurveTo(0, this.size * 0.15, this.size * 0.12, this.size * 0.05);
+        ctx.stroke();
+        
+        // Additional anger lines on the hull
+        ctx.strokeStyle = this.isDefeated ? '#555555' : '#ff6666';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Diagonal anger marks
+        ctx.moveTo(-this.size * 0.25, -this.size * 0.4);
+        ctx.lineTo(-this.size * 0.15, -this.size * 0.3);
+        ctx.moveTo(this.size * 0.25, -this.size * 0.4);
+        ctx.lineTo(this.size * 0.15, -this.size * 0.3);
+        ctx.stroke();
     }
     
     renderHealthBar(ctx) {

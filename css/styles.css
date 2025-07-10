@@ -770,6 +770,26 @@ body {
   max-width: 400px;
 }
 
+@media (max-width: 768px) {
+  .action-buttons {
+    flex-wrap: nowrap;
+    gap: 10px;
+    justify-content: space-between;
+    max-width: 100%;
+  }
+  
+  .icon-button {
+    width: 50px;
+    height: 50px;
+    padding: 10px;
+  }
+  
+  .icon-button i {
+    width: 20px;
+    height: 20px;
+  }
+}
+
 .icon-button {
   background: none;
   border: none;

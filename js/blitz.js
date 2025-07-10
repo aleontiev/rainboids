@@ -83,8 +83,15 @@ class BlitzGame {
     
     // Audio state
     this.firstGameStart = true; // Track if this is the first game start
+    this.musicEnabled = true; // Default music on
+    this.soundEnabled = true; // Default sound on
+
+    // Title screen stars
+    this.titleScreenStars = [];
+    this.shootingStars = [];
 
     this.setupBackgroundStars();
+    this.setupTitleScreenStars();
     this.setupAudio();
     this.setupEventListeners();
     this.setupCheatButtons();
@@ -241,6 +248,24 @@ class BlitzGame {
         this.restartGame();
       }
     });
+
+    // Start button
+    const startBtn = document.getElementById("start-button");
+    if (startBtn) {
+      startBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.gameState === "TITLE") {
+          this.startGame();
+        }
+      });
+      startBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.gameState === "TITLE") {
+          this.startGame();
+        }
+      });
+    }
 
     // Restart button
     const restartBtn = document.getElementById("restart-btn");
@@ -537,6 +562,80 @@ class BlitzGame {
         opacity: 0.3 + Math.random() * 0.7,
       });
     }
+  }
+
+  setupTitleScreenStars() {
+    this.titleScreenStars = [];
+    // Create small white twinkling stars for title screen
+    for (let i = 0; i < 100; i++) {
+      this.titleScreenStars.push({
+        x: Math.random() * this.canvas.width,
+        y: Math.random() * this.canvas.height,
+        size: Math.random() * 2 + 1,
+        opacity: Math.random() * 0.8 + 0.2,
+        twinkle: Math.random() * Math.PI * 2,
+        twinkleSpeed: Math.random() * 0.03 + 0.01,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.02,
+        color: "#ffffff"
+      });
+    }
+  }
+
+  spawnShootingStar() {
+    // Spawn from top right area
+    const x = this.canvas.width + Math.random() * 200;
+    const y = -Math.random() * 200;
+    const speed = 3 + Math.random() * 2;
+    const angle = Math.PI * 1.25; // 225 degrees, towards bottom left
+    
+    this.shootingStars.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: 3 + Math.random() * 2,
+      color: `hsl(${Math.random() * 360}, 100%, 70%)`, // Random rainbow color
+      life: 1.0,
+      fadeSpeed: 0.005 + Math.random() * 0.01,
+      trail: []
+    });
+  }
+
+  updateTitleScreenStars() {
+    // Update twinkling white stars
+    this.titleScreenStars.forEach(star => {
+      star.twinkle += star.twinkleSpeed;
+      star.rotation += star.rotationSpeed;
+    });
+
+    // Spawn shooting stars occasionally
+    if (Math.random() < 0.01) { // 1% chance per frame
+      this.spawnShootingStar();
+    }
+
+    // Update shooting stars
+    this.shootingStars.forEach((star, index) => {
+      // Store current position in trail
+      star.trail.push({ x: star.x, y: star.y, life: star.life });
+      
+      // Limit trail length
+      if (star.trail.length > 15) {
+        star.trail.shift();
+      }
+      
+      // Update position
+      star.x += star.vx;
+      star.y += star.vy;
+      
+      // Fade out
+      star.life -= star.fadeSpeed;
+      
+      // Remove if faded out or off screen
+      if (star.life <= 0 || star.x < -100 || star.y > this.canvas.height + 100) {
+        this.shootingStars.splice(index, 1);
+      }
+    });
   }
 
   spawnPowerup() {
@@ -1680,6 +1779,12 @@ class BlitzGame {
 
       this.ctx.restore();
     });
+
+    // Draw title screen stars
+    if (this.gameState === "TITLE") {
+      this.renderTitleScreenStars();
+    }
+
     if (this.gameState === "PLAYING" || this.gameState === "PAUSED" || this.gameState === "DEATH_ANIMATION") {
       // Draw powerups
       this.powerups.forEach((powerup) => powerup.render(this.ctx));
@@ -1725,6 +1830,59 @@ class BlitzGame {
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
       }
     }
+  }
+
+  renderTitleScreenStars() {
+    // Render twinkling white stars
+    this.titleScreenStars.forEach((star) => {
+      this.ctx.save();
+      this.ctx.translate(star.x, star.y);
+      this.ctx.rotate(star.rotation);
+
+      const twinkleOpacity = star.opacity * (0.5 + 0.5 * Math.sin(star.twinkle));
+      this.ctx.globalAlpha = twinkleOpacity;
+      
+      // Draw rotating plus sign
+      this.ctx.strokeStyle = star.color;
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, -star.size);
+      this.ctx.lineTo(0, star.size);
+      this.ctx.moveTo(-star.size, 0);
+      this.ctx.lineTo(star.size, 0);
+      this.ctx.stroke();
+
+      this.ctx.restore();
+    });
+
+    // Render shooting stars with trails
+    this.shootingStars.forEach((star) => {
+      // Draw trail
+      for (let i = 0; i < star.trail.length; i++) {
+        const trailPoint = star.trail[i];
+        const trailOpacity = (i / star.trail.length) * trailPoint.life * 0.8;
+        
+        this.ctx.save();
+        this.ctx.globalAlpha = trailOpacity;
+        this.ctx.fillStyle = star.color;
+        const trailSize = star.size * (i / star.trail.length) * 0.5;
+        this.ctx.fillRect(trailPoint.x - trailSize/2, trailPoint.y - trailSize/2, trailSize, trailSize);
+        this.ctx.restore();
+      }
+      
+      // Draw main star
+      this.ctx.save();
+      this.ctx.globalAlpha = star.life;
+      this.ctx.fillStyle = star.color;
+      this.ctx.fillRect(star.x - star.size/2, star.y - star.size/2, star.size, star.size);
+      
+      // Add glow effect
+      this.ctx.shadowColor = star.color;
+      this.ctx.shadowBlur = 8;
+      this.ctx.fillRect(star.x - star.size/2, star.y - star.size/2, star.size, star.size);
+      
+      this.ctx.restore();
+    });
   }
 
   renderTargetIndicator() {
@@ -1859,6 +2017,30 @@ class BlitzGame {
       e.preventDefault();
       toggleAutoaim();
     });
+
+    // Music toggle button with touch support
+    const musicBtn = document.getElementById("music-btn");
+    const toggleMusic = () => {
+      this.musicEnabled = !this.musicEnabled;
+      this.updateCheatButtons();
+    };
+    musicBtn.addEventListener("click", toggleMusic);
+    musicBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      toggleMusic();
+    });
+
+    // Volume toggle button with touch support
+    const volumeBtn = document.getElementById("volume-btn");
+    const toggleVolume = () => {
+      this.soundEnabled = !this.soundEnabled;
+      this.updateCheatButtons();
+    };
+    volumeBtn.addEventListener("click", toggleVolume);
+    volumeBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      toggleVolume();
+    });
   }
 
   updateCheatButtons() {
@@ -1878,6 +2060,20 @@ class BlitzGame {
     const autoaimBtn = document.getElementById("autoaim-btn");
     if (autoaimBtn) {
       autoaimBtn.classList.toggle('active', this.autoaimEnabled);
+    }
+
+    // Music button
+    const musicBtn = document.getElementById("music-btn");
+    if (musicBtn) {
+      musicBtn.classList.toggle('active', this.musicEnabled);
+      musicBtn.classList.toggle('muted', !this.musicEnabled);
+    }
+
+    // Volume button
+    const volumeBtn = document.getElementById("volume-btn");
+    if (volumeBtn) {
+      volumeBtn.classList.toggle('active', this.soundEnabled);
+      volumeBtn.classList.toggle('muted', !this.soundEnabled);
     }
   }
 
@@ -2138,7 +2334,9 @@ class BlitzGame {
     const deltaTime = currentTime - this.lastTime;
     this.lastTime = currentTime;
 
-    if (this.gameState === "PLAYING") {
+    if (this.gameState === "TITLE") {
+      this.updateTitleScreenStars();
+    } else if (this.gameState === "PLAYING") {
       this.update(deltaTime);
     }
     
