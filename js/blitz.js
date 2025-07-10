@@ -26,10 +26,12 @@ class BlitzGame {
     // Death animation properties
     this.deathAnimationActive = false;
     this.deathAnimationTimer = 0;
-    this.deathAnimationDuration = 90; // 1.5 seconds at 60fps
+    this.deathAnimationDuration = 180; // 3 seconds at 60fps
     this.sceneOpacity = 1.0;
     this.gameOverOpacity = 0.0;
     this.deathPosition = { x: 0, y: 0 };
+    this.fadeOutStarted = false;
+    this.fadeOutTimer = 0;
 
     let playerX, playerY;
     if (this.isPortrait) {
@@ -557,14 +559,15 @@ class BlitzGame {
     this.playSound(this.sounds.playerExplosion);
 
     // Create rainbow explosion where ship was
-    this.createRainbowExplosion(this.player.x, this.player.y);
+    this.createDeathRainbowExplosion(this.player.x, this.player.y);
 
     // Start death animation sequence
     this.deathAnimationActive = true;
     this.deathAnimationTimer = 0;
-    this.sceneOpacity = 1.0;
     this.gameOverOpacity = 0.0;
     this.deathPosition = { x: this.player.x, y: this.player.y };
+    this.fadeOutStarted = false;
+    this.fadeOutTimer = 0;
     
     // Change game state to prevent normal game updates
     this.gameState = "DEATH_ANIMATION";
@@ -1047,11 +1050,14 @@ class BlitzGame {
         }
     }
     
-    this.checkCollisions();
-    
-    // Check boss collisions
-    if (this.gamePhase === 6) {
-      this.checkBossCollisions();
+    // Only check collisions if not in death animation
+    if (!this.deathAnimationActive) {
+      this.checkCollisions();
+      
+      // Check boss collisions
+      if (this.gamePhase === 6) {
+        this.checkBossCollisions();
+      }
     }
     
     this.updateUI(); // Update UI elements like timer
@@ -1674,7 +1680,7 @@ class BlitzGame {
 
       this.ctx.restore();
     });
-    if (this.gameState === "PLAYING" || this.gameState === "PAUSED") {
+    if (this.gameState === "PLAYING" || this.gameState === "PAUSED" || this.gameState === "DEATH_ANIMATION") {
       // Draw powerups
       this.powerups.forEach((powerup) => powerup.render(this.ctx));
 
@@ -1684,8 +1690,10 @@ class BlitzGame {
       // Draw text particles
       this.textParticles.forEach((particle) => particle.render(this.ctx));
 
-      // Draw game objects
-      this.player.render(this.ctx);
+      // Draw game objects (but not player during death animation)
+      if (this.gameState !== "DEATH_ANIMATION") {
+        this.player.render(this.ctx);
+      }
 
       // Draw target indicator for mouse position (desktop only)
       this.renderTargetIndicator();
@@ -1724,14 +1732,14 @@ class BlitzGame {
     if (input.mousePosition) {
       const { x, y } = input.mousePosition;
       
-      // Draw crosshair target indicator
+      // Draw simple white crosshair
       this.ctx.save();
-      this.ctx.strokeStyle = "#ff4444";
-      this.ctx.lineWidth = 2;
-      this.ctx.globalAlpha = 0.8;
+      this.ctx.strokeStyle = "#ffffff";
+      this.ctx.lineWidth = 1;
+      this.ctx.globalAlpha = 1.0;
       
-      // Draw crosshair
-      const size = 20;
+      // Draw simple + crosshair (8px by 8px)
+      const size = 4; // 4px from center = 8px total
       this.ctx.beginPath();
       // Vertical line
       this.ctx.moveTo(x, y - size);
@@ -1739,11 +1747,6 @@ class BlitzGame {
       // Horizontal line
       this.ctx.moveTo(x - size, y);
       this.ctx.lineTo(x + size, y);
-      this.ctx.stroke();
-      
-      // Draw circle around crosshair
-      this.ctx.beginPath();
-      this.ctx.arc(x, y, 8, 0, Math.PI * 2);
       this.ctx.stroke();
       
       this.ctx.restore();
@@ -2153,45 +2156,40 @@ class BlitzGame {
   updateDeathAnimation() {
     this.deathAnimationTimer++;
     
-    // After 1.5 seconds, start fading out everything
+    // After 3 seconds, start fading out everything and fade in game over simultaneously
     if (this.deathAnimationTimer >= this.deathAnimationDuration) {
-      this.deathAnimationActive = false;
-      this.gameState = "GAME_OVER";
-      this.gameOverOpacity = 0;
-      
-      // Save high score and update display
-      this.saveHighScore(this.score);
-      document.getElementById("final-score-value").textContent = this.score.toLocaleString();
-      document.getElementById("high-score-value").textContent = this.highScore.toLocaleString();
-      
-      // Start fade out everything, then show game over screen
-      let fadeOutTimer = 0;
-      const fadeOutInterval = setInterval(() => {
-        fadeOutTimer += 16; // ~60fps
-        const progress = fadeOutTimer / 1000; // 1 second fade out
-        this.sceneOpacity = Math.max(0, 1 - progress);
+      // Start fade out/in phase
+      if (!this.fadeOutStarted) {
+        this.fadeOutStarted = true;
+        this.fadeOutTimer = 0;
         
-        if (progress >= 1) {
-          clearInterval(fadeOutInterval);
-          
-          // Show game over screen after fade out
-          const gameOverElement = document.getElementById("game-over");
-          gameOverElement.style.display = "flex";
-          gameOverElement.style.opacity = "0";
-          
-          // Animate game over screen fade in
-          let fadeInTimer = 0;
-          const fadeInInterval = setInterval(() => {
-            fadeInTimer += 16; // ~60fps
-            const progress = fadeInTimer / 1000; // 1 second fade in
-            gameOverElement.style.opacity = Math.min(1, progress);
-            
-            if (progress >= 1) {
-              clearInterval(fadeInInterval);
-            }
-          }, 16);
-        }
-      }, 16);
+        // Set up game over screen to start fading in simultaneously
+        this.gameState = "GAME_OVER";
+        this.saveHighScore(this.score);
+        document.getElementById("final-score-value").textContent = this.score.toLocaleString();
+        document.getElementById("high-score-value").textContent = this.highScore.toLocaleString();
+        
+        const gameOverElement = document.getElementById("game-over");
+        gameOverElement.style.display = "flex";
+        gameOverElement.style.opacity = "0";
+      }
+      
+      // Handle simultaneous fade out and fade in over 1 second (60 frames)
+      this.fadeOutTimer++;
+      const fadeProgress = this.fadeOutTimer / 60; // 1 second at 60fps
+      this.sceneOpacity = Math.max(0, 1 - fadeProgress);
+      
+      // Fade in game over screen at the same time
+      const gameOverElement = document.getElementById("game-over");
+      gameOverElement.style.opacity = Math.min(1, fadeProgress);
+      
+      // After fade is complete, end death animation
+      if (this.fadeOutTimer >= 60) {
+        this.deathAnimationActive = false;
+      }
+    } else {
+      // During the first 3 seconds, keep scene fully visible
+      this.sceneOpacity = 1.0;
     }
   }
 }
