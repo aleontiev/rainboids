@@ -1,6 +1,8 @@
 // Effects and explosion system for Rainboids: Blitz
+import { Debris, RainbowParticle } from "./entities/particle.js";
+import { RainbowExplosion } from "./entities/explosion.js";
 
-export class EffectsSystem {
+export class EffectsManager {
   constructor(game) {
     this.game = game;
   }
@@ -10,68 +12,58 @@ export class EffectsSystem {
     const centerX = this.game.player.x;
     const centerY = this.game.player.y;
     const maxRadius = Math.max(this.game.canvas.width, this.game.canvas.height);
-    
+
     for (let wave = 0; wave < 8; wave++) {
       setTimeout(() => {
         const waveRadius = (wave + 1) * (maxRadius / 8);
         const explosionsInWave = Math.min(24, 8 + wave * 2);
-        
+
         for (let i = 0; i < explosionsInWave; i++) {
           const angle = (i / explosionsInWave) * Math.PI * 2 + wave * 0.3;
           const radius = waveRadius * (0.8 + Math.random() * 0.4);
           const x = centerX + Math.cos(angle) * radius;
           const y = centerY + Math.sin(angle) * radius;
-          
+
           // Create explosion if on screen
-          if (x >= -100 && x <= this.game.canvas.width + 100 && 
-              y >= -100 && y <= this.game.canvas.height + 100) {
+          if (
+            x >= -100 &&
+            x <= this.game.canvas.width + 100 &&
+            y >= -100 &&
+            y <= this.game.canvas.height + 100
+          ) {
             const explosionSize = 150 + Math.random() * 100;
-            this.game.createRainbowExplosion(x, y, explosionSize);
+            this.createRainbowExplosion(x, y, explosionSize);
           }
         }
-        
+
         // Play additional explosion sounds for dramatic effect
-        if (wave < 4 && this.game.audioContext && this.game.soundEnabled) {
-          this.game.playSound(this.game.sounds.explosion);
+        if (wave < 4) {
+          this.game.audio.playSound(this.game.audio.sounds.explosion);
         }
       }, wave * 120); // 120ms between each wave
     }
   }
 
-  createDebris(x, y, color) {
+  createDebris(x, y) {
     // Create debris particles with physics
     for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI * 2 * i) / 8 + Math.random() * 0.5;
-      const speed = 2 + Math.random() * 4;
-      const size = 2 + Math.random() * 3;
-      
-      this.game.particles.push({
-        x: x,
-        y: y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        size: size,
-        color: color,
-        life: 60 + Math.random() * 120, // 1-3 seconds
-        maxLife: 60 + Math.random() * 120,
-        gravity: 0.1
-      });
+      this.game.particles.push(new Debris(x, y));
     }
   }
 
-  updateParticles() {
+  update() {
     // Update debris particles
     for (let i = this.game.particles.length - 1; i >= 0; i--) {
       const particle = this.game.particles[i];
-      
+
       // Update position
       particle.x += particle.vx;
       particle.y += particle.vy;
       particle.vy += particle.gravity; // Apply gravity
-      
+
       // Reduce life
       particle.life--;
-      
+
       // Remove if dead
       if (particle.life <= 0) {
         this.game.particles.splice(i, 1);
@@ -79,44 +71,56 @@ export class EffectsSystem {
     }
   }
 
-  renderParticles(ctx) {
+  render(ctx) {
     // Render debris particles
-    this.game.particles.forEach(particle => {
+    this.game.particles.forEach((particle) => {
       const opacity = particle.life / particle.maxLife;
       ctx.save();
       ctx.globalAlpha = opacity;
       ctx.fillStyle = particle.color;
-      ctx.fillRect(particle.x - particle.size/2, particle.y - particle.size/2, particle.size, particle.size);
+      ctx.fillRect(
+        particle.x - particle.size / 2,
+        particle.y - particle.size / 2,
+        particle.size,
+        particle.size
+      );
       ctx.restore();
     });
   }
 
+  createRainbowExplosion(x, y) {
+    this.game.explosions.push(new RainbowExplosion(x, y));
+  }
+
+  createParticleExplosion(x, y) {
+
+    // Add rainbow particles scattered around the explosion
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const distance = 30 + Math.random() * 40;
+      const particleX = x + Math.cos(angle) * distance;
+      const particleY = y + Math.sin(angle) * distance;
+
+      // Create rainbow debris particles
+      this.game.particles.push(new RainbowParticle(particleX, particleY));
+    }
+  }
+
   createExplosion(x, y, size = 30) {
     // Create a basic explosion at the specified location
-    this.game.explosions.push({
-      x: x,
-      y: y,
-      size: size,
-      maxSize: size,
-      life: 30,
-      maxLife: 30,
-      color: `hsl(${Math.random() * 60 + 15}, 100%, 50%)` // Orange/red/yellow
-    });
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const distance = 30 + Math.random() * 10;
+      const particleX = x + Math.cos(angle) * distance;
+      const particleY = y + Math.sin(angle) * distance;
+
+      // Create rainbow debris particles
+      this.game.particles.push(new RainbowParticle(particleX, particleY));
+    }
   }
 
   createEnemyExplosion(x, y) {
-    // Create colorful enemy explosion
-    for (let i = 0; i < 3; i++) {
-      this.game.explosions.push({
-        x: x + (Math.random() - 0.5) * 20,
-        y: y + (Math.random() - 0.5) * 20,
-        size: 15 + Math.random() * 20,
-        maxSize: 15 + Math.random() * 20,
-        life: 20 + Math.random() * 20,
-        maxLife: 20 + Math.random() * 20,
-        color: `hsl(${Math.random() * 360}, 100%, 60%)`
-      });
-    }
+    this.createExplosion(x, y);
   }
 
   updateExplosions() {
@@ -124,7 +128,7 @@ export class EffectsSystem {
     for (let i = this.game.explosions.length - 1; i >= 0; i--) {
       const explosion = this.game.explosions[i];
       explosion.life--;
-      
+
       if (explosion.life <= 0) {
         this.game.explosions.splice(i, 1);
       }
@@ -133,11 +137,11 @@ export class EffectsSystem {
 
   renderExplosions(ctx) {
     // Render explosions
-    this.game.explosions.forEach(explosion => {
-      const progress = 1 - (explosion.life / explosion.maxLife);
+    this.game.explosions.forEach((explosion) => {
+      const progress = 1 - explosion.life / explosion.maxLife;
       const currentSize = explosion.size * (0.5 + progress * 0.5);
       const opacity = explosion.life / explosion.maxLife;
-      
+
       ctx.save();
       ctx.globalAlpha = opacity;
       ctx.fillStyle = explosion.color;

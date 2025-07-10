@@ -7,79 +7,91 @@ export class UIManager {
 
   updateCooldownVisuals() {
     // Update shield button cooldown
-    const shieldButton = document.getElementById('shield-button');
+    const shieldButton = document.getElementById("shield-button");
     if (shieldButton) {
       const wasCooldown = this.game.shieldCooldown > 1;
       if (this.game.shieldCooldown > 0) {
-        shieldButton.classList.add('on-cooldown');
-        const circle = shieldButton.querySelector('.cooldown-circle');
+        shieldButton.classList.add("on-cooldown");
+        const circle = shieldButton.querySelector(".cooldown-circle");
         if (circle) {
-          const progress = this.game.shieldCooldown / this.game.shieldCooldownMax;
+          const progress =
+            this.game.shieldCooldown / this.game.shieldCooldownMax;
           circle.style.strokeDashoffset = (157 * progress).toString();
         }
       } else {
-        shieldButton.classList.remove('on-cooldown');
+        shieldButton.classList.remove("on-cooldown");
         // Trigger flash when coming off cooldown
         if (wasCooldown && this.game.shieldCooldown <= 0) {
           this.game.shieldFlashTimer = 30; // Flash for 0.5 seconds at 60fps
         }
       }
-      
+
       // Handle flash effect
       if (this.game.shieldFlashTimer > 0) {
         this.game.shieldFlashTimer--;
-        const flashIntensity = Math.sin(this.game.shieldFlashTimer * 0.3) * 0.5 + 0.5;
-        shieldButton.style.backgroundColor = `rgba(0, 255, 136, ${flashIntensity * 0.3})`;
-        shieldButton.style.borderColor = `rgba(0, 255, 136, ${flashIntensity * 0.8})`;
+        const flashIntensity =
+          Math.sin(this.game.shieldFlashTimer * 0.3) * 0.5 + 0.5;
+        shieldButton.style.backgroundColor = `rgba(0, 255, 136, ${
+          flashIntensity * 0.3
+        })`;
+        shieldButton.style.borderColor = `rgba(0, 255, 136, ${
+          flashIntensity * 0.8
+        })`;
       } else {
-        shieldButton.style.backgroundColor = '';
-        shieldButton.style.borderColor = '';
+        shieldButton.style.backgroundColor = "";
+        shieldButton.style.borderColor = "";
       }
     }
 
     // Update time slow button cooldown
-    const timeSlowButton = document.getElementById('time-slow-button');
+    const timeSlowButton = document.getElementById("time-slow-button");
     if (timeSlowButton) {
       const wasCooldown = this.game.timeSlowCooldown > 1;
       if (this.game.timeSlowCooldown > 0) {
-        timeSlowButton.classList.add('on-cooldown');
-        const circle = timeSlowButton.querySelector('.cooldown-circle');
+        timeSlowButton.classList.add("on-cooldown");
+        const circle = timeSlowButton.querySelector(".cooldown-circle");
         if (circle) {
-          const progress = this.game.timeSlowCooldown / this.game.timeSlowCooldownMax;
+          const progress =
+            this.game.timeSlowCooldown / this.game.timeSlowCooldownMax;
           circle.style.strokeDashoffset = (157 * progress).toString();
         }
       } else {
-        timeSlowButton.classList.remove('on-cooldown');
+        timeSlowButton.classList.remove("on-cooldown");
         // Trigger flash when coming off cooldown
         if (wasCooldown && this.game.timeSlowCooldown <= 0) {
           this.game.timeSlowFlashTimer = 30; // Flash for 0.5 seconds at 60fps
         }
       }
-      
+
       // Handle flash effect
       if (this.game.timeSlowFlashTimer > 0) {
         this.game.timeSlowFlashTimer--;
-        const flashIntensity = Math.sin(this.game.timeSlowFlashTimer * 0.3) * 0.5 + 0.5;
-        timeSlowButton.style.backgroundColor = `rgba(136, 136, 255, ${flashIntensity * 0.3})`;
-        timeSlowButton.style.borderColor = `rgba(136, 136, 255, ${flashIntensity * 0.8})`;
+        const flashIntensity =
+          Math.sin(this.game.timeSlowFlashTimer * 0.3) * 0.5 + 0.5;
+        timeSlowButton.style.backgroundColor = `rgba(136, 136, 255, ${
+          flashIntensity * 0.3
+        })`;
+        timeSlowButton.style.borderColor = `rgba(136, 136, 255, ${
+          flashIntensity * 0.8
+        })`;
       } else {
-        timeSlowButton.style.backgroundColor = '';
-        timeSlowButton.style.borderColor = '';
+        timeSlowButton.style.backgroundColor = "";
+        timeSlowButton.style.borderColor = "";
       }
     }
-    
+
     // Update bomb button visibility and count
-    const bombButton = document.getElementById('bomb-button');
+    const bombButton = document.getElementById("bomb-button");
     if (bombButton) {
       if (this.game.bombCount > 0) {
-        bombButton.style.display = 'flex';
-        
+        bombButton.style.display = "flex";
+
         // Show count if 2 or more bombs
-        let countDisplay = bombButton.querySelector('.bomb-count');
+        let countDisplay = bombButton.querySelector(".bomb-count");
         if (this.game.bombCount >= 2) {
           if (!countDisplay) {
-            countDisplay = document.createElement('div');
-            countDisplay.className = 'bomb-count';
+            countDisplay = document.createElement("div");
+            countDisplay.className = "bomb-count";
             countDisplay.style.cssText = `
               position: absolute;
               bottom: -5px;
@@ -103,12 +115,12 @@ export class UIManager {
           countDisplay.remove();
         }
       } else {
-        bombButton.style.display = 'none';
+        bombButton.style.display = "none";
       }
     }
   }
 
-  updateUI() {
+  update() {
     // Update score display
     const scoreElement = document.getElementById("score-value");
     if (scoreElement) {
@@ -121,7 +133,9 @@ export class UIManager {
       const seconds = Math.floor(this.game.gameTime / 60);
       const minutes = Math.floor(seconds / 60);
       const remainingSeconds = seconds % 60;
-      timerElement.textContent = `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+      timerElement.textContent = `${minutes}:${remainingSeconds
+        .toString()
+        .padStart(2, "0")}`;
     }
 
     // Update high score displays

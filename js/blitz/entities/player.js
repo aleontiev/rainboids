@@ -24,7 +24,7 @@ export class Player {
     this.secondShip = []; // Change to an array
     this.godMode = false;
     this.rollAngle = 0; // Initialize rollAngle property
-    
+
     // Velocity tracking for predictive aiming
     this.vx = 0;
     this.vy = 0;
@@ -32,7 +32,15 @@ export class Player {
     this.prevY = y;
   }
 
-  update(keys, enemies, asteroids, isPortrait, autoaimEnabled = true, mainWeaponLevel = 1, timeSlowActive = false) {
+  update(
+    keys,
+    enemies,
+    asteroids,
+    isPortrait,
+    autoaimEnabled = true,
+    mainWeaponLevel = 1,
+    timeSlowActive = false
+  ) {
     // Handle shield timing
     if (this.isShielding) {
       this.shieldFrames--;
@@ -95,8 +103,12 @@ export class Player {
 
     // Helper function to check if target is within viewport
     const isTargetInViewport = (target) => {
-      return target.x >= 0 && target.x <= window.innerWidth && 
-             target.y >= 0 && target.y <= window.innerHeight;
+      return (
+        target.x >= 0 &&
+        target.x <= window.innerWidth &&
+        target.y >= 0 &&
+        target.y <= window.innerHeight
+      );
     };
 
     // Helper function to get current bullet speed based on weapon level
@@ -115,23 +127,26 @@ export class Player {
       // Get target velocity (some targets may not have velocity)
       const targetVx = target.vx || 0;
       const targetVy = target.vy || 0;
-      
+
       // Calculate relative velocity (target velocity minus player velocity)
       const relativeVx = targetVx - this.vx;
       const relativeVy = targetVy - this.vy;
-      
+
       // Calculate relative position
       const relativeX = target.x - this.x;
       const relativeY = target.y - this.y;
-      
+
       // Solve for intercept time using quadratic formula
       // |target_pos + target_vel * t - player_pos - player_vel * t| = bulletSpeed * t
-      const a = relativeVx * relativeVx + relativeVy * relativeVy - bulletSpeed * bulletSpeed;
+      const a =
+        relativeVx * relativeVx +
+        relativeVy * relativeVy -
+        bulletSpeed * bulletSpeed;
       const b = 2 * (relativeX * relativeVx + relativeY * relativeVy);
       const c = relativeX * relativeX + relativeY * relativeY;
-      
+
       let interceptTime = 0;
-      
+
       if (Math.abs(a) < 0.001) {
         // Linear case: solve bt + c = 0
         if (Math.abs(b) > 0.001) {
@@ -143,107 +158,120 @@ export class Player {
         if (discriminant >= 0) {
           const t1 = (-b + Math.sqrt(discriminant)) / (2 * a);
           const t2 = (-b - Math.sqrt(discriminant)) / (2 * a);
-          
+
           // Choose the smallest positive time
-          const validTimes = [t1, t2].filter(t => t > 0);
+          const validTimes = [t1, t2].filter((t) => t > 0);
           if (validTimes.length > 0) {
             interceptTime = Math.min(...validTimes);
           }
         }
       }
-      
+
       // Calculate predicted intercept position
       const predictedX = target.x + targetVx * interceptTime;
       const predictedY = target.y + targetVy * interceptTime;
-      
+
       // Return angle to predicted position
       return Math.atan2(predictedY - this.y, predictedX - this.x);
     };
 
     // Enhanced predictive aim with priority system
     // Only use autoaim if no mouse position (mobile) or if autoaim is explicitly enabled
-    if ((autoaimEnabled || !keys.mousePosition) && keys.fire && (enemies.length > 0 || asteroids.length > 0)) {
-        let target = null;
-        const bulletSpeed = getCurrentBulletSpeed(mainWeaponLevel);
-        const allTargets = [...enemies, ...asteroids];
-        const shootingEnemyTypes = ['straight', 'sine', 'zigzag'];
-        
-        // Priority 1: Very close targets (within 200px) - any enemy or asteroid
-        let closestNearbyTarget = null;
-        let closestNearbyDistance = Infinity;
-        
-        for (const t of allTargets) {
-            if (isTargetInViewport(t)) {
-                const dist = Math.sqrt((t.x - this.x) ** 2 + (t.y - this.y) ** 2);
-                if (dist < 200 && dist < closestNearbyDistance) {
-                    closestNearbyDistance = dist;
-                    closestNearbyTarget = t;
-                }
-            }
+    if (
+      (autoaimEnabled || !keys.mousePosition) &&
+      keys.fire &&
+      (enemies.length > 0 || asteroids.length > 0)
+    ) {
+      let target = null;
+      const bulletSpeed = getCurrentBulletSpeed(mainWeaponLevel);
+      const allTargets = [...enemies, ...asteroids];
+      const shootingEnemyTypes = ["straight", "sine", "zigzag"];
+
+      // Priority 1: Very close targets (within 200px) - any enemy or asteroid
+      let closestNearbyTarget = null;
+      let closestNearbyDistance = Infinity;
+
+      for (const t of allTargets) {
+        if (isTargetInViewport(t)) {
+          const dist = Math.sqrt((t.x - this.x) ** 2 + (t.y - this.y) ** 2);
+          if (dist < 200 && dist < closestNearbyDistance) {
+            closestNearbyDistance = dist;
+            closestNearbyTarget = t;
+          }
         }
-        
-        if (closestNearbyTarget) {
-            target = closestNearbyTarget;
-        } else {
-            // Priority 2: Shooting enemies (nearby ones first)
-            let closestShootingEnemy = null;
-            let closestShootingDistance = Infinity;
-            
-            for (const enemy of enemies) {
-                if (shootingEnemyTypes.includes(enemy.type) && isTargetInViewport(enemy)) {
-                    const dist = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
-                    if (dist < closestShootingDistance) {
-                        closestShootingDistance = dist;
-                        closestShootingEnemy = enemy;
-                    }
-                }
+      }
+
+      if (closestNearbyTarget) {
+        target = closestNearbyTarget;
+      } else {
+        // Priority 2: Shooting enemies (nearby ones first)
+        let closestShootingEnemy = null;
+        let closestShootingDistance = Infinity;
+
+        for (const enemy of enemies) {
+          if (
+            shootingEnemyTypes.includes(enemy.type) &&
+            isTargetInViewport(enemy)
+          ) {
+            const dist = Math.sqrt(
+              (enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2
+            );
+            if (dist < closestShootingDistance) {
+              closestShootingDistance = dist;
+              closestShootingEnemy = enemy;
             }
-            
-            if (closestShootingEnemy) {
-                target = closestShootingEnemy;
-            } else {
-                // Priority 3: Any enemies (nearby ones first)
-                let closestEnemy = null;
-                let closestEnemyDistance = Infinity;
-                
-                for (const enemy of enemies) {
-                    if (isTargetInViewport(enemy)) {
-                        const dist = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
-                        if (dist < closestEnemyDistance) {
-                            closestEnemyDistance = dist;
-                            closestEnemy = enemy;
-                        }
-                    }
-                }
-                
-                if (closestEnemy) {
-                    target = closestEnemy;
-                } else {
-                    // Priority 4: Asteroids (if no enemies available)
-                    let closestAsteroid = null;
-                    let closestAsteroidDistance = Infinity;
-                    
-                    for (const asteroid of asteroids) {
-                        if (isTargetInViewport(asteroid)) {
-                            const dist = Math.sqrt((asteroid.x - this.x) ** 2 + (asteroid.y - this.y) ** 2);
-                            if (dist < closestAsteroidDistance) {
-                                closestAsteroidDistance = dist;
-                                closestAsteroid = asteroid;
-                            }
-                        }
-                    }
-                    
-                    if (closestAsteroid) {
-                        target = closestAsteroid;
-                    }
-                }
-            }
+          }
         }
 
-        // Apply advanced predictive aiming to the selected target
-        if (target) {
-            this.angle = calculatePredictiveAim(target, bulletSpeed);
+        if (closestShootingEnemy) {
+          target = closestShootingEnemy;
+        } else {
+          // Priority 3: Any enemies (nearby ones first)
+          let closestEnemy = null;
+          let closestEnemyDistance = Infinity;
+
+          for (const enemy of enemies) {
+            if (isTargetInViewport(enemy)) {
+              const dist = Math.sqrt(
+                (enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2
+              );
+              if (dist < closestEnemyDistance) {
+                closestEnemyDistance = dist;
+                closestEnemy = enemy;
+              }
+            }
+          }
+
+          if (closestEnemy) {
+            target = closestEnemy;
+          } else {
+            // Priority 4: Asteroids (if no enemies available)
+            let closestAsteroid = null;
+            let closestAsteroidDistance = Infinity;
+
+            for (const asteroid of asteroids) {
+              if (isTargetInViewport(asteroid)) {
+                const dist = Math.sqrt(
+                  (asteroid.x - this.x) ** 2 + (asteroid.y - this.y) ** 2
+                );
+                if (dist < closestAsteroidDistance) {
+                  closestAsteroidDistance = dist;
+                  closestAsteroid = asteroid;
+                }
+              }
+            }
+
+            if (closestAsteroid) {
+              target = closestAsteroid;
+            }
+          }
         }
+      }
+
+      // Apply advanced predictive aiming to the selected target
+      if (target) {
+        this.angle = calculatePredictiveAim(target, bulletSpeed);
+      }
     }
 
     // Shield mechanic is now handled by the main game loop via activateShield()
@@ -262,7 +290,7 @@ export class Player {
     }
 
     // Update second ship positions (above/below or left/right based on orientation)
-    this.secondShip.forEach(ship => {
+    this.secondShip.forEach((ship) => {
       if (ship.isHorizontal) {
         // Portrait mode: left/right positioning
         ship.x = this.x + (ship.offset || 40);
@@ -288,28 +316,50 @@ export class Player {
     if (this.isShielding) {
       return;
     }
-    
+
     if (this.shootCooldown <= 0) {
       // Main weapon
       if (this.mainWeaponLevel >= 5) {
         // Rainbow laser beam
-        bullets.push(
-          new LaserClass(this.x, this.y, this.angle, 50, "rainbow")
-        );
+        bullets.push(new LaserClass(this.x, this.y, this.angle, 50, "rainbow"));
         this.shootCooldown = 1; // Allow continuous firing
       } else if (this.mainWeaponLevel === 1) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 10, "#00ff88", isPortrait, GAME_CONFIG.BULLET_SPEED) // Speed 8 (same as level 2)
+          new BulletClass(
+            this.x,
+            this.y,
+            this.angle,
+            10,
+            "#00ff88",
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
+          ) // Speed 8 (same as level 2)
         ); // Cool green
         this.shootCooldown = 30; // Half as often as level 2 (0.5 seconds at 60fps)
       } else if (this.mainWeaponLevel === 2) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 14, "#00ffcc", isPortrait, GAME_CONFIG.BULLET_SPEED)
+          new BulletClass(
+            this.x,
+            this.y,
+            this.angle,
+            14,
+            "#00ffcc",
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
+          )
         ); // Teal, faster
         this.shootCooldown = 15; // Faster
       } else if (this.mainWeaponLevel === 3) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 14, "#00ffff", isPortrait, GAME_CONFIG.BULLET_SPEED)
+          new BulletClass(
+            this.x,
+            this.y,
+            this.angle,
+            14,
+            "#00ffff",
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
+          )
         ); // Cyan
         bullets.push(
           new BulletClass(
@@ -336,7 +386,15 @@ export class Player {
         this.shootCooldown = 15; // Same as level 2
       } else if (this.mainWeaponLevel >= 4) {
         bullets.push(
-          new BulletClass(this.x, this.y, this.angle, 18, "#4488ff", isPortrait, GAME_CONFIG.BULLET_SPEED)
+          new BulletClass(
+            this.x,
+            this.y,
+            this.angle,
+            18,
+            "#4488ff",
+            isPortrait,
+            GAME_CONFIG.BULLET_SPEED
+          )
         ); // Cool blue, fast
         bullets.push(
           new BulletClass(
@@ -365,7 +423,7 @@ export class Player {
 
       // Secondary weapon system (0-4 levels)
       // Level 0: Nothing (handled by if condition)
-      
+
       if (this.sideWeaponLevel >= 1) {
         // Level 1: 1 missile moving off to diagonal
         bullets.push(
@@ -380,7 +438,7 @@ export class Player {
           )
         );
       }
-      
+
       if (this.sideWeaponLevel >= 2) {
         // Level 2: 2 missiles going to both diagonals
         bullets.push(
@@ -395,33 +453,57 @@ export class Player {
           )
         );
       }
-      
+
       if (this.sideWeaponLevel >= 2) {
         // Level 2: 2 missiles + 2 homing missiles (green, 1.5x larger)
         if (this.homingMissileCooldown <= 0) {
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + 0.2, 9, "#00ff44")
+            new HomingMissileClass(
+              this.x,
+              this.y,
+              this.angle + 0.2,
+              9,
+              "#00ff44"
+            )
           );
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle - 0.2, 9, "#00ff44")
+            new HomingMissileClass(
+              this.x,
+              this.y,
+              this.angle - 0.2,
+              9,
+              "#00ff44"
+            )
           );
           this.homingMissileCooldown = 60; // 1 second cooldown
         }
       }
-      
+
       if (this.sideWeaponLevel >= 3) {
         // Level 3: 2 missiles + 4 homing missiles total
         if (this.homingMissileCooldown <= 0) {
           // Add 2 more homing missiles (total 4)
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + 0.4, 9, "#00ff44")
+            new HomingMissileClass(
+              this.x,
+              this.y,
+              this.angle + 0.4,
+              9,
+              "#00ff44"
+            )
           );
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle - 0.4, 9, "#00ff44")
+            new HomingMissileClass(
+              this.x,
+              this.y,
+              this.angle - 0.4,
+              9,
+              "#00ff44"
+            )
           );
         }
       }
-      
+
       if (this.sideWeaponLevel >= 4) {
         // Level 4: 4 missiles total + 6 homing missiles total (ultimate level)
         // Add third and fourth missiles (we already have 2 from levels 1-2)
@@ -447,21 +529,33 @@ export class Player {
             GAME_CONFIG.BULLET_SPEED
           )
         );
-        
+
         // Add 2 more homing missiles (total 6)
         if (this.homingMissileCooldown <= 0) {
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle + 0.6, 9, "#00ff44")
+            new HomingMissileClass(
+              this.x,
+              this.y,
+              this.angle + 0.6,
+              9,
+              "#00ff44"
+            )
           );
           bullets.push(
-            new HomingMissileClass(this.x, this.y, this.angle - 0.6, 9, "#00ff44")
+            new HomingMissileClass(
+              this.x,
+              this.y,
+              this.angle - 0.6,
+              9,
+              "#00ff44"
+            )
           );
         }
       }
 
       // Second ship shooting
-      this.secondShip.forEach(ship => {
-        let secondShipBulletColor = '#4488ff'; // Always blue
+      this.secondShip.forEach((ship) => {
+        let secondShipBulletColor = "#4488ff"; // Always blue
         bullets.push(
           new BulletClass(
             ship.x,
@@ -510,9 +604,9 @@ export class Player {
 
     // Draw filled green arrow (2.5x visual size)
     ctx.fillStyle = this.isShielding ? "#ffaa00" : "#00ff88"; // Gold when shielding, green normally
-    
+
     const visualSize = this.size * 2.5; // 2.5x larger visual size
-    
+
     // Simple arrow shape
     ctx.beginPath();
     ctx.moveTo(visualSize, 0); // Arrow tip
@@ -528,7 +622,7 @@ export class Player {
     if (this.shield > 0) {
       const shieldThickness = 3 + this.shield * 2; // Thickness increases with shield count
       const shieldRadius = visualSize + 10 + this.shield * 2; // Radius also grows slightly
-      
+
       // Outer bright blue shield
       ctx.globalAlpha = 0.8 * shipOpacity;
       ctx.strokeStyle = "#0099ff"; // Bright blue
@@ -544,7 +638,7 @@ export class Player {
       ctx.beginPath();
       ctx.arc(0, 0, shieldRadius - 2, 0, Math.PI * 2);
       ctx.stroke();
-      
+
       // Additional shield rings for multiple shields
       if (this.shield > 1) {
         for (let i = 1; i < this.shield; i++) {
@@ -575,10 +669,10 @@ export class Player {
       ctx.beginPath();
       ctx.arc(0, 0, visualSize + 16, 0, Math.PI * 2);
       ctx.stroke();
-      
+
       // Subtle pulsing outer ring
       const pulseIntensity = 0.7 + 0.3 * Math.sin(Date.now() * 0.005);
-      ctx.globalAlpha = (0.4 * pulseIntensity) * shipOpacity;
+      ctx.globalAlpha = 0.4 * pulseIntensity * shipOpacity;
       ctx.strokeStyle = "#ffaa00"; // Deeper gold
       ctx.lineWidth = 6;
       ctx.beginPath();
@@ -597,7 +691,7 @@ export class Player {
     ctx.restore();
 
     // Draw second ships if active
-    this.secondShip.forEach(ship => {
+    this.secondShip.forEach((ship) => {
       ctx.save();
       ctx.translate(ship.x, ship.y);
       ctx.rotate(ship.initialAngle); // Use initialAngle for rendering
@@ -620,4 +714,3 @@ export class Player {
     });
   }
 }
-
