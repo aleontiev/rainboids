@@ -11,7 +11,7 @@ export class InputHandler {
       fire: false,
       firePressed: false,
       shift: false,
-      ctrl: false,
+      rightClick: false,
       joystickX: 0,
       joystickY: 0,
       target: null,
@@ -76,10 +76,6 @@ export class InputHandler {
       case "ShiftRight":
         this.input.shift = true;
         break;
-      case "ControlLeft":
-      case "ControlRight":
-        this.input.ctrl = true;
-        break;
     }
   }
 
@@ -107,10 +103,6 @@ export class InputHandler {
       case "ShiftLeft":
       case "ShiftRight":
         this.input.shift = false;
-        break;
-      case "ControlLeft":
-      case "ControlRight":
-        this.input.ctrl = false;
         break;
     }
   }
@@ -152,6 +144,7 @@ export class InputHandler {
       this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
       this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
       this.canvas.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
+      this.canvas.addEventListener('contextmenu', (e) => e.preventDefault()); // Prevent right-click context menu
       
       // Track mouse position even when off-screen for aiming
       document.addEventListener('mousemove', this.handleDocumentMouseMove.bind(this));
@@ -171,12 +164,17 @@ export class InputHandler {
     if (evt.button === 0) { // Left mouse button
       this.input.fire = true;
       this.input.firePressed = true;
+    } else if (evt.button === 2) { // Right mouse button
+      this.input.rightClick = true;
+      evt.preventDefault(); // Prevent context menu
     }
   }
 
   handleMouseUp(evt) {
     if (evt.button === 0) { // Left mouse button
       this.input.fire = false;
+    } else if (evt.button === 2) { // Right mouse button
+      this.input.rightClick = false;
     }
   }
 
@@ -200,6 +198,8 @@ export class InputHandler {
     // Stop firing when mouse is released anywhere on the document
     if (evt.button === 0) { // Left mouse button
       this.input.fire = false;
+    } else if (evt.button === 2) { // Right mouse button
+      this.input.rightClick = false;
     }
   }
 

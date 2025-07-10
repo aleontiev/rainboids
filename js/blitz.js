@@ -103,6 +103,13 @@ class BlitzGame {
     // Dash cooldown tracking
     this.dashCooldown = 0;
     this.dashCooldownMax = 300; // 5 seconds cooldown
+    
+    // Bomb system  
+    this.bombCount = 0; // Players start with no bombs
+    
+    // Flash states for abilities coming off cooldown
+    this.dashFlashTimer = 0;
+    this.timeSlowFlashTimer = 0;
 
     // New game phase system
     this.miniBossesDefeated = false;
@@ -670,17 +677,19 @@ class BlitzGame {
       "#c0ffff",        // Very light white-blue
     ];
     
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 300; i++) { // More stars
       this.titleScreenStars.push({
         x: Math.random() * this.canvas.width,
         y: Math.random() * this.canvas.height,
-        size: 0.8 + Math.random() * 1.7, // Matching game background star size
-        opacity: 0.15 + Math.random() * 0.35, // Matching game opacity range
+        size: 1.5 + Math.random() * 3.0, // Larger stars: 1.5-4.5 pixels
+        opacity: 0.25 + Math.random() * 0.55, // Brighter: 0.25-0.8 opacity range
         twinkle: Math.random() * Math.PI * 2,
-        twinkleSpeed: 0.01 + Math.random() * 0.02,
+        twinkleSpeed: 0.008 + Math.random() * 0.015, // Slower twinkling (was 0.015-0.05)
         rotation: Math.random() * Math.PI * 2,
-        rotationSpeed: (Math.random() - 0.5) * 0.01, // Slower rotation for background stars
-        color: starColors[Math.floor(Math.random() * starColors.length)]
+        rotationSpeed: (Math.random() - 0.5) * 0.012, // Slower rotation (was 0.02)
+        color: starColors[Math.floor(Math.random() * starColors.length)],
+        pulsePhase: Math.random() * Math.PI * 2, // Additional pulsing effect
+        pulseSpeed: 0.012 + Math.random() * 0.018 // Slower pulsing (was 0.02-0.05)
       });
     }
   }
@@ -720,17 +729,14 @@ class BlitzGame {
         break;
     }
     
-    // Calculate direction vector
     const dx = targetX - x;
     const dy = targetY - y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const speed = 4 + Math.random() * 3; // Faster speed
+    const speed = 7 + Math.random() * 3; 
     
-    // Size matching background stars but slightly larger
-    const size = 1.0 + Math.random() * 2.5; // 1.0-3.5 pixels (matching background star range)
+    const size = 5 + Math.random() * 4; 
     
-    // Use white, blue, or green colors as requested
-    const colors = ['#ffffff', '#4080ff', '#40ff80'];
+    const colors = ['#ffffff', '#4080ff', '#40ff80', '#ff4080', '#ffff00', '#00ffff', '#00ffff', '#111111'];
     const color = colors[Math.floor(Math.random() * colors.length)];
     
     this.shootingStars.push({
@@ -753,10 +759,11 @@ class BlitzGame {
     this.titleScreenStars.forEach(star => {
       star.twinkle += star.twinkleSpeed;
       star.rotation += star.rotationSpeed;
+      star.pulsePhase += star.pulseSpeed; // Update pulsing effect
     });
 
-    // Spawn shooting stars occasionally
-    if (Math.random() < 0.01) { // 1% chance per frame
+    // Spawn shooting stars occasionally - slightly reduced for more balanced effect
+    if (Math.random() < 0.025) { // 1.5% chance per frame (between original and doubled)
       this.spawnShootingStar();
     }
 
@@ -998,9 +1005,14 @@ class BlitzGame {
 
     const input = this.inputHandler.getInput();
 
-    // Handle Ctrl key for time slow activation
-    if (input.ctrl) {
+    // Handle Shift key for time slow activation
+    if (input.shift) {
       this.activateTimeSlow();
+    }
+    
+    // Handle Right Click for dash/shield activation
+    if (input.rightClick) {
+      this.activateShield();
     }
 
     // Update player
@@ -1892,67 +1904,8 @@ class BlitzGame {
         }
         break;
       case "bomb":
-        const bombRadius = 750; // 5x larger radius
-        this.createRainbowExplosion(this.player.x, this.player.y, bombRadius);
-
-        // Play bomb explosion sound
-        this.playSound(this.sounds.playerExplosion);
-
-        // Destroy nearby enemies
-        for (let i = this.enemies.length - 1; i >= 0; i--) {
-          const dx = this.enemies[i].x - this.player.x;
-          const dy = this.enemies[i].y - this.player.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          if (distance < bombRadius) {
-            this.createExplosion(this.enemies[i].x, this.enemies[i].y);
-            this.createDebris(
-              this.enemies[i].x,
-              this.enemies[i].y,
-              this.enemies[i].color
-            );
-            this.enemies.splice(i, 1);
-            this.score += 200;
-          }
-        }
-
-        // Destroy nearby asteroids
-        for (let i = this.asteroids.length - 1; i >= 0; i--) {
-          const dx = this.asteroids[i].x - this.player.x;
-          const dy = this.asteroids[i].y - this.player.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          if (distance < bombRadius) {
-            this.createExplosion(this.asteroids[i].x, this.asteroids[i].y);
-            this.createDebris(this.asteroids[i].x, this.asteroids[i].y, "#888");
-            this.asteroids.splice(i, 1);
-            this.score += 100;
-          }
-        }
-
-        // Destroy nearby enemy bullets
-        for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
-          const dx = this.enemyBullets[i].x - this.player.x;
-          const dy = this.enemyBullets[i].y - this.player.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          if (distance < bombRadius) {
-            this.enemyBullets.splice(i, 1);
-          }
-        }
-
-        // Create secondary firework explosions at outer edge with staggered timing
-        for (let delay = 0; delay < 6; delay++) {
-          setTimeout(() => {
-            for (let i = 0; i < 6; i++) {
-              const angle = (i / 6) * Math.PI * 2 + delay * 0.4;
-              const edgeRadius =
-                bombRadius * 0.6 + Math.random() * bombRadius * 0.4;
-              const x = this.player.x + Math.cos(angle) * edgeRadius;
-              const y = this.player.y + Math.sin(angle) * edgeRadius;
-              this.createRainbowExplosion(x, y, 200); // Smaller firework bursts
-            }
-          }, 200 + delay * 100);
-        }
-
-        this.updateUI();
+        // Collect bomb instead of using it immediately
+        this.bombCount = Math.min(this.bombCount + 1, 9); // Max 9 bombs for display purposes
         break;
     }
   }
@@ -2102,14 +2055,22 @@ class BlitzGame {
       this.titleCtx.translate(star.x, star.y);
       this.titleCtx.rotate(star.rotation);
 
-      const twinkleOpacity = star.opacity * (0.5 + 0.5 * Math.sin(star.twinkle));
+      // Enhanced effects: combine twinkling and pulsing (slightly toned down)
+      const twinkleOpacity = star.opacity * (0.5 + 0.5 * Math.sin(star.twinkle)); // Less dramatic opacity change
+      const pulseSizeMultiplier = 0.85 + 0.3 * Math.sin(star.pulsePhase); // Smaller size variation
+      
       this.titleCtx.globalAlpha = twinkleOpacity;
       
-      // Draw 4-pointed star shape (matching game background stars)
+      // Add glow effect for larger stars
+      if (star.size > 3) {
+        this.titleCtx.shadowColor = star.color;
+        this.titleCtx.shadowBlur = star.size * 2;
+      }
+      
+      // Draw 4-pointed star shape with pulsing size
       this.titleCtx.fillStyle = star.color;
       this.titleCtx.beginPath();
-      // 4-pointed star using lines
-      const size = star.size;
+      const size = star.size * pulseSizeMultiplier;
       this.titleCtx.moveTo(0, -size);
       this.titleCtx.lineTo(size * 0.3, -size * 0.3);
       this.titleCtx.lineTo(size, 0);
@@ -2129,7 +2090,7 @@ class BlitzGame {
       // Draw trail
       for (let i = 0; i < star.trail.length; i++) {
         const trailPoint = star.trail[i];
-        const trailOpacity = (i / star.trail.length) * trailPoint.life * 0.6;
+        const trailOpacity = (i / star.trail.length) * trailPoint.life * 2.5;
         
         if (trailOpacity > 0.05) { // Only draw visible trail points
           this.titleCtx.save();
@@ -2291,44 +2252,94 @@ class BlitzGame {
       if (this.audioContext && this.soundEnabled) {
         this.playSound(this.sounds.powerUp);
       }
+      return true; // Ability was activated
     }
+    return false; // Ability was on cooldown
   }
 
   activateBomb() {
-    // Clear all enemy bullets and damage all enemies
+    // Only activate if player has bombs
+    if (this.bombCount <= 0) {
+      return false; // No bombs available
+    }
+    
+    // Use one bomb
+    this.bombCount--;
+    
+    // Create massive explosion starting from player
+    const bombRadius = 800; // Large initial radius
+    this.createRainbowExplosion(this.player.x, this.player.y, bombRadius);
+    
+    // Play bomb explosion sound
+    this.playSound(this.sounds.playerExplosion);
+    
+    // Clear all enemy bullets
     this.enemyBullets = [];
     this.enemyLasers = [];
     this.enemyPulseCircles = [];
     
-    // Damage all enemies
-    this.enemies.forEach(enemy => {
-      enemy.health -= 50; // Significant damage
-    });
+    // Destroy all small enemies and asteroids
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      this.createEnemyExplosion(this.enemies[i].x, this.enemies[i].y);
+      this.createDebris(this.enemies[i].x, this.enemies[i].y, this.enemies[i].color);
+      this.enemies.splice(i, 1);
+      this.score += 200;
+    }
     
-    // Damage minibosses
+    for (let i = this.asteroids.length - 1; i >= 0; i--) {
+      this.createExplosion(this.asteroids[i].x, this.asteroids[i].y);
+      this.createDebris(this.asteroids[i].x, this.asteroids[i].y, "#888");
+      this.asteroids.splice(i, 1);
+      this.score += 100;
+    }
+    
+    // Damage mini-bosses significantly
     this.miniBosses.forEach(miniBoss => {
-      miniBoss.health -= 100;
+      miniBoss.takeDamage(50); // Massive damage to mini-bosses
     });
     
-    // Damage level 1 boss
+    // Damage level 1 boss if present
     if (this.level1Boss) {
-      this.level1Boss.health -= 200;
+      this.level1Boss.takeDamage(100); // Very high damage to boss
     }
     
-    // Create explosion effect at player position
-    if (this.player) {
-      for (let i = 0; i < 10; i++) {
-        this.explosions.push(new RainbowExplosion(
-          this.player.x + (Math.random() - 0.5) * 100,
-          this.player.y + (Math.random() - 0.5) * 100,
-          60 + Math.random() * 40 // Random size
-        ));
-      }
-    }
+    // Create spectacular chain explosion effect covering entire screen
+    this.createChainExplosion();
     
-    // Play bomb sound if available
-    if (this.audioContext && this.soundEnabled) {
-      this.playSound(this.sounds.explosion);
+    this.updateUI();
+    return true; // Bomb was used
+  }
+  
+  createChainExplosion() {
+    // Create expanding wave of explosions across the screen
+    const centerX = this.player.x;
+    const centerY = this.player.y;
+    const maxRadius = Math.max(this.canvas.width, this.canvas.height);
+    
+    for (let wave = 0; wave < 8; wave++) {
+      setTimeout(() => {
+        const waveRadius = (wave + 1) * (maxRadius / 8);
+        const explosionsInWave = Math.min(24, 8 + wave * 2);
+        
+        for (let i = 0; i < explosionsInWave; i++) {
+          const angle = (i / explosionsInWave) * Math.PI * 2 + wave * 0.3;
+          const radius = waveRadius * (0.8 + Math.random() * 0.4);
+          const x = centerX + Math.cos(angle) * radius;
+          const y = centerY + Math.sin(angle) * radius;
+          
+          // Create explosion if on screen
+          if (x >= -100 && x <= this.canvas.width + 100 && 
+              y >= -100 && y <= this.canvas.height + 100) {
+            const explosionSize = 150 + Math.random() * 100;
+            this.createRainbowExplosion(x, y, explosionSize);
+          }
+        }
+        
+        // Play additional explosion sounds for dramatic effect
+        if (wave < 4 && this.audioContext && this.soundEnabled) {
+          this.playSound(this.sounds.explosion);
+        }
+      }, wave * 120); // 120ms between each wave
     }
   }
 
@@ -2336,6 +2347,7 @@ class BlitzGame {
     // Update shield button cooldown
     const shieldButton = document.getElementById('shield-button');
     if (shieldButton) {
+      const wasCooldown = this.dashCooldown > 1;
       if (this.dashCooldown > 0) {
         shieldButton.classList.add('on-cooldown');
         const circle = shieldButton.querySelector('.cooldown-circle');
@@ -2345,12 +2357,28 @@ class BlitzGame {
         }
       } else {
         shieldButton.classList.remove('on-cooldown');
+        // Trigger flash when coming off cooldown
+        if (wasCooldown && this.dashCooldown <= 0) {
+          this.dashFlashTimer = 30; // Flash for 0.5 seconds at 60fps
+        }
+      }
+      
+      // Handle flash effect
+      if (this.dashFlashTimer > 0) {
+        this.dashFlashTimer--;
+        const flashIntensity = Math.sin(this.dashFlashTimer * 0.3) * 0.5 + 0.5;
+        shieldButton.style.backgroundColor = `rgba(0, 255, 136, ${flashIntensity * 0.3})`;
+        shieldButton.style.borderColor = `rgba(0, 255, 136, ${flashIntensity * 0.8})`;
+      } else {
+        shieldButton.style.backgroundColor = '';
+        shieldButton.style.borderColor = '';
       }
     }
 
     // Update time slow button cooldown
     const timeSlowButton = document.getElementById('time-slow-button');
     if (timeSlowButton) {
+      const wasCooldown = this.timeSlowCooldown > 1;
       if (this.timeSlowCooldown > 0) {
         timeSlowButton.classList.add('on-cooldown');
         const circle = timeSlowButton.querySelector('.cooldown-circle');
@@ -2360,6 +2388,60 @@ class BlitzGame {
         }
       } else {
         timeSlowButton.classList.remove('on-cooldown');
+        // Trigger flash when coming off cooldown
+        if (wasCooldown && this.timeSlowCooldown <= 0) {
+          this.timeSlowFlashTimer = 30; // Flash for 0.5 seconds at 60fps
+        }
+      }
+      
+      // Handle flash effect
+      if (this.timeSlowFlashTimer > 0) {
+        this.timeSlowFlashTimer--;
+        const flashIntensity = Math.sin(this.timeSlowFlashTimer * 0.3) * 0.5 + 0.5;
+        timeSlowButton.style.backgroundColor = `rgba(136, 136, 255, ${flashIntensity * 0.3})`;
+        timeSlowButton.style.borderColor = `rgba(136, 136, 255, ${flashIntensity * 0.8})`;
+      } else {
+        timeSlowButton.style.backgroundColor = '';
+        timeSlowButton.style.borderColor = '';
+      }
+    }
+    
+    // Update bomb button visibility and count
+    const bombButton = document.getElementById('bomb-button');
+    if (bombButton) {
+      if (this.bombCount > 0) {
+        bombButton.style.display = 'flex';
+        
+        // Show count if 2 or more bombs
+        let countDisplay = bombButton.querySelector('.bomb-count');
+        if (this.bombCount >= 2) {
+          if (!countDisplay) {
+            countDisplay = document.createElement('div');
+            countDisplay.className = 'bomb-count';
+            countDisplay.style.cssText = `
+              position: absolute;
+              bottom: -5px;
+              right: -5px;
+              background: #ff4444;
+              color: white;
+              border-radius: 50%;
+              width: 20px;
+              height: 20px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 12px;
+              font-weight: bold;
+              border: 2px solid white;
+            `;
+            bombButton.appendChild(countDisplay);
+          }
+          countDisplay.textContent = this.bombCount.toString();
+        } else if (countDisplay) {
+          countDisplay.remove();
+        }
+      } else {
+        bombButton.style.display = 'none';
       }
     }
   }

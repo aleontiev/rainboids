@@ -246,12 +246,8 @@ export class Player {
         }
     }
 
-    // Dash mechanic - speed boost only
-    if (keys.shift && this.dashCooldown <= 0 && !this.isDashing) {
-      this.isDashing = true;
-      this.dashFrames = this.maxDashFrames + 30;
-      this.dashCooldown = 120; // 2 seconds at 60fps
-    }
+    // Dash mechanic is now handled by the main game loop via activateShield()
+    // This section only handles dash state updates
 
     if (this.dashCooldown > 0) {
       this.dashCooldown--;
@@ -530,37 +526,63 @@ export class Player {
 
     // Draw shield if active
     if (this.shield > 0) {
-      ctx.globalAlpha = 0.6 * shipOpacity;
-      ctx.strokeStyle = "#00aaff"; // Cool blue
-      ctx.lineWidth = 4; // Thicker shield
+      const shieldThickness = 3 + this.shield * 2; // Thickness increases with shield count
+      const shieldRadius = visualSize + 10 + this.shield * 2; // Radius also grows slightly
+      
+      // Outer bright blue shield
+      ctx.globalAlpha = 0.8 * shipOpacity;
+      ctx.strokeStyle = "#0099ff"; // Bright blue
+      ctx.lineWidth = shieldThickness;
       ctx.beginPath();
-      ctx.arc(0, 0, visualSize + 10, 0, Math.PI * 2); // Slightly larger than visual ship
+      ctx.arc(0, 0, shieldRadius, 0, Math.PI * 2);
       ctx.stroke();
 
       // Inner shield glow
-      ctx.globalAlpha = 0.3 * shipOpacity;
-      ctx.strokeStyle = "#88ccff";
-      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.4 * shipOpacity;
+      ctx.strokeStyle = "#66ccff"; // Bright light blue
+      ctx.lineWidth = Math.max(1, shieldThickness - 2);
       ctx.beginPath();
-      ctx.arc(0, 0, visualSize + 8, 0, Math.PI * 2);
+      ctx.arc(0, 0, shieldRadius - 2, 0, Math.PI * 2);
       ctx.stroke();
+      
+      // Additional shield rings for multiple shields
+      if (this.shield > 1) {
+        for (let i = 1; i < this.shield; i++) {
+          ctx.globalAlpha = (0.4 - i * 0.1) * shipOpacity;
+          ctx.strokeStyle = "#0099ff";
+          ctx.lineWidth = Math.max(1, shieldThickness - i * 2);
+          ctx.beginPath();
+          ctx.arc(0, 0, shieldRadius + i * 5, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
     }
 
-    // Draw godmode indicator
+    // Draw godmode golden shield
     if (this.godMode) {
-      ctx.globalAlpha = 0.5;
-      ctx.strokeStyle = "#ffff00"; // Golden glow
-      ctx.lineWidth = 3;
+      // Golden shield effect
+      ctx.globalAlpha = 0.9 * shipOpacity;
+      ctx.strokeStyle = "#ffcc00"; // Bright gold
+      ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.arc(0, 0, visualSize + 15, 0, Math.PI * 2);
+      ctx.arc(0, 0, visualSize + 18, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Pulsing effect
-      ctx.globalAlpha = 0.3 + 0.2 * Math.sin(Date.now() * 0.01);
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1;
+      // Inner golden glow
+      ctx.globalAlpha = 0.6 * shipOpacity;
+      ctx.strokeStyle = "#ffdd44"; // Lighter gold
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(0, 0, visualSize + 17, 0, Math.PI * 2);
+      ctx.arc(0, 0, visualSize + 16, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Subtle pulsing outer ring
+      const pulseIntensity = 0.7 + 0.3 * Math.sin(Date.now() * 0.005);
+      ctx.globalAlpha = (0.4 * pulseIntensity) * shipOpacity;
+      ctx.strokeStyle = "#ffaa00"; // Deeper gold
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.arc(0, 0, visualSize + 20, 0, Math.PI * 2);
       ctx.stroke();
     }
 
