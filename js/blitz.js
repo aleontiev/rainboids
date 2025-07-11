@@ -100,6 +100,7 @@ class BlitzGame {
     this.enemyPulseCircles = [];
     this.asteroids = [];
     this.enemies = [];
+    this.allEnemies = []; // Unified enemy list for collision detection
     this.particles = [];
 
     this.isMobile = this.detectMobile();
@@ -531,6 +532,29 @@ class BlitzGame {
   update(deltaTime, slowdownFactor = 1.0) {
     if (this.gameState !== "PLAYING" && !this.death.animationActive) return;
 
+    // Update core game state
+    this.updateGameState(deltaTime);
+
+    // Update managers
+    this.updateManagers(deltaTime, slowdownFactor);
+
+    // Update game entities
+    this.updateEntities(deltaTime, slowdownFactor);
+
+    // Update level progression
+    this.updateLevelProgression(deltaTime);
+
+    // Check collisions if not in death animation
+    if (!this.death.animationActive) {
+      this.checkCollisions();
+
+      // Boss collisions are now handled in the unified collision system
+    }
+
+    this.ui.update(); // Update UI elements like timer
+  }
+
+  updateGameState(deltaTime) {
     // Only update game time if not in death animation
     if (!this.death.animationActive) {
       this.gameTime += deltaTime / 1000; // Convert ms to seconds
@@ -544,25 +568,30 @@ class BlitzGame {
       }
     }
 
-    // Update time slow cooldown
+    // Update cooldowns
     if (this.timeSlowCooldown > 0) {
       this.timeSlowCooldown -= 1;
     }
-
-    // Update shield cooldown
     if (this.shieldCooldown > 0) {
       this.shieldCooldown -= 1;
     }
+  }
 
-    // Update button cooldown visuals
+  updateManagers(deltaTime, slowdownFactor) {
+    // Update background
+    this.background.update();
+
+    // Update UI cooldown visuals
     this.ui.updateCooldownVisuals();
+  }
 
+  updateEntities(deltaTime, slowdownFactor) {
     const input = this.inputHandler.getInput();
 
+    // Handle input
     if (input.shift) {
       this.activateTimeSlow();
     }
-
     if (input.rightClick) {
       this.activateShield();
     }
@@ -570,12 +599,12 @@ class BlitzGame {
     // Update player
     this.player.update(
       input,
-      this.enemies,
+      this.allEnemies,
       this.asteroids,
       this.isPortrait,
       this.autoaim,
-      this.player.mainWeaponLevel, // Pass mainWeaponLevel
-      this.timeSlowActive // Pass time slow state
+      this.player.mainWeaponLevel,
+      this.timeSlowActive
     );
 
     // Player shooting (prevent firing during death animation)
@@ -593,7 +622,7 @@ class BlitzGame {
     // Update bullets
     this.bullets = this.bullets.filter((bullet) => {
       if (bullet instanceof HomingMissile) {
-        return bullet.update(this.enemies, slowdownFactor);
+        return bullet.update(this.allEnemies, slowdownFactor);
       } else {
         bullet.update(slowdownFactor);
         if (this.isPortrait) {
@@ -607,12 +636,9 @@ class BlitzGame {
     // Update enemy bullets
     this.enemyBullets = this.enemyBullets.filter((bullet) => {
       bullet.update(slowdownFactor);
-
-      // Special handling for pulse circles
       if (bullet.enemyType === "pulse") {
         return bullet.life > 0;
       }
-
       return (
         bullet.x > -50 &&
         bullet.x < this.canvas.width + 50 &&
@@ -633,142 +659,20 @@ class BlitzGame {
     this.asteroids = this.asteroids.filter((asteroid) => {
       asteroid.update(slowdownFactor);
       if (this.isPortrait) {
-        return asteroid.y < this.canvas.height + asteroid.size; // Keep if on screen or just off bottom
+        return asteroid.y < this.canvas.height + asteroid.size;
       } else {
-        return asteroid.x > -asteroid.size; // Keep if on screen or just off left
+        return asteroid.x > -asteroid.size;
       }
     });
 
-    // Update enemies
-    this.enemies = this.enemies.filter((enemy) => {
-      enemy.update(
-        this.player.x,
-        this.player.y,
-        this.enemyBullets,
-        this.enemyLasers,
-        this.enemyPulseCircles,
-        slowdownFactor
-      );
-      enemy.shoot(this.enemyBullets, this.player);
-      return enemy.x > -50;
-    });
-
-    // Update mini-bosses
-    this.miniBosses.forEach((miniBoss) => {
-      miniBoss.update(this.player.x, this.player.y, slowdownFactor); // Pass player coordinates
-
-      // Mini-boss primary weapon
-      if (miniBoss.canFirePrimary()) {
-        const bulletData = miniBoss.firePrimary(this.player.x, this.player.y); // Pass player coordinates
-        const angle = Math.atan2(bulletData.vy, bulletData.vx);
-        const speed = Math.sqrt(
-          bulletData.vx * bulletData.vx + bulletData.vy * bulletData.vy
-        );
-        this.enemyBullets.push(
-          new Bullet(
-            bulletData.x,
-            bulletData.y,
-            angle,
-            bulletData.size,
-            bulletData.color,
-            this.isPortrait,
-            speed
-          )
-        );
-      }
-
-      // Mini-boss secondary weapon
-      if (miniBoss.canFireSecondary()) {
-        const bulletsData = miniBoss.fireSecondary(
-          this.player.x,
-          this.player.y
-        ); // Pass player coordinates
-        bulletsData.forEach((bulletData) => {
-          const angle = Math.atan2(bulletData.vy, bulletData.vx);
-          const speed = Math.sqrt(
-            bulletData.vx * bulletData.vx + bulletData.vy * bulletData.vy
-          );
-          this.enemyBullets.push(
-            new Bullet(
-              bulletData.x,
-              bulletData.y,
-              angle,
-              bulletData.size,
-              bulletData.color,
-              this.isPortrait,
-              speed
-            )
-          );
-        });
-      }
-
-      // Mini-boss circular weapon
-      if (miniBoss.canFireCircular()) {
-        const bulletsData = miniBoss.fireCircular(this.player.x, this.player.y);
-        bulletsData.forEach((bulletData) => {
-          const angle = Math.atan2(bulletData.vy, bulletData.vx);
-          const speed = Math.sqrt(
-            bulletData.vx * bulletData.vx + bulletData.vy * bulletData.vy
-          );
-          this.enemyBullets.push(
-            new Bullet(
-              bulletData.x,
-              bulletData.y,
-              angle,
-              bulletData.size,
-              bulletData.color,
-              this.isPortrait,
-              speed
-            )
-          );
-        });
-      }
-
-      // Mini-boss burst weapon
-      if (miniBoss.canFireBurst()) {
-        const bulletsData = miniBoss.fireBurst(this.player.x, this.player.y);
-        bulletsData.forEach((bulletData) => {
-          const angle = Math.atan2(bulletData.vy, bulletData.vx);
-          const speed = Math.sqrt(
-            bulletData.vx * bulletData.vx + bulletData.vy * bulletData.vy
-          );
-          this.enemyBullets.push(
-            new Bullet(
-              bulletData.x,
-              bulletData.y,
-              angle,
-              bulletData.size,
-              bulletData.color,
-              this.isPortrait,
-              speed
-            )
-          );
-        });
-      }
-
-      // Mini-boss small enemy spawn
-      if (miniBoss.canSpawnEnemy()) {
-        const enemyData = miniBoss.spawnEnemy(this.player.x, this.player.y); // Pass player coordinates
-        this.enemies.push(
-          new Enemy(
-            enemyData.x,
-            enemyData.y,
-            enemyData.type,
-            enemyData.isPortrait,
-            enemyData.speed // Pass speed
-          )
-        );
-      }
-    });
+    // Update all enemies uniformly
+    this.updateAllEnemies(slowdownFactor);
 
     // Update particles
     this.particles = this.particles.filter((particle) => {
       particle.update(slowdownFactor);
       return particle.life > 0;
     });
-
-    // Update background stars with subtle movement
-    this.background.update();
 
     // Update powerups
     this.powerups = this.powerups.filter((powerup) => {
@@ -787,17 +691,148 @@ class BlitzGame {
       particle.update(slowdownFactor);
       return particle.life > 0;
     });
+  }
 
+  updateAllEnemies(slowdownFactor) {
+    // Rebuild unified enemy list
+    this.allEnemies = [...this.enemies, ...this.miniBosses];
+    if (this.boss) {
+      this.allEnemies.push(this.boss);
+    }
+
+    // Update regular enemies
+    this.enemies = this.enemies.filter((enemy) => {
+      enemy.update(
+        this.player.x,
+        this.player.y,
+        this.enemyBullets,
+        this.enemyLasers,
+        this.enemyPulseCircles,
+        slowdownFactor
+      );
+      enemy.shoot(this.enemyBullets, this.player);
+      return enemy.x > -50;
+    });
+
+    // Update mini-bosses
+    this.miniBosses.forEach((miniBoss) => {
+      miniBoss.update(this.player.x, this.player.y, slowdownFactor);
+      this.handleEnemyWeapons(miniBoss);
+
+      // Handle mini-boss specific spawning
+      if (miniBoss.canSpawnEnemy && miniBoss.canSpawnEnemy()) {
+        const enemyData = miniBoss.spawnEnemy(this.player.x, this.player.y);
+        this.enemies.push(
+          new Enemy(
+            enemyData.x,
+            enemyData.y,
+            enemyData.type,
+            enemyData.isPortrait,
+            enemyData.speed
+          )
+        );
+      }
+    });
+
+    // Update boss
+    if (this.boss) {
+      this.boss.update(slowdownFactor);
+      this.handleEnemyWeapons(this.boss);
+    }
+  }
+
+  handleEnemyWeapons(enemy) {
+    // Handle primary weapon
+    if (enemy.canFirePrimary && enemy.canFirePrimary()) {
+      const weaponData = enemy.firePrimary(this.player.x, this.player.y);
+      if (Array.isArray(weaponData)) {
+        weaponData.forEach((bulletData) => {
+          this.createEnemyBullet(bulletData);
+        });
+      } else {
+        this.createEnemyBullet(weaponData);
+      }
+    }
+
+    // Handle secondary weapon
+    if (enemy.canFireSecondary && enemy.canFireSecondary()) {
+      const weaponData = enemy.fireSecondary(this.player.x, this.player.y);
+      if (Array.isArray(weaponData)) {
+        weaponData.forEach((data) => {
+          if (data.type === "laser") {
+            this.enemyLasers.push(
+              new Laser(data.x, data.y, data.angle, data.speed, data.color)
+            );
+          } else {
+            this.createEnemyBullet(data);
+          }
+        });
+      } else {
+        this.createEnemyBullet(weaponData);
+      }
+    }
+
+    // Handle other weapon types
+    if (enemy.canFireCircular && enemy.canFireCircular()) {
+      const bulletsData = enemy.fireCircular(this.player.x, this.player.y);
+      bulletsData.forEach((bulletData) => {
+        this.createEnemyBullet(bulletData);
+      });
+    }
+
+    if (enemy.canFireBurst && enemy.canFireBurst()) {
+      const bulletsData = enemy.fireBurst(this.player.x, this.player.y);
+      bulletsData.forEach((bulletData) => {
+        this.createEnemyBullet(bulletData);
+      });
+    }
+
+    if (enemy.canFireSpecial && enemy.canFireSpecial()) {
+      const weaponData = enemy.fireSpecial();
+      weaponData.forEach((data) => {
+        if (data.type === "pulse") {
+          this.enemyPulseCircles.push(
+            new PulseCircle(data.x, data.y, data.maxRadius, data.color)
+          );
+        }
+      });
+    }
+
+    if (enemy.canFireSpiral && enemy.canFireSpiral()) {
+      const bulletsData = enemy.fireSpiral();
+      bulletsData.forEach((bulletData) => {
+        this.createEnemyBullet(bulletData);
+      });
+    }
+  }
+
+  createEnemyBullet(bulletData) {
+    const angle = Math.atan2(bulletData.vy, bulletData.vx);
+    const speed = Math.sqrt(
+      bulletData.vx * bulletData.vx + bulletData.vy * bulletData.vy
+    );
+    this.enemyBullets.push(
+      new Bullet(
+        bulletData.x,
+        bulletData.y,
+        angle,
+        bulletData.size,
+        bulletData.color,
+        this.isPortrait,
+        speed
+      )
+    );
+  }
+
+  updateLevelProgression(deltaTime) {
     // Spawn powerups occasionally
     this.powerupSpawnTimer++;
     if (this.powerupSpawnTimer > 1200 + Math.random() * 1800) {
-      // 0.5x spawn rate (20-50 seconds)
       this.spawnPowerup();
       this.powerupSpawnTimer = 0;
     }
 
-    // Spawn asteroids
-    // Game progression phases based on time
+    // Game progression phases
     this.updateGamePhase();
 
     // Spawn asteroids based on current phase
@@ -807,10 +842,8 @@ class BlitzGame {
       const rand = Math.random();
       let type = "medium";
       if (rand < 0.1) {
-        // 10% large
         type = "large";
       } else if (rand > 0.8) {
-        // 20% small
         type = "small";
       }
       this.spawnAsteroid(type);
@@ -836,101 +869,18 @@ class BlitzGame {
       this.miniBosses.length === 0 &&
       !this.miniBossesDefeated
     ) {
-      try {
-        // Spawn two mini-bosses directly inline to avoid method call issues
-        let alphaX, alphaY, betaX, betaY;
-
-        if (this.isPortrait) {
-          // Portrait mode: spawn at top of screen like other enemies
-          const centerX = this.canvas.width / 2;
-          const spacing = 120;
-
-          // Alpha mini-boss (left side)
-          alphaX = centerX - spacing;
-          alphaY = -100; // Start above screen
-
-          // Beta mini-boss (right side)
-          betaX = centerX + spacing;
-          betaY = -100; // Start above screen
-        } else {
-          // Landscape mode: spawn from right side like other enemies
-          const centerY = this.canvas.height / 2;
-          const spacing = 150;
-
-          // Alpha mini-boss (top)
-          alphaX = this.canvas.width + 100; // Start off-screen right
-          alphaY = centerY - spacing;
-
-          // Beta mini-boss (bottom)
-          betaX = this.canvas.width + 100; // Start off-screen right
-          betaY = centerY + spacing;
-        }
-
-        this.miniBosses.push(
-          new MiniBoss(
-            alphaX,
-            alphaY,
-            "alpha",
-            this.isPortrait,
-            this.canvas.width
-          )
-        );
-        this.miniBosses.push(
-          new MiniBoss(betaX, betaY, "beta", this.isPortrait, this.canvas.width)
-        );
-
-        // Spawn extra powerup when minibosses appear
-        this.spawnPowerup();
-
-        this.gamePhase = 2; // Mini-boss phase (phase 2 in the new system)
-      } catch (error) {
-        console.error("Error spawning mini-bosses:", error);
-      }
+      this.spawnMiniBosses();
     }
 
     // Handle Phase 3: Cleanup phase after minibosses are defeated
     if (this.gamePhase === 3) {
-      this.cleanupPhaseTimer += deltaTime;
-
-      // Explode all remaining enemies immediately (only once)
-      if (!this.cleanupEnemiesExploded) {
-        this.cleanupEnemiesExploded = true;
-        for (let i = this.enemies.length - 1; i >= 0; i--) {
-          const enemy = this.enemies[i];
-          this.effects.createEnemyExplosion(enemy.x, enemy.y);
-          this.enemies.splice(i, 1);
-        }
-        // Clear all enemy bullets
-        this.enemyBullets = [];
-        this.enemyLasers = [];
-        this.enemyPulseCircles = [];
-      }
-
-      // After 5 seconds, spawn 2 powerups and show boss dialog
-      if (this.cleanupPhaseTimer >= 5000) {
-        if (!this.cleanupPowerupsSpawned) {
-          this.spawnPowerup();
-          this.spawnPowerup();
-          this.cleanupPowerupsSpawned = true;
-        }
-
-        // Start boss dialog after powerups are spawned
-        if (this.cleanupPhaseTimer >= 6000) {
-          this.gamePhase = 4; // Transition to phase 4: boss dialog
-          this.bossDialogActive = true;
-          this.showBossDialog();
-        }
-      }
+      this.handleCleanupPhase(deltaTime);
     }
 
-    // Update boss fight
-    if (this.gamePhase === 5) {
-      this.updateBossFight(slowdownFactor);
-    }
+    // Boss fight is now handled in updateAllEnemies
 
     // Handle boss dialog delay phase
     if (this.gamePhase === "WAITING_FOR_BOSS_DIALOG") {
-      // Check if all other enemies are cleared
       if (
         this.enemies.length === 0 &&
         this.asteroids.length === 0 &&
@@ -938,26 +888,85 @@ class BlitzGame {
         this.enemyLasers.length === 0 &&
         this.enemyPulseCircles.length === 0
       ) {
-        this.bossDialogTimer += deltaTime; // Increment timer using deltaTime
+        this.bossDialogTimer += deltaTime;
         if (this.bossDialogTimer >= 5000) {
-          // 5 seconds
-          this.gamePhase = 5; // Transition to boss dialog phase
+          this.gamePhase = 5;
           this.showBossDialog();
         }
       }
     }
+  }
 
-    // Only check collisions if not in death animation
-    if (!this.death.animationActive) {
-      this.checkCollisions();
+  spawnMiniBosses() {
+    try {
+      let alphaX, alphaY, betaX, betaY;
 
-      // Check boss collisions
-      if (this.gamePhase === 5) {
-        this.checkBossCollisions();
+      if (this.isPortrait) {
+        const centerX = this.canvas.width / 2;
+        const spacing = 120;
+        alphaX = centerX - spacing;
+        alphaY = -100;
+        betaX = centerX + spacing;
+        betaY = -100;
+      } else {
+        const centerY = this.canvas.height / 2;
+        const spacing = 150;
+        alphaX = this.canvas.width + 100;
+        alphaY = centerY - spacing;
+        betaX = this.canvas.width + 100;
+        betaY = centerY + spacing;
       }
+
+      this.miniBosses.push(
+        new MiniBoss(
+          alphaX,
+          alphaY,
+          "alpha",
+          this.isPortrait,
+          this.canvas.width
+        )
+      );
+      this.miniBosses.push(
+        new MiniBoss(betaX, betaY, "beta", this.isPortrait, this.canvas.width)
+      );
+
+      this.spawnPowerup();
+      this.gamePhase = 2;
+    } catch (error) {
+      console.error("Error spawning mini-bosses:", error);
+    }
+  }
+
+  handleCleanupPhase(deltaTime) {
+    this.cleanupPhaseTimer += deltaTime;
+
+    // Explode all remaining enemies immediately (only once)
+    if (!this.cleanupEnemiesExploded) {
+      this.cleanupEnemiesExploded = true;
+      for (let i = this.enemies.length - 1; i >= 0; i--) {
+        const enemy = this.enemies[i];
+        this.effects.createEnemyExplosion(enemy.x, enemy.y);
+        this.enemies.splice(i, 1);
+      }
+      this.enemyBullets = [];
+      this.enemyLasers = [];
+      this.enemyPulseCircles = [];
     }
 
-    this.ui.update(); // Update UI elements like timer
+    // After 5 seconds, spawn 2 powerups and show boss dialog
+    if (this.cleanupPhaseTimer >= 5000) {
+      if (!this.cleanupPowerupsSpawned) {
+        this.spawnPowerup();
+        this.spawnPowerup();
+        this.cleanupPowerupsSpawned = true;
+      }
+
+      if (this.cleanupPhaseTimer >= 6000) {
+        this.gamePhase = 4;
+        this.bossDialogActive = true;
+        this.showBossDialog();
+      }
+    }
   }
 
   checkCollisions() {
@@ -1056,11 +1065,11 @@ class BlitzGame {
       }
     }
 
-    // Player bullets vs enemies
+    // Player bullets vs all enemies (unified)
     for (let i = this.bullets.length - 1; i >= 0; i--) {
-      for (let j = this.enemies.length - 1; j >= 0; j--) {
+      for (let j = this.allEnemies.length - 1; j >= 0; j--) {
         const bullet = this.bullets[i];
-        const enemy = this.enemies[j];
+        const enemy = this.allEnemies[j];
         let collision = false;
 
         if (bullet instanceof Laser) {
@@ -1075,68 +1084,9 @@ class BlitzGame {
             this.bullets.splice(i, 1);
           }
 
-          this.effects.createEnemyExplosion(enemy.x, enemy.y);
-          this.audio.playSound(this.audio.sounds.enemyExplosion);
-          this.enemies.splice(j, 1);
-          this.score += 200;
-          this.ui.update();
-
-          // If it's a laser, it can hit multiple targets, so don't break from inner loop
-          if (!(bullet instanceof Laser)) {
-            break; // Break from inner loop only if not a laser
-          }
-        }
-      }
-    }
-
-    // Player bullets vs mini-bosses
-    for (let i = this.bullets.length - 1; i >= 0; i--) {
-      for (let j = this.miniBosses.length - 1; j >= 0; j--) {
-        const bullet = this.bullets[i];
-        const miniBoss = this.miniBosses[j];
-        let collision = false;
-
-        if (bullet instanceof Laser) {
-          collision = this.checkLaserCollision(bullet, miniBoss);
-        } else {
-          collision = this.checkCollision(bullet, miniBoss);
-        }
-
-        if (collision) {
-          // For lasers, we don't remove the laser on hit, as it's continuous
-          if (!(bullet instanceof Laser)) {
-            this.bullets.splice(i, 1);
-          }
-
-          const result = miniBoss.takeDamage(1);
-
-          // Handle different damage results
-          if (result === "godmode") {
-            // No effect, no explosion for god mode
-            continue;
-          } else if (
-            result === "shield_damaged" ||
-            result === "shield_destroyed"
-          ) {
-            this.effects.createEnemyExplosion(miniBoss.x, miniBoss.y);
-            this.audio.playSound(this.audio.sounds.enemyExplosion);
-          } else if (result === "damaged") {
-            this.effects.createEnemyExplosion(miniBoss.x, miniBoss.y);
-            this.audio.playSound(this.audio.sounds.enemyExplosion);
-          } else if (result === "destroyed") {
-            this.miniBosses.splice(j, 1);
-            this.score += 1000; // High score for mini-boss defeat
-            this.ui.update();
-            this.effects.createEnemyExplosion(miniBoss.x, miniBoss.y);
-            this.audio.playSound(this.audio.sounds.enemyExplosion);
-
-            // Check if all mini-bosses are defeated
-            if (this.miniBosses.length === 0) {
-              this.miniBossesDefeated = true;
-              this.cleanupPhaseTimer = 0;
-              this.cleanupEnemiesExploded = false; // Flag to track if we've exploded enemies
-              this.gamePhase = 3; // Transition to cleanup phase
-            }
+          const result = this.handleEnemyDamage(enemy, 1);
+          if (result === "destroyed") {
+            this.removeDestroyedEnemy(enemy);
           }
 
           // If it's a laser, it can hit multiple targets, so don't break from inner loop
@@ -1168,29 +1118,10 @@ class BlitzGame {
       }
     }
 
-    // Player vs enemies (only if not shielding and not in godmode)
+    // Player vs all enemies (unified)
     if (!this.player.isShielding && !this.player.godMode) {
-      for (let i = this.enemies.length - 1; i >= 0; i--) {
-        if (this.checkPlayerCollision(this.player, this.enemies[i])) {
-          if (this.player.secondShip.length > 0) {
-            const destroyedShip = this.player.secondShip.pop();
-            this.effects.createExplosion(destroyedShip.x, destroyedShip.y);
-            this.ui.update();
-          } else if (this.player.shield > 0) {
-            this.player.shield--;
-            this.effects.createExplosion(this.player.x, this.player.y);
-            this.ui.update();
-          } else {
-            this.effects.createExplosion(this.player.x, this.player.y);
-            this.death.start();
-            return;
-          }
-        }
-      }
-
-      // Player vs mini-bosses
-      for (let i = this.miniBosses.length - 1; i >= 0; i--) {
-        if (this.checkPlayerCollision(this.player, this.miniBosses[i])) {
+      for (let i = this.allEnemies.length - 1; i >= 0; i--) {
+        if (this.checkPlayerCollision(this.player, this.allEnemies[i])) {
           if (this.player.secondShip.length > 0) {
             const destroyedShip = this.player.secondShip.pop();
             this.effects.createExplosion(destroyedShip.x, destroyedShip.y);
@@ -1745,117 +1676,87 @@ class BlitzGame {
     );
   }
 
-  updateBossFight(slowdownFactor = 1.0) {
-    if (!this.boss) return;
+  // Boss fight logic is now handled in updateAllEnemies and handleEnemyWeapons
 
-    this.boss.update(slowdownFactor);
-
-    // Boss weapons
-    if (this.boss.canFirePrimary()) {
-      const bulletsData = this.boss.firePrimary(this.player.x, this.player.y);
-      bulletsData.forEach((bulletData) => {
-        this.enemyBullets.push(
-          new Bullet(
-            bulletData.x,
-            bulletData.y,
-            bulletData.vx,
-            bulletData.vy,
-            bulletData.type
-          )
-        );
-      });
-    }
-
-    if (this.boss.canFireSecondary()) {
-      const weaponData = this.boss.fireSecondary(this.player.x, this.player.y);
-      weaponData.forEach((data) => {
-        if (data.type === "laser") {
-          this.enemyLasers.push(
-            new Laser(data.x, data.y, data.angle, data.speed, data.color)
-          );
+  handleEnemyDamage(enemy, damage) {
+    // Handle damage based on enemy type
+    if (enemy.takeDamage) {
+      const result = enemy.takeDamage(damage);
+      
+      // Handle different damage results
+      if (result === "godmode") {
+        // No effect, no explosion for god mode
+        return result;
+      } else if (
+        result === "shield_damaged" ||
+        result === "shield_destroyed" ||
+        result === "damaged"
+      ) {
+        this.effects.createEnemyExplosion(enemy.x, enemy.y);
+        this.audio.playSound(this.audio.sounds.enemyExplosion);
+        return result;
+      } else if (result === "destroyed" || result === "defeated") {
+        this.effects.createEnemyExplosion(enemy.x, enemy.y);
+        this.audio.playSound(this.audio.sounds.enemyExplosion);
+        
+        // Award score based on enemy type
+        if (enemy.maxHealth > 1000) {
+          // Boss
+          this.startBossDeathSequence();
+        } else if (enemy.maxHealth > 50) {
+          // Mini-boss
+          this.score += 1000;
+        } else {
+          // Regular enemy
+          this.score += 200;
         }
-      });
+        
+        this.ui.update();
+        return "destroyed";
+      }
+    } else {
+      // Regular enemy without takeDamage method
+      this.effects.createEnemyExplosion(enemy.x, enemy.y);
+      this.audio.playSound(this.audio.sounds.enemyExplosion);
+      this.score += 200;
+      this.ui.update();
+      return "destroyed";
     }
+    
+    return null;
+  }
 
-    if (this.boss.canFireSpecial()) {
-      const weaponData = this.boss.fireSpecial();
-      weaponData.forEach((data) => {
-        if (data.type === "pulse") {
-          this.enemyPulseCircles.push(
-            new PulseCircle(data.x, data.y, data.maxRadius, data.color)
-          );
-        }
-      });
+  removeDestroyedEnemy(enemy) {
+    // Remove from appropriate array
+    const enemyIndex = this.enemies.indexOf(enemy);
+    if (enemyIndex !== -1) {
+      this.enemies.splice(enemyIndex, 1);
+      return;
     }
-
-    // New: Spiral bullet attack
-    if (this.boss.canFireSpiral()) {
-      const bulletsData = this.boss.fireSpiral();
-      bulletsData.forEach((bulletData) => {
-        this.enemyBullets.push(
-          new Bullet(
-            bulletData.x,
-            bulletData.y,
-            bulletData.vx,
-            bulletData.vy,
-            bulletData.type
-          )
-        );
-      });
+    
+    const miniBossIndex = this.miniBosses.indexOf(enemy);
+    if (miniBossIndex !== -1) {
+      this.miniBosses.splice(miniBossIndex, 1);
+      
+      // Check if all mini-bosses are defeated
+      if (this.miniBosses.length === 0) {
+        this.miniBossesDefeated = true;
+        this.cleanupPhaseTimer = 0;
+        this.cleanupEnemiesExploded = false;
+        this.gamePhase = 3;
+      }
+      return;
+    }
+    
+    if (this.boss === enemy) {
+      this.boss = null;
+      return;
     }
   }
 
   checkBossCollisions() {
-    if (!this.boss || this.boss.isDefeated) return;
-
-    // Player bullets vs boss
-    for (let i = this.bullets.length - 1; i >= 0; i--) {
-      const bullet = this.bullets[i];
-      let collision = false;
-
-      if (bullet instanceof Laser) {
-        collision = this.checkLaserCollision(bullet, this.boss);
-      } else {
-        collision = this.checkCollision(bullet, this.boss);
-      }
-
-      if (collision) {
-        if (!(bullet instanceof Laser)) {
-          this.bullets.splice(i, 1);
-        }
-
-        const result = this.boss.takeDamage(5); // Boss takes reduced damage
-        this.effects.createEnemyExplosion(this.boss.x, this.boss.y);
-        this.audio.sounds.enemyExplosion.play();
-
-        if (result === "defeated") {
-          this.startBossDeathSequence();
-        }
-
-        if (!(bullet instanceof Laser)) {
-          break;
-        }
-      }
-    }
-
-    // Player vs boss collision
-    if (!this.player.isShielding && !this.player.godMode) {
-      if (this.checkPlayerCollision(this.player, this.boss)) {
-        if (this.player.secondShip.length > 0) {
-          const destroyedShip = this.player.secondShip.pop();
-          this.effects.createExplosion(destroyedShip.x, destroyedShip.y);
-          this.ui.update();
-        } else if (this.player.shield > 0) {
-          this.player.shield--;
-          this.effects.createExplosion(this.player.x, this.player.y);
-          this.ui.update();
-        } else {
-          this.effects.createExplosion(this.player.x, this.player.y);
-          this.death.start();
-          return;
-        }
-      }
-    }
+    // Boss collisions are now handled in the unified collision system
+    // This method is kept for compatibility but does nothing
   }
 
   startBossDeathSequence() {
