@@ -130,9 +130,9 @@ export class UIManager {
     // Update timer display
     const timerElement = document.getElementById("timer-value");
     if (timerElement) {
-      const seconds = Math.floor(this.game.gameTime / 60);
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
+      const totalSeconds = Math.floor(this.game.gameTime);
+      const minutes = Math.floor(totalSeconds / 60);
+      const remainingSeconds = totalSeconds % 60;
       timerElement.textContent = `${minutes}:${remainingSeconds
         .toString()
         .padStart(2, "0")}`;

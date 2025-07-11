@@ -9,6 +9,11 @@ body {
   justify-content: center;
   align-items: center;
   height: 100vh;
+  pointer-events: none;
+}
+
+body.game-ready {
+  pointer-events: all;
 }
 h2 {
   margin-bottom: 0;
@@ -136,12 +141,8 @@ canvas {
   transform-origin: 50% 50%;
   stroke-dasharray: 157; /* 2 * π * 25 (radius) */
   stroke-dashoffset: 0;
-  transition: stroke-dashoffset 5s linear;
 }
 
-.action-btn.on-cooldown .cooldown-circle {
-  stroke-dashoffset: 157;
-}
 
 #pause-icon {
   width: 20px;

@@ -269,12 +269,15 @@ export class Player {
       }
     }
 
+    // Apply time slow effect to cooldowns
+    const cooldownDecrement = timeSlowActive ? 0.3 : 1.0;
+    
     if (this.shootCooldown > 0) {
-      this.shootCooldown--;
+      this.shootCooldown -= cooldownDecrement;
     }
 
     if (this.homingMissileCooldown > 0) {
-      this.homingMissileCooldown--;
+      this.homingMissileCooldown -= cooldownDecrement;
     }
 
     // Update second ship positions (above/below or left/right based on orientation)
@@ -294,7 +297,6 @@ export class Player {
 
   shoot(
     bullets,
-    shootSound,
     BulletClass,
     LaserClass,
     HomingMissileClass,
@@ -558,9 +560,6 @@ export class Player {
       });
 
       this.shootCooldown = 10;
-      if (shootSound) {
-        shootSound.play();
-      }
     }
   }
 

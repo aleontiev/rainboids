@@ -80,7 +80,7 @@ export class CheatManager {
         this.game.allUpgradesState = null;
       }
 
-      this.ui.updateUI();
+      this.game.ui.update();
       this.update();
     };
     allUpgradesBtn.addEventListener("click", toggleAllUpgrades);
@@ -99,30 +99,6 @@ export class CheatManager {
     autoaimBtn.addEventListener("touchstart", (e) => {
       e.preventDefault();
       toggleAutoaim();
-    });
-
-    // Music toggle button with touch support
-    const musicBtn = document.getElementById("music-btn");
-    const toggleMusic = () => {
-      this.game.musicEnabledd = !this.game.musicEnabledd;
-      this.update();
-    };
-    musicBtn.addEventListener("click", toggleMusic);
-    musicBtn.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      toggleMusic();
-    });
-
-    // Volume toggle button with touch support
-    const volumeBtn = document.getElementById("volume-btn");
-    const toggleVolume = () => {
-      this.game.soundEnabled = !this.game.soundEnabled;
-      this.update();
-    };
-    volumeBtn.addEventListener("click", toggleVolume);
-    volumeBtn.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      toggleVolume();
     });
   }
 
@@ -146,20 +122,6 @@ export class CheatManager {
     const autoaimBtn = document.getElementById("autoaim-btn");
     if (autoaimBtn) {
       autoaimBtn.classList.toggle("active", this.game.autoaim);
-    }
-
-    // Music button
-    const musicBtn = document.getElementById("music-btn");
-    if (musicBtn) {
-      musicBtn.classList.toggle("active", this.game.musicEnabledd);
-      musicBtn.classList.toggle("muted", !this.game.musicEnabledd);
-    }
-
-    // Volume button
-    const volumeBtn = document.getElementById("volume-btn");
-    if (volumeBtn) {
-      volumeBtn.classList.toggle("active", this.game.soundEnabled);
-      volumeBtn.classList.toggle("muted", !this.game.soundEnabled);
     }
   }
 }

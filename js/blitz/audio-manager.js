@@ -7,68 +7,54 @@ export class AudioManager {
     this.sounds = {};
     this.backgroundMusic = null;
     this.musicMuted = false;
-    this.audioContext = null;
-    this.sfxMuted = false;
-    this.soundEnabled = true;
-    document.addEventListener("touchend", this.startBackgroundMusic);
+    this.soundMuted = false;
+    document.addEventListener("touchend", this.startBackgroundMusic.bind(this));
+    document.addEventListener("click", this.startBackgroundMusic.bind(this));
   }
 
   setupControls() {
-    // Volume button (all sounds)
-    const volumeButton = document.getElementById("volume-btn");
-    if (volumeButton) {
-      const updateVolumeIcon = () => {
-        const icon = volumeButton.querySelector("i");
-        if (icon) {
-          icon.setAttribute(
-            "data-lucide",
-            this.sfxMuted ? "volume-x" : "volume-2"
-          );
-          if (typeof lucide !== "undefined") {
-            lucide.createIcons();
-          }
-        }
-        volumeButton.classList.toggle("muted", this.sfxMuted);
-      };
-
-      volumeButton.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.sfxMuted = !this.sfxMuted;
-        this.musicMuted = this.sfxMuted;
-        if (this.backgroundMusic) {
-          this.backgroundMusic.muted = this.musicMuted;
-        }
-        updateVolumeIcon();
-        updateMusicIcon();
-      });
-
-      updateVolumeIcon();
-    }
-
     // Music button (music only)
     const musicButton = document.getElementById("music-btn");
+    const volumeButton = document.getElementById("volume-btn");
     const updateMusicIcon = () => {
-      const icon = musicButton.querySelector("i");
-      if (icon) {
-        icon.setAttribute("data-lucide", "music");
-        if (typeof lucide !== "undefined") {
-          lucide.createIcons();
-        }
-      }
       musicButton.classList.toggle("muted", this.musicMuted);
     };
+    const updateVolumeIcon = () => {
+      volumeButton.classList.toggle("muted", this.soundMuted);
+    };
 
-    if (musicButton) {
-      musicButton.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.musicMuted = !this.musicMuted;
-        if (this.backgroundMusic) {
-          this.backgroundMusic.muted = this.musicMuted;
-        }
-        updateMusicIcon();
-      });
-
+    const musicButtonClicked = (e) => {
+      e.stopPropagation();
+      this.musicMuted = !this.musicMuted;
+      if (this.backgroundMusic) {
+        this.backgroundMusic.muted = this.musicMuted || this.soundMuted;
+      }
       updateMusicIcon();
+    };
+    const volumeButtonClicked = (e) => {
+      e.stopPropagation();
+      this.soundMuted = !this.soundMuted;
+      if (this.backgroundMusic) {
+        this.backgroundMusic.muted = this.soundMuted || this.musicMuted;
+      }
+      updateVolumeIcon();
+    };
+    if (musicButton) {
+      if (this.game.isMobile) {
+        musicButton.addEventListener("touchend", musicButtonClicked);
+      } else {
+        musicButton.addEventListener("click", musicButtonClicked);
+      }
+      updateMusicIcon();
+    }
+
+    if (volumeButton) {
+      if (this.game.isMobile) {
+        volumeButton.addEventListener("touchend", volumeButtonClicked);
+      } else {
+        volumeButton.addEventListener("click", volumeButtonClicked);
+      }
+      updateVolumeIcon();
     }
   }
 
@@ -82,6 +68,7 @@ export class AudioManager {
       asteroidExplosion: this.generateSfxrSound("asteroidExplosion"),
       playerExplosion: this.generateSfxrSound("playerExplosion"),
       shield: this.generateSfxrSound("powerUp"),
+      powerUp: this.generateSfxrSound("powerUp"),
     };
   }
   ready() {
@@ -97,12 +84,13 @@ export class AudioManager {
       case "laserShoot":
         // Simple, subtle laser sound
         synthdef = params.laserShoot();
-        synthdef.p_base_freq = 0.5; // Higher pitch, less harsh
-        synthdef.p_env_sustain = 0.03; // Very short duration
-        synthdef.p_env_decay = 0.08; // Quick decay
-        synthdef.p_freq_ramp = -0.2; // Gentle frequency drop
-        synthdef.p_lpf_freq = 0.8; // Low pass filter for softer sound
-        synthdef.sound_vol = 0.08; // Much lower volume
+        /*
+        synthdef.p_base_freq = 0.5; 
+        synthdef.p_freq_ramp = 0.05; 
+        synthdef.p_lpf_freq = 0.2; 
+        synthdef.p_hpf_freq = 0.3;
+        */
+        synthdef.sound_vol = 0.02;
         break;
       case "hitHurt":
         synthdef = params.hitHurt();
@@ -169,6 +157,14 @@ export class AudioManager {
     };
   }
 
+  toggleBackgroundMusic(force = null) {
+    if (force !== null) {
+      this.backgroundMusic.muted = force;
+    } else {
+      this.backgroundMusic.muted = !this.backgroundMusic.muted;
+    }
+  }
+
   startBackgroundMusic() {
     // Create background music object now that user has interacted
     if (!this.backgroundMusic) {
@@ -176,26 +172,16 @@ export class AudioManager {
       this.backgroundMusic.loop = true;
       this.backgroundMusic.volume = 0.3;
 
-      // Apply current mute state if applicable
-      if (this.musicMuted) {
-        this.backgroundMusic.muted = true;
-      }
+      this.toggleBackgroundMusic(this.musicMuted);
 
       this.backgroundMusic
         .play()
         .catch((e) => console.log("Background: audio play failed:", e));
     }
   }
-  unmuteBackgroundMusic() {
-    this.backgroundMusic.muted = false;
-  }
-
-  muteBackgroundMusic() {
-    this.backgroundMusic.muted = true;
-  }
 
   playSound(sound) {
-    if (!this.sfxMuted && sound && sound.play) {
+    if (!this.soundMuted && sound && sound.play) {
       sound.play();
     }
   }

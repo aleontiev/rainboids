@@ -56,6 +56,8 @@ class BlitzGame {
     this.setupBossDialog();
 
     this.reset();
+    document.body.classList.add("game-ready");
+    document.body.style.display = "block";
     this.loop();
   }
 
@@ -107,7 +109,6 @@ class BlitzGame {
     this.touchX = 0;
     this.touchY = 0;
     this.gameTime = 0;
-    this.lastGameTimeSeconds = 0;
 
     this.asteroidSpawnTimer = 0;
     this.enemySpawnTimer = 0;
@@ -155,7 +156,6 @@ class BlitzGame {
     this.cleanupPowerupsSpawned = false;
     this.bossDialogActive = false;
     this.gamePhase = 1;
-
   }
 
   detectMobile() {
@@ -531,7 +531,10 @@ class BlitzGame {
   update(deltaTime, slowdownFactor = 1.0) {
     if (this.gameState !== "PLAYING" && !this.death.animationActive) return;
 
-    this.gameTime += deltaTime / 1000; // Convert ms to seconds
+    // Only update game time if not in death animation
+    if (!this.death.animationActive) {
+      this.gameTime += deltaTime / 1000; // Convert ms to seconds
+    }
 
     // Update time slow
     if (this.timeSlowActive) {
@@ -556,12 +559,10 @@ class BlitzGame {
 
     const input = this.inputHandler.getInput();
 
-    // Handle Shift key for time slow activation
     if (input.shift) {
       this.activateTimeSlow();
     }
 
-    // Handle Right Click for shield activation
     if (input.rightClick) {
       this.activateShield();
     }
@@ -581,12 +582,12 @@ class BlitzGame {
     if (input.fire && !this.death.animationActive) {
       this.player.shoot(
         this.bullets,
-        this.audio.sounds.shoot,
         Bullet,
         Laser,
         HomingMissile,
         this.isPortrait
       );
+      this.audio.playSound(this.audio.sounds.shoot);
     }
 
     // Update bullets

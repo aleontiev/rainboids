@@ -11,6 +11,7 @@ export class InputHandler {
       fire: false,
       firePressed: false,
       shift: false,
+      alt: false,
       rightClick: false,
       joystickX: 0,
       joystickY: 0,
@@ -76,6 +77,10 @@ export class InputHandler {
       case "ShiftRight":
         this.input.shift = true;
         break;
+      case "AltLeft":
+      case "AltRight":
+        this.input.alt = true;
+        break;
     }
   }
 
@@ -104,6 +109,10 @@ export class InputHandler {
       case "ShiftRight":
         this.input.shift = false;
         break;
+      case "AltLeft":
+      case "AltRight":
+        this.input.alt = false;
+        break;
     }
   }
 
@@ -117,7 +126,7 @@ export class InputHandler {
 
   handleTouch(evt) {
     evt.preventDefault();
-    
+
     // Initialize audio context on first touch (mobile requirement)
     if (this.firstTouch) {
       this.firstTouch = false;
@@ -126,7 +135,7 @@ export class InputHandler {
         this.onFirstTouch();
       }
     }
-    
+
     const touchPos = this.getTouchPos(evt);
     this.input.target = touchPos;
     this.input.fire = true;
@@ -139,16 +148,31 @@ export class InputHandler {
 
   setupMouseControls() {
     // Only enable mouse controls on desktop (non-touch devices)
-    if (!('ontouchstart' in window)) {
-      this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
-      this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
-      this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
-      this.canvas.addEventListener('mouseleave', this.handleMouseLeave.bind(this));
-      this.canvas.addEventListener('contextmenu', (e) => e.preventDefault()); // Prevent right-click context menu
-      
+    if (!("ontouchstart" in window)) {
+      this.canvas.addEventListener(
+        "mousemove",
+        this.handleMouseMove.bind(this)
+      );
+      this.canvas.addEventListener(
+        "mousedown",
+        this.handleMouseDown.bind(this)
+      );
+      this.canvas.addEventListener("mouseup", this.handleMouseUp.bind(this));
+      this.canvas.addEventListener(
+        "mouseleave",
+        this.handleMouseLeave.bind(this)
+      );
+      this.canvas.addEventListener("contextmenu", (e) => e.preventDefault()); // Prevent right-click context menu
+
       // Track mouse position even when off-screen for aiming
-      document.addEventListener('mousemove', this.handleDocumentMouseMove.bind(this));
-      document.addEventListener('mouseup', this.handleDocumentMouseUp.bind(this));
+      document.addEventListener(
+        "mousemove",
+        this.handleDocumentMouseMove.bind(this)
+      );
+      document.addEventListener(
+        "mouseup",
+        this.handleDocumentMouseUp.bind(this)
+      );
     }
   }
 
@@ -161,19 +185,23 @@ export class InputHandler {
   }
 
   handleMouseDown(evt) {
-    if (evt.button === 0) { // Left mouse button
+    if (evt.button === 0) {
+      // Left mouse button
       this.input.fire = true;
       this.input.firePressed = true;
-    } else if (evt.button === 2) { // Right mouse button
+    } else if (evt.button === 2) {
+      // Right mouse button
       this.input.rightClick = true;
       evt.preventDefault(); // Prevent context menu
     }
   }
 
   handleMouseUp(evt) {
-    if (evt.button === 0) { // Left mouse button
+    if (evt.button === 0) {
+      // Left mouse button
       this.input.fire = false;
-    } else if (evt.button === 2) { // Right mouse button
+    } else if (evt.button === 2) {
+      // Right mouse button
       this.input.rightClick = false;
     }
   }
@@ -196,9 +224,11 @@ export class InputHandler {
 
   handleDocumentMouseUp(evt) {
     // Stop firing when mouse is released anywhere on the document
-    if (evt.button === 0) { // Left mouse button
+    if (evt.button === 0) {
+      // Left mouse button
       this.input.fire = false;
-    } else if (evt.button === 2) { // Right mouse button
+    } else if (evt.button === 2) {
+      // Right mouse button
       this.input.rightClick = false;
     }
   }
@@ -218,4 +248,3 @@ export class InputHandler {
     this.input.joystickY = 0;
   }
 }
-
