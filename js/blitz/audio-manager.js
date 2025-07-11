@@ -81,7 +81,7 @@ export class AudioManager {
       enemyExplosion: this.generateSfxrSound("enemyExplosion"),
       asteroidExplosion: this.generateSfxrSound("asteroidExplosion"),
       playerExplosion: this.generateSfxrSound("playerExplosion"),
-      dash: this.generateSfxrSound("powerUp"), // TODO: rename to shield
+      shield: this.generateSfxrSound("powerUp"),
     };
   }
   ready() {

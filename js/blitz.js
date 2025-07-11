@@ -127,11 +127,11 @@ class BlitzGame {
     this.timeSlowDuration = 300; // 5 seconds at 60fps
     this.timeSlowTimer = 0;
     this.timeSlowCooldown = 0;
-    this.timeSlowCooldownMax = 300; // 5 seconds cooldown
+    this.timeSlowCooldownMax = 600; // 10 seconds cooldown
 
     // Shield cooldown tracking
     this.shieldCooldown = 0;
-    this.shieldCooldownMax = 300; // 5 seconds cooldown
+    this.shieldCooldownMax = 180; // 3 second cooldown
 
     // Bomb system
     this.bombCount = 0; // Players start with no bombs
@@ -235,7 +235,7 @@ class BlitzGame {
       );
     }
 
-    // Shield/Dash button
+    // Shield button
     const shieldButton = document.getElementById("shield-button");
     if (shieldButton) {
       shieldButton.addEventListener("click", (e) => {
@@ -1147,7 +1147,7 @@ class BlitzGame {
       }
     }
 
-    // Player vs asteroids (only if not dashing and not in godmode)
+    // Player vs asteroids (only if not shielding and not in godmode)
     if (!this.player.isShielding && !this.player.godMode) {
       for (let i = this.asteroids.length - 1; i >= 0; i--) {
         if (this.checkPlayerCollision(this.player, this.asteroids[i])) {
@@ -1168,7 +1168,7 @@ class BlitzGame {
       }
     }
 
-    // Player vs enemies (only if not dashing and not in godmode)
+    // Player vs enemies (only if not shielding and not in godmode)
     if (!this.player.isShielding && !this.player.godMode) {
       for (let i = this.enemies.length - 1; i >= 0; i--) {
         if (this.checkPlayerCollision(this.player, this.enemies[i])) {
@@ -1208,7 +1208,7 @@ class BlitzGame {
       }
     }
 
-    // Player vs enemy bullets (only if not dashing and not in godmode)
+    // Player vs enemy bullets (only if not shielding and not in godmode)
     if (!this.player.isShielding && !this.player.godMode) {
       for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
         if (this.checkPlayerCollision(this.player, this.enemyBullets[i])) {
@@ -1342,7 +1342,7 @@ class BlitzGame {
   }
 
   checkPlayerCollision(player, obj) {
-    // Player is immune to damage while dashing
+    // Player is immune to damage while shielding
     if (player.isShielding) {
       return false;
     }
@@ -1481,10 +1481,10 @@ class BlitzGame {
     }
 
     // Draw target indicator for mouse position (desktop only) - always on top
-    this.renderTargetIndicator();
+    this.renderCrosshair();
   }
 
-  renderTargetIndicator() {
+  renderCrosshair() {
     const input = this.inputHandler.getInput();
     if (input.mousePosition) {
       const { x, y } = input.mousePosition;
@@ -1541,8 +1541,7 @@ class BlitzGame {
       this.ctx.lineWidth = 1;
       this.ctx.globalAlpha = 1.0;
 
-      // Draw simple + crosshair (40px by 40px)
-      const size = 20; // 20px from center = 40px total
+      const size = 10; 
       this.ctx.beginPath();
       // Vertical line
       this.ctx.moveTo(x, y - size);
@@ -1572,12 +1571,11 @@ class BlitzGame {
     // Trigger the player's shield ability
     if (this.player && this.shieldCooldown <= 0 && !this.player.isShielding) {
       this.player.isShielding = true;
-      this.player.shieldCooldown = 60; // 1 second player shield duration
-      this.player.shieldFrames = 30; // 0.5 seconds of shield
-      this.shieldCooldown = this.shieldCooldownMax; // 5 second button cooldown
+      this.player.shieldFrames = 60;
+      this.shieldCooldown = this.shieldCooldownMax;
 
       // Play shield sound if available
-      this.audio.playSound(this.audio.sounds.dash); // TODO: rename sound to 'shield'
+      this.audio.playSound(this.audio.sounds.shield);
     }
   }
 
@@ -1654,43 +1652,6 @@ class BlitzGame {
 
     this.ui.update();
     return true; // Bomb was used
-  }
-
-  createChainExplosion() {
-    // Create expanding wave of explosions across the screen
-    const centerX = this.player.x;
-    const centerY = this.player.y;
-    const maxRadius = Math.max(this.canvas.width, this.canvas.height);
-
-    for (let wave = 0; wave < 8; wave++) {
-      setTimeout(() => {
-        const waveRadius = (wave + 1) * (maxRadius / 8);
-        const explosionsInWave = Math.min(24, 8 + wave * 2);
-
-        for (let i = 0; i < explosionsInWave; i++) {
-          const angle = (i / explosionsInWave) * Math.PI * 2 + wave * 0.3;
-          const radius = waveRadius * (0.8 + Math.random() * 0.4);
-          const x = centerX + Math.cos(angle) * radius;
-          const y = centerY + Math.sin(angle) * radius;
-
-          // Create explosion if on screen
-          if (
-            x >= -100 &&
-            x <= this.canvas.width + 100 &&
-            y >= -100 &&
-            y <= this.canvas.height + 100
-          ) {
-            const explosionSize = 150 + Math.random() * 100;
-            this.effects.createRainbowExplosion(x, y, explosionSize);
-          }
-        }
-
-        // Play additional explosion sounds for dramatic effect
-        if (wave < 4) {
-          this.audio.playSound(this.audio.sounds.explosion);
-        }
-      }, wave * 120); // 120ms between each wave
-    }
   }
 
   initializeLucideIcons() {
@@ -1951,7 +1912,7 @@ class BlitzGame {
     // Handle death animation
     if (this.death.animationActive) {
       this.death.updateAnimation();
-      this.update(deltaTime, 0.25); // 4x slower
+      this.update(deltaTime, 0.2);
     }
 
     this.render();

@@ -11,13 +11,8 @@ export class Player {
     this.angle = 0;
     this.shootCooldown = 0;
     this.homingMissileCooldown = 0;
-    this.shieldCooldown = 0;
-    this.shieldDistance = GAME_CONFIG.DASH_DISTANCE; // TODO: rename config
     this.isShielding = false;
     this.shieldFrames = 0;
-    this.shieldVx = 0;
-    this.shieldVy = 0;
-    this.maxShieldFrames = GAME_CONFIG.DASH_FRAMES; // TODO: rename config
     this.shield = 0;
     this.mainWeaponLevel = 1;
     this.sideWeaponLevel = 0;
@@ -272,13 +267,6 @@ export class Player {
       if (target) {
         this.angle = calculatePredictiveAim(target, bulletSpeed);
       }
-    }
-
-    // Shield mechanic is now handled by the main game loop via activateShield()
-    // This section only handles shield state updates
-
-    if (this.shieldCooldown > 0) {
-      this.shieldCooldown--;
     }
 
     if (this.shootCooldown > 0) {
@@ -580,25 +568,7 @@ export class Player {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle + this.rollAngle);
-
-    // Shield fade effect - fade to completely invisible and back
-    let shipOpacity = 1;
-    if (this.isShielding) {
-      const shieldProgress =
-        (this.maxShieldFrames - this.shieldFrames) / this.maxShieldFrames;
-      if (shieldProgress < 0.5) {
-        // Fade out in first half (1.0 -> 0.0)
-        shipOpacity = 1 - shieldProgress * 2;
-      } else {
-        // Fade in during second half (0.0 -> 1.0)
-        shipOpacity = (shieldProgress - 0.5) * 2;
-      }
-
-      // Ensure complete invisibility at the midpoint
-      if (Math.abs(shieldProgress - 0.5) < 0.1) {
-        shipOpacity = 0;
-      }
-    }
+    const shipOpacity = 1;
 
     ctx.globalAlpha = shipOpacity;
 
