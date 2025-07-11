@@ -48,6 +48,8 @@ export class Enemy {
         this.laserChargeTime = 0;
         this.laserFiring = false;
         this.laserBeam = null;
+        this.laserCooldown = 0;
+        this.laserState = "cooldown"; // cooldown, charging, firing
         break;
       case "pulse":
         this.pulseInterval = 240 + Math.random() * 120;
@@ -119,25 +121,40 @@ export class Enemy {
           break;
         case "laser":
           this.y += this.speed * 0.8 * slowdownFactor;
-          this.laserChargeTime += slowdownFactor;
-          if (this.laserChargeTime > 90 && !this.laserFiring) {
-            this.laserFiring = true;
-            this.laserChargeTime = 0;
-            // Create laser beam
-            lasers.push(
-              new Laser(
-                this.x,
-                this.y,
-                Math.atan2(playerY - this.y, playerX - this.x)
-              )
-            );
-          }
-          if (this.laserFiring) {
-            this.laserChargeTime += slowdownFactor;
-            if (this.laserChargeTime > 60) {
-              this.laserFiring = false;
-              this.laserChargeTime = 0;
-            }
+          
+          // Handle laser state machine
+          switch (this.laserState) {
+            case "cooldown":
+              this.laserCooldown += slowdownFactor;
+              if (this.laserCooldown > 60) { // 1 second cooldown
+                this.laserState = "charging";
+                this.laserChargeTime = 0;
+              }
+              break;
+              
+            case "charging":
+              this.laserChargeTime += slowdownFactor;
+              if (this.laserChargeTime > 120) { // 2 seconds charge time
+                this.laserState = "firing";
+                this.laserChargeTime = 0;
+                // Create laser beam
+                lasers.push(
+                  new Laser(
+                    this.x,
+                    this.y,
+                    Math.atan2(playerY - this.y, playerX - this.x)
+                  )
+                );
+              }
+              break;
+              
+            case "firing":
+              this.laserChargeTime += slowdownFactor;
+              if (this.laserChargeTime > 60) { // 1 second firing duration
+                this.laserState = "cooldown";
+                this.laserCooldown = 0;
+              }
+              break;
           }
           break;
         case "pulse":
@@ -205,25 +222,40 @@ export class Enemy {
 
         case "laser":
           this.x -= this.speed * 0.8;
-          this.laserChargeTime++;
-          if (this.laserChargeTime > 90 && !this.laserFiring) {
-            this.laserFiring = true;
-            this.laserChargeTime = 0;
-            // Create laser beam
-            lasers.push(
-              new Laser(
-                this.x,
-                this.y,
-                Math.atan2(playerY - this.y, playerX - this.x)
-              )
-            );
-          }
-          if (this.laserFiring) {
-            this.laserChargeTime++;
-            if (this.laserChargeTime > 60) {
-              this.laserFiring = false;
-              this.laserChargeTime = 0;
-            }
+          
+          // Handle laser state machine
+          switch (this.laserState) {
+            case "cooldown":
+              this.laserCooldown++;
+              if (this.laserCooldown > 60) { // 1 second cooldown
+                this.laserState = "charging";
+                this.laserChargeTime = 0;
+              }
+              break;
+              
+            case "charging":
+              this.laserChargeTime++;
+              if (this.laserChargeTime > 120) { // 2 seconds charge time
+                this.laserState = "firing";
+                this.laserChargeTime = 0;
+                // Create laser beam
+                lasers.push(
+                  new Laser(
+                    this.x,
+                    this.y,
+                    Math.atan2(playerY - this.y, playerX - this.x)
+                  )
+                );
+              }
+              break;
+              
+            case "firing":
+              this.laserChargeTime++;
+              if (this.laserChargeTime > 60) { // 1 second firing duration
+                this.laserState = "cooldown";
+                this.laserCooldown = 0;
+              }
+              break;
           }
           break;
 
@@ -314,14 +346,38 @@ export class Enemy {
     // Draw based on type
     switch (this.type) {
       case "laser":
-        // Draw charging effect
-        if (this.laserChargeTime > 0 && !this.laserFiring) {
-          const charge = this.laserChargeTime / 90;
-          ctx.strokeStyle = `rgba(255, 0, 0, ${charge})`;
-          ctx.lineWidth = 2;
+        // Draw energy gathering animation based on state
+        if (this.laserState === "charging") {
+          const charge = this.laserChargeTime / 120; // 2 seconds charge time
+          const intensity = Math.min(1, charge);
+          
+          // Pulsing energy circle
+          const pulseSize = 0.3 + Math.sin(this.laserChargeTime * 0.2) * 0.1;
+          ctx.strokeStyle = `rgba(255, 100, 100, ${intensity})`;
+          ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.arc(0, 0, this.size * (1 + charge * 0.5), 0, Math.PI * 2);
+          ctx.arc(this.size * 0.8, 0, this.size * pulseSize * intensity, 0, Math.PI * 2);
           ctx.stroke();
+          
+          // Inner energy core
+          ctx.fillStyle = `rgba(255, 200, 200, ${intensity * 0.6})`;
+          ctx.beginPath();
+          ctx.arc(this.size * 0.8, 0, this.size * 0.15 * intensity, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Energy sparks
+          if (charge > 0.5) {
+            for (let i = 0; i < 6; i++) {
+              const sparkAngle = (i / 6) * Math.PI * 2 + this.laserChargeTime * 0.1;
+              const sparkX = this.size * 0.8 + Math.cos(sparkAngle) * this.size * 0.4 * intensity;
+              const sparkY = Math.sin(sparkAngle) * this.size * 0.4 * intensity;
+              
+              ctx.fillStyle = `rgba(255, 255, 100, ${intensity * 0.8})`;
+              ctx.beginPath();
+              ctx.arc(sparkX, sparkY, 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
         }
         break;
 
@@ -688,10 +744,38 @@ export class MiniBoss {
     this.playerRef = null; // To store player reference for aiming
     this.enemySpawnTimer = 0;
     this.enemySpawnCooldown = 200; // 3.3 seconds cooldown for spawning enemies (faster than before)
+    
+    // Death effect system
+    this.dying = false;
+    this.deathTimer = 0;
+    this.deathDuration = 30; // 0.5 seconds at 60fps
+    this.deathExplosionTimer = 0;
+    this.deathExplosionInterval = 3; // Explosions every 3 frames
+    this.finalExplosionTriggered = false;
   }
 
   update(playerX, playerY, slowdownFactor = 1.0) {
     this.frameCount += slowdownFactor;
+
+    // Handle death sequence
+    if (this.dying) {
+      this.deathTimer += slowdownFactor;
+      this.deathExplosionTimer += slowdownFactor;
+      
+      // Trigger final explosion when death timer is complete
+      if (this.deathTimer >= this.deathDuration && !this.finalExplosionTriggered) {
+        this.finalExplosionTriggered = true;
+        return "final_explosion";
+      }
+      
+      // Check if we should trigger a rain explosion
+      if (this.deathExplosionTimer >= this.deathExplosionInterval) {
+        this.deathExplosionTimer = 0;
+        return "rain_explosion";
+      }
+      
+      return "dying";
+    }
 
     // Handle god mode timer
     if (this.godMode) {
@@ -771,6 +855,11 @@ export class MiniBoss {
       return "godmode";
     }
 
+    // Already dying, ignore further damage
+    if (this.dying) {
+      return "dying";
+    }
+
     // Shield absorbs damage first
     if (this.shield > 0) {
       this.shield -= damage;
@@ -786,7 +875,9 @@ export class MiniBoss {
     this.health -= damage;
     this.hitFlash = 10;
     if (this.health <= 0) {
-      return "destroyed";
+      this.dying = true;
+      this.deathTimer = 0;
+      return "dying";
     }
     return "damaged";
   }
@@ -974,8 +1065,19 @@ export class MiniBoss {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle); // Add this line for rotation
 
+    // Death glow effect (red glow when dying)
+    if (this.dying) {
+      const glowIntensity = 0.7 + Math.sin(this.frameCount * 0.3) * 0.3; // Pulsing glow
+      ctx.fillStyle = "#ff0000";
+      ctx.globalAlpha = glowIntensity * 0.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.size + 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
     // Hit flash effect (red blink when damaged)
-    if (this.hitFlash > 0) {
+    if (this.hitFlash > 0 && !this.dying) {
       ctx.fillStyle = "#ff0000";
       ctx.globalAlpha = 0.6;
       ctx.beginPath();

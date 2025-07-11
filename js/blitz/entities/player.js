@@ -14,6 +14,8 @@ export class Player {
     this.isShielding = false;
     this.shieldFrames = 0;
     this.shield = 0;
+    this.shieldCooldown = 0;
+    this.shieldCooldownMax = 180;
     this.mainWeaponLevel = 1;
     this.sideWeaponLevel = 0;
     this.secondShip = []; // Change to an array
@@ -42,6 +44,11 @@ export class Player {
       if (this.shieldFrames <= 0) {
         this.isShielding = false;
       }
+    }
+    
+    // Handle shield cooldown
+    if (this.shieldCooldown > 0) {
+      this.shieldCooldown--;
     }
 
     // Get current speed (decreased during shield and time slow)
@@ -571,8 +578,12 @@ export class Player {
 
     ctx.globalAlpha = shipOpacity;
 
-    // Draw filled green arrow (2.5x visual size)
-    ctx.fillStyle = this.isShielding ? "#ffaa00" : "#00ff88"; // Gold when shielding, green normally
+    // Draw filled arrow with cooldown color system
+    let shipColor = "#00ff88"; // Default green (shield ready)
+    if (this.shieldCooldown > 0) {
+      shipColor = "#ffff00"; // Yellow when shield is on cooldown
+    }
+    ctx.fillStyle = shipColor;
 
     const visualSize = this.size * 2.5; // 2.5x larger visual size
 
@@ -584,6 +595,13 @@ export class Player {
     ctx.lineTo(-visualSize / 2, visualSize / 2); // Bottom left
     ctx.closePath();
     ctx.fill();
+
+    // Add gold stroke when shielding
+    if (this.isShielding) {
+      ctx.strokeStyle = "#ffaa00"; // Gold stroke
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
 
     // Dash trail effect removed for cleaner dash visual
 
@@ -649,13 +667,12 @@ export class Player {
       ctx.stroke();
     }
 
-    // Draw small hitbox for debugging (optional)
-    ctx.globalAlpha = shipOpacity * 0.5;
-    ctx.strokeStyle = "#ff0000";
-    ctx.lineWidth = 1;
+    // Draw visible hitbox (black filled circle)
+    ctx.globalAlpha = shipOpacity;
+    ctx.fillStyle = "#000000";
     ctx.beginPath();
     ctx.arc(0, 0, this.hitboxSize, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.fill();
 
     ctx.restore();
 
@@ -681,5 +698,15 @@ export class Player {
 
       ctx.restore();
     });
+  }
+
+  activateShield() {
+    if (this.shieldCooldown <= 0 && !this.isShielding) {
+      this.isShielding = true;
+      this.shieldFrames = 60;
+      this.shieldCooldown = this.shieldCooldownMax;
+      return true;
+    }
+    return false;
   }
 }

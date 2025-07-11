@@ -210,39 +210,45 @@ Params.prototype.pickupCoin = function () {
 }
 
 Params.prototype.laserShoot = function () {
-  this.wave_type = rnd(2);
-  if(this.wave_type === SINE && rnd(1))
-    this.wave_type = rnd(1);
-  if (rnd(2) === 0) {
-    this.p_base_freq = 0.3 + frnd(0.6);
-    this.p_freq_limit = frnd(0.1);
-    this.p_freq_ramp = -0.35 - frnd(0.3);
-  } else {
-    this.p_base_freq = 0.5 + frnd(0.5);
-    this.p_freq_limit = this.p_base_freq - 0.2 - frnd(0.6);
-    if (this.p_freq_limit < 0.2) this.p_freq_limit = 0.2;
-    this.p_freq_ramp = -0.15 - frnd(0.2);
-  }
-  if (this.wave_type === SAWTOOTH)
-    this.p_duty = 1;
-  if (rnd(1)) {
-    this.p_duty = frnd(0.5);
-    this.p_duty_ramp = frnd(0.2);
-  } else {
-    this.p_duty = 0.4 + frnd(0.5);
-    this.p_duty_ramp = -frnd(0.7);
-  }
-  this.p_env_attack = 0;
-  this.p_env_sustain = 0.1 + frnd(0.2);
-  this.p_env_decay = frnd(0.4);
-  if (rnd(1))
-    this.p_env_punch = frnd(0.3);
-  if (rnd(2) === 0) {
-    this.p_pha_offset = frnd(0.2);
-    this.p_pha_ramp = -frnd(0.2);
-  }
-  //if (rnd(1))
-    this.p_hpf_freq = frnd(0.3);
+  // Soft, high-pitched laser sound
+  this.wave_type = SINE;       // Sine wave for soft, smooth sound
+  
+  // Very high frequency with gentle downward sweep
+  this.p_base_freq = 0.95;     // Maximum high starting frequency
+  this.p_freq_limit = 0.3;     // Higher frequency limit for softer landing
+  this.p_freq_ramp = -0.4;     // Gentle downward sweep
+  this.p_freq_dramp = 0.5;       // No delta sweep
+  
+  // Not applicable for sine wave
+  this.p_duty = 0;
+  this.p_duty_ramp = 0;
+  
+  // Soft envelope for gentle laser sound
+  this.p_env_attack = 0.02;    // Slightly soft attack
+  this.p_env_sustain = 0.08;   // Longer sustain for smoothness
+  this.p_env_decay = 0.3;      // Longer decay for soft tail
+  this.p_env_punch = 0;        // No punch for softer sound
+  
+  // No vibrato for consistent sound
+  this.p_vib_strength = 0;
+  this.p_vib_speed = 0;
+  
+  // No arpeggio or repeat
+  this.p_arp_mod = 0;
+  this.p_arp_speed = 0;
+  this.p_repeat_speed = 0;
+  
+  // No flanger
+  this.p_pha_offset = 0;
+  this.p_pha_ramp = 0;
+  
+  // Minimal high pass filter to preserve softness
+  this.p_hpf_freq = 0.1;
+  this.p_hpf_ramp = 0;
+  
+  // Strong low pass filter for very soft sound
+  this.p_lpf_freq = 0.8;
+  this.p_lpf_ramp = 0;
 
   return this;
 }

@@ -30,7 +30,7 @@ export const GAME_CONFIG = {
     // Player settings
     PLAYER_SPEED: 6,
     PLAYER_SIZE: 10,
-    PLAYER_HITBOX: 3,
+    PLAYER_HITBOX: 6,
     DASH_DISTANCE: 150,
     DASH_FRAMES: 40,
     

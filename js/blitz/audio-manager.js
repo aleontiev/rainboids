@@ -67,8 +67,8 @@ export class AudioManager {
       enemyExplosion: this.generateSfxrSound("enemyExplosion"),
       asteroidExplosion: this.generateSfxrSound("asteroidExplosion"),
       playerExplosion: this.generateSfxrSound("playerExplosion"),
-      shield: this.generateSfxrSound("powerUp"),
-      powerUp: this.generateSfxrSound("powerUp"),
+      shield: this.generateSfxrSound("jump"),
+      powerUp: this.generateSfxrSound("pickupCoin"),
     };
   }
   ready() {
@@ -82,15 +82,9 @@ export class AudioManager {
 
     switch (type) {
       case "laserShoot":
-        // Simple, subtle laser sound
+        // High-pitched pYOO pYOO laser sound
         synthdef = params.laserShoot();
-        /*
-        synthdef.p_base_freq = 0.5; 
-        synthdef.p_freq_ramp = 0.05; 
-        synthdef.p_lpf_freq = 0.2; 
-        synthdef.p_hpf_freq = 0.3;
-        */
-        synthdef.sound_vol = 0.02;
+        synthdef.sound_vol = 0.05; // More audible
         break;
       case "hitHurt":
         synthdef = params.hitHurt();
@@ -173,10 +167,27 @@ export class AudioManager {
       this.backgroundMusic.volume = 0.3;
 
       this.toggleBackgroundMusic(this.musicMuted);
-
+    }
+    
+    // Only play if not muted
+    if (!this.backgroundMusic.muted) {
       this.backgroundMusic
         .play()
         .catch((e) => console.log("Background: audio play failed:", e));
+    }
+  }
+
+  pauseBackgroundMusic() {
+    if (this.backgroundMusic && !this.backgroundMusic.paused) {
+      this.backgroundMusic.pause();
+    }
+  }
+
+  resumeBackgroundMusic() {
+    if (this.backgroundMusic && this.backgroundMusic.paused && !this.backgroundMusic.muted) {
+      this.backgroundMusic
+        .play()
+        .catch((e) => console.log("Background: audio resume failed:", e));
     }
   }
 

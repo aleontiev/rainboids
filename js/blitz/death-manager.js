@@ -29,6 +29,10 @@ export class DeathManager {
 
         // Set up game over screen to start fading in simultaneously
         this.game.gameState = "GAME_OVER";
+        
+        // Pause background music when game ends
+        this.game.audio.pauseBackgroundMusic();
+        
         this.game.saveHighScore(this.score);
         document.getElementById("final-score-value").textContent =
           this.game.score.toLocaleString();

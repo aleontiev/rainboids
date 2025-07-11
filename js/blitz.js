@@ -139,9 +139,7 @@ class BlitzGame {
     this.timeSlowCooldown = 0;
     this.timeSlowCooldownMax = 600; // 10 seconds cooldown
 
-    // Shield cooldown tracking
-    this.shieldCooldown = 0;
-    this.shieldCooldownMax = 180; // 3 second cooldown
+    // Shield cooldown tracking removed - now handled by player
 
     // Bomb system
     this.bombCount = 0; // Players start with no bombs
@@ -389,6 +387,9 @@ class BlitzGame {
       this.audio.ready();
     }
 
+    // Start background music when game starts
+    this.audio.startBackgroundMusic();
+
     // Initialize skill indicator
     this.ui.update();
   }
@@ -398,6 +399,10 @@ class BlitzGame {
     this.background.setup();
     document.getElementById("game-over").style.display = "none";
     this.gameState = "PLAYING";
+    
+    // Start background music when restarting
+    this.audio.startBackgroundMusic();
+    
     this.ui.update();
   }
 
@@ -572,9 +577,6 @@ class BlitzGame {
     if (this.timeSlowCooldown > 0) {
       this.timeSlowCooldown -= 1;
     }
-    if (this.shieldCooldown > 0) {
-      this.shieldCooldown -= 1;
-    }
   }
 
   updateManagers(deltaTime, slowdownFactor) {
@@ -716,22 +718,63 @@ class BlitzGame {
 
     // Update mini-bosses
     this.miniBosses.forEach((miniBoss) => {
-      miniBoss.update(this.player.x, this.player.y, slowdownFactor);
-      this.handleEnemyWeapons(miniBoss);
+      const updateResult = miniBoss.update(this.player.x, this.player.y, slowdownFactor);
+      
+      if (updateResult === "rain_explosion") {
+        // Create random explosion around the miniboss
+        const explosionRadius = 100;
+        const randomAngle = Math.random() * Math.PI * 2;
+        const randomDistance = Math.random() * explosionRadius;
+        const explosionX = miniBoss.x + Math.cos(randomAngle) * randomDistance;
+        const explosionY = miniBoss.y + Math.sin(randomAngle) * randomDistance;
+        
+        this.effects.createRainbowExplosion(explosionX, explosionY);
+        this.audio.playSound(this.audio.sounds.enemyExplosion);
+      } else if (updateResult === "final_explosion") {
+        // Create large final explosion and award score
+        this.effects.createRainbowExplosion(miniBoss.x, miniBoss.y, true); // Large explosion
+        this.effects.createChainExplosion(miniBoss.x, miniBoss.y, 5); // Chain explosion
+        this.audio.playSound(this.audio.sounds.enemyExplosion);
+        
+        // Award score
+        this.score += 1000;
+        this.ui.update();
+        
+        // Mark for removal
+        miniBoss.readyToRemove = true;
+      } else if (!miniBoss.dying) {
+        // Only handle weapons if not dying
+        this.handleEnemyWeapons(miniBoss);
 
-      // Handle mini-boss specific spawning
-      if (miniBoss.canSpawnEnemy && miniBoss.canSpawnEnemy()) {
-        const enemyData = miniBoss.spawnEnemy(this.player.x, this.player.y);
-        this.enemies.push(
-          new Enemy(
-            enemyData.x,
-            enemyData.y,
-            enemyData.type,
-            enemyData.isPortrait,
-            enemyData.speed
-          )
-        );
+        // Handle mini-boss specific spawning
+        if (miniBoss.canSpawnEnemy && miniBoss.canSpawnEnemy()) {
+          const enemyData = miniBoss.spawnEnemy(this.player.x, this.player.y);
+          this.enemies.push(
+            new Enemy(
+              enemyData.x,
+              enemyData.y,
+              enemyData.type,
+              enemyData.isPortrait,
+              enemyData.speed
+            )
+          );
+        }
       }
+    });
+
+    // Remove minibosses that are ready to be removed
+    this.miniBosses = this.miniBosses.filter(miniBoss => {
+      if (miniBoss.readyToRemove) {
+        // Check if all mini-bosses are defeated
+        if (this.miniBosses.length === 1) { // Will be 0 after filtering
+          this.miniBossesDefeated = true;
+          this.cleanupPhaseTimer = 0;
+          this.cleanupEnemiesExploded = false;
+          this.gamePhase = 3;
+        }
+        return false;
+      }
+      return true;
     });
 
     // Update boss
@@ -1257,19 +1300,31 @@ class BlitzGame {
   }
 
   checkPlayerLaserCollision(player, laser) {
+    // Line-to-circle collision detection
     const dx = player.x - laser.x;
     const dy = player.y - laser.y;
-    const laserAngle = laser.angle;
-    const playerAngle = Math.atan2(dy, dx);
-    const angleDiff = Math.abs(playerAngle - laserAngle);
-
-    if (angleDiff < 0.1 || angleDiff > Math.PI * 2 - 0.1) {
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < laser.length) {
-        return true;
-      }
-    }
-    return false;
+    
+    // Calculate laser direction vector
+    const laserDx = Math.cos(laser.angle);
+    const laserDy = Math.sin(laser.angle);
+    
+    // Project player position onto laser line
+    const projection = dx * laserDx + dy * laserDy;
+    
+    // Clamp projection to laser length
+    const clampedProjection = Math.max(0, Math.min(laser.length, projection));
+    
+    // Find closest point on laser to player
+    const closestX = laser.x + clampedProjection * laserDx;
+    const closestY = laser.y + clampedProjection * laserDy;
+    
+    // Check distance from player to closest point on laser
+    const distanceToLaser = Math.sqrt(
+      (player.x - closestX) ** 2 + (player.y - closestY) ** 2
+    );
+    
+    // Collision if distance is less than player hitbox + laser width
+    return distanceToLaser < player.hitboxSize + laser.width / 2;
   }
 
   checkPlayerCollision(player, obj) {
@@ -1490,21 +1545,23 @@ class BlitzGame {
     this.gameState = "PAUSED";
     document.getElementById("pause-overlay").style.display = "flex";
     document.body.style.cursor = "default";
+    
+    // Pause background music when game is paused
+    this.audio.pauseBackgroundMusic();
   }
 
   resumeGame() {
     this.gameState = "PLAYING";
     document.getElementById("pause-overlay").style.display = "none";
     document.body.style.cursor = "none";
+    
+    // Resume background music when game resumes
+    this.audio.resumeBackgroundMusic();
   }
 
   activateShield() {
     // Trigger the player's shield ability
-    if (this.player && this.shieldCooldown <= 0 && !this.player.isShielding) {
-      this.player.isShielding = true;
-      this.player.shieldFrames = 60;
-      this.shieldCooldown = this.shieldCooldownMax;
-
+    if (this.player && this.player.activateShield()) {
       // Play shield sound if available
       this.audio.playSound(this.audio.sounds.shield);
     }
@@ -1713,6 +1770,10 @@ class BlitzGame {
         
         this.ui.update();
         return "destroyed";
+      } else if (result === "dying") {
+        // Mini-boss is starting death sequence
+        this.audio.playSound(this.audio.sounds.enemyExplosion);
+        return "dying";
       }
     } else {
       // Regular enemy without takeDamage method
