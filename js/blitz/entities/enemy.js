@@ -63,7 +63,6 @@ export class Enemy {
     playerY,
     bullets,
     lasers,
-    pulseCircles,
     slowdownFactor = 1.0
   ) {
     this.time += slowdownFactor;
@@ -734,7 +733,7 @@ export class MiniBoss {
     // Shield system
     this.godMode = true; // Start with god mode (invincible)
     this.godModeTimer = 0;
-    this.godModeDuration = 1000; // 5 seconds at 60fps
+    this.godModeDuration = 500; // 2.5 seconds at 60fps
     this.shield = 50; // 50 shield after god mode ends
     this.maxShield = 50;
 
@@ -1545,46 +1544,6 @@ export class Laser {
   }
 }
 
-export class PulseCircle {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-    this.radius = 5;
-    this.maxRadius = 300; // 1.5x larger
-    this.life = 120;
-    this.maxLife = 120;
-    this.speed = 2;
-  }
-
-  update(slowdownFactor = 1.0) {
-    this.radius += this.speed * slowdownFactor;
-    this.life -= slowdownFactor;
-
-    if (this.radius > this.maxRadius) {
-      this.radius = this.maxRadius;
-    }
-
-    return this.life > 0;
-  }
-
-  render(ctx) {
-    // Safety check to prevent negative radius errors
-    if (this.radius <= 0) return;
-
-    const alpha = this.life / this.maxLife;
-
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.strokeStyle = "#ff9999";
-    ctx.lineWidth = 4;
-
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, Math.max(1, this.radius), 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.restore();
-  }
-}
 
 export class HomingMissile {
   constructor(x, y, angle, speed, color) {

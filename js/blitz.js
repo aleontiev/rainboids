@@ -5,7 +5,6 @@ import {
   Enemy,
   Bullet,
   Laser,
-  PulseCircle,
   HomingMissile,
   MiniBoss,
   Boss,
@@ -97,7 +96,6 @@ class BlitzGame {
     this.bullets = [];
     this.enemyBullets = [];
     this.enemyLasers = [];
-    this.enemyPulseCircles = [];
     this.asteroids = [];
     this.enemies = [];
     this.allEnemies = []; // Unified enemy list for collision detection
@@ -659,9 +657,6 @@ class BlitzGame {
       laser.update(slowdownFactor)
     );
 
-    this.enemyPulseCircles = this.enemyPulseCircles.filter((circle) =>
-      circle.update(slowdownFactor)
-    );
 
     // Update asteroids
     this.asteroids = this.asteroids.filter((asteroid) => {
@@ -715,7 +710,6 @@ class BlitzGame {
         this.player.y,
         this.enemyBullets,
         this.enemyLasers,
-        this.enemyPulseCircles,
         slowdownFactor
       );
       enemy.shoot(this.enemyBullets, this.player);
@@ -839,11 +833,7 @@ class BlitzGame {
     if (enemy.canFireSpecial && enemy.canFireSpecial()) {
       const weaponData = enemy.fireSpecial();
       weaponData.forEach((data) => {
-        if (data.type === "pulse") {
-          this.enemyPulseCircles.push(
-            new PulseCircle(data.x, data.y, data.maxRadius, data.color)
-          );
-        }
+        // Pulse circles removed from game
       });
     }
 
@@ -934,8 +924,7 @@ class BlitzGame {
         this.enemies.length === 0 &&
         this.asteroids.length === 0 &&
         this.enemyBullets.length === 0 &&
-        this.enemyLasers.length === 0 &&
-        this.enemyPulseCircles.length === 0
+        this.enemyLasers.length === 0
       ) {
         this.bossDialogTimer += deltaTime;
         if (this.bossDialogTimer >= 5000) {
@@ -999,7 +988,6 @@ class BlitzGame {
       }
       this.enemyBullets = [];
       this.enemyLasers = [];
-      this.enemyPulseCircles = [];
     }
 
     // After 5 seconds, spawn 2 powerups and show boss dialog
@@ -1232,28 +1220,6 @@ class BlitzGame {
       }
     }
 
-    // Player vs enemy pulse circles
-    if (!this.player.isShielding && !this.player.godMode && !this.player.rainbowInvulnerable) {
-      for (let i = this.enemyPulseCircles.length - 1; i >= 0; i--) {
-        if (this.checkPlayerCollision(this.player, this.enemyPulseCircles[i])) {
-          if (this.player.secondShip.length > 0) {
-            const destroyedShip = this.player.secondShip.pop();
-            this.effects.createExplosion(destroyedShip.x, destroyedShip.y);
-            this.enemyPulseCircles.splice(i, 1); // Remove pulse circle
-            this.ui.update();
-          } else if (this.player.shield > 0) {
-            this.player.shield--;
-            this.enemyPulseCircles.splice(i, 1);
-            this.effects.createExplosion(this.player.x, this.player.y);
-            this.ui.update();
-          } else {
-            this.effects.createExplosion(this.player.x, this.player.y);
-            this.death.start();
-            return;
-          }
-        }
-      }
-    }
 
     // Player vs powerups
     for (let i = this.powerups.length - 1; i >= 0; i--) {
@@ -1471,7 +1437,6 @@ class BlitzGame {
       this.bullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyBullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyLasers.forEach((laser) => laser.render(this.ctx));
-      this.enemyPulseCircles.forEach((circle) => circle.render(this.ctx));
       this.asteroids.forEach((asteroid) => asteroid.render(this.ctx));
       this.enemies.forEach((enemy) => enemy.render(this.ctx));
       this.miniBosses.forEach((miniBoss) => miniBoss.render(this.ctx));
@@ -1633,7 +1598,6 @@ class BlitzGame {
     // Clear all enemy bullets
     this.enemyBullets = [];
     this.enemyLasers = [];
-    this.enemyPulseCircles = [];
 
     // Destroy all small enemies and asteroids
     for (let i = this.enemies.length - 1; i >= 0; i--) {
