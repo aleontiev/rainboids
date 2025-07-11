@@ -47,6 +47,14 @@ class BlitzGame {
 
     this.gameState = "TITLE";
 
+    // one time setup
+    this.setupEventListeners();
+    this.initializeLucideIcons();
+    this.background.setup();
+    this.audio.setup();
+    this.cheats.setup();
+    this.setupBossDialog();
+
     this.reset();
     this.loop();
   }
@@ -148,12 +156,6 @@ class BlitzGame {
     this.bossDialogActive = false;
     this.gamePhase = 1;
 
-    this.background.setup();
-    this.audio.setup();
-    this.cheats.setup();
-    this.setupEventListeners();
-    this.setupBossDialog();
-    this.initializeLucideIcons();
   }
 
   detectMobile() {
@@ -312,17 +314,14 @@ class BlitzGame {
       });
     }
 
-    // Toggle pause with 'X' or 'Escape' key, and activate time slow with Ctrl
+    // Toggle pause with 'Escape' key
     document.addEventListener("keydown", (e) => {
-      if (e.key === "x" || e.key === "X" || e.key === "Escape") {
+      if (e.key === "Escape") {
         if (this.gameState === "PLAYING") {
           this.pauseGame();
         } else if (this.gameState === "PAUSED") {
           this.resumeGame();
         }
-      } else if (e.key === "Control" && this.gameState === "PLAYING") {
-        // Activate time slow with Ctrl key
-        this.activateTimeSlow();
       }
     });
 
@@ -1541,7 +1540,7 @@ class BlitzGame {
       this.ctx.lineWidth = 1;
       this.ctx.globalAlpha = 1.0;
 
-      const size = 10; 
+      const size = 10;
       this.ctx.beginPath();
       // Vertical line
       this.ctx.moveTo(x, y - size);
