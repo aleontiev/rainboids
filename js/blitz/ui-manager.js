@@ -8,21 +8,42 @@ export class UIManager {
   updateCooldownVisuals() {
     // Update shield button cooldown
     const shieldButton = document.getElementById("shield-button");
-    if (shieldButton) {
-      const wasCooldown = this.game.shieldCooldown > 1;
-      if (this.game.shieldCooldown > 0) {
+    if (shieldButton && this.game.player) {
+      const wasCooldown = this.game.player.shieldCooldown > 1;
+      if (this.game.player.shieldCooldown > 0) {
         shieldButton.classList.add("on-cooldown");
         const circle = shieldButton.querySelector(".cooldown-circle");
         if (circle) {
           const progress =
-            this.game.shieldCooldown / this.game.shieldCooldownMax;
+            this.game.player.shieldCooldown / this.game.player.shieldCooldownMax;
           circle.style.strokeDashoffset = (157 * progress).toString();
         }
       } else {
         shieldButton.classList.remove("on-cooldown");
         // Trigger flash when coming off cooldown
-        if (wasCooldown && this.game.shieldCooldown <= 0) {
+        if (wasCooldown && this.game.player.shieldCooldown <= 0) {
           this.game.shieldFlashTimer = 30; // Flash for 0.5 seconds at 60fps
+        }
+      }
+
+      // Handle ready ring - bright yellow when shield is ready
+      const readyRing = shieldButton.querySelector(".ready-ring circle");
+      if (readyRing) {
+        if (this.game.player.shieldCooldown <= 0 && !this.game.player.isShielding) {
+          readyRing.style.stroke = "#ffff00"; // Bright yellow
+          readyRing.parentElement.style.opacity = "1";
+        } else {
+          readyRing.parentElement.style.opacity = "0";
+        }
+      }
+
+      // Handle cooldown ring progress
+      const cooldownRing = shieldButton.querySelector(".cooldown-ring");
+      if (cooldownRing) {
+        const circle = cooldownRing.querySelector(".cooldown-circle");
+        if (circle) {
+          const progress = this.game.player.shieldCooldown / this.game.player.shieldCooldownMax;
+          circle.style.strokeDashoffset = (144 * progress).toString();
         }
       }
 
@@ -63,6 +84,27 @@ export class UIManager {
         }
       }
 
+      // Handle ready ring - bright green when time slow is ready
+      const readyRing = timeSlowButton.querySelector(".ready-ring circle");
+      if (readyRing) {
+        if (this.game.timeSlowCooldown <= 0 && !this.game.timeSlowActive) {
+          readyRing.style.stroke = "#00ff00"; // Bright green
+          readyRing.parentElement.style.opacity = "1";
+        } else {
+          readyRing.parentElement.style.opacity = "0";
+        }
+      }
+
+      // Handle cooldown ring progress
+      const cooldownRing = timeSlowButton.querySelector(".cooldown-ring");
+      if (cooldownRing) {
+        const circle = cooldownRing.querySelector(".cooldown-circle");
+        if (circle) {
+          const progress = this.game.timeSlowCooldown / this.game.timeSlowCooldownMax;
+          circle.style.strokeDashoffset = (144 * progress).toString();
+        }
+      }
+
       // Handle flash effect
       if (this.game.timeSlowFlashTimer > 0) {
         this.game.timeSlowFlashTimer--;
@@ -85,6 +127,13 @@ export class UIManager {
     if (bombButton) {
       if (this.game.bombCount > 0) {
         bombButton.style.display = "flex";
+
+        // Handle ready ring - bright red when bomb is available
+        const readyRing = bombButton.querySelector(".ready-ring circle");
+        if (readyRing) {
+          readyRing.style.stroke = "#ff0000"; // Bright red
+          readyRing.parentElement.style.opacity = "1";
+        }
 
         // Show count if 2 or more bombs
         let countDisplay = bombButton.querySelector(".bomb-count");
@@ -116,6 +165,11 @@ export class UIManager {
         }
       } else {
         bombButton.style.display = "none";
+        // Hide the ring when no bombs available
+        const readyRing = bombButton.querySelector(".ready-ring");
+        if (readyRing) {
+          readyRing.style.opacity = "0";
+        }
       }
     }
   }

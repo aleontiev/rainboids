@@ -15,12 +15,17 @@ export class Player {
     this.shieldFrames = 0;
     this.shield = 0;
     this.shieldCooldown = 0;
-    this.shieldCooldownMax = 180;
+    this.shieldCooldownMax = 300;
     this.mainWeaponLevel = 1;
     this.sideWeaponLevel = 0;
     this.secondShip = []; // Change to an array
     this.godMode = false;
     this.rollAngle = 0; // Initialize rollAngle property
+    
+    // Rainbow invulnerability powerup
+    this.rainbowInvulnerable = false;
+    this.rainbowInvulnerableTimer = 0;
+    this.rainbowInvulnerableDuration = 360; // 6 seconds at 60fps
 
     // Velocity tracking for predictive aiming
     this.vx = 0;
@@ -38,6 +43,9 @@ export class Player {
     mainWeaponLevel = 1,
     timeSlowActive = false
   ) {
+    // Store time slow state for rendering
+    this.timeSlowActive = timeSlowActive;
+    
     // Handle shield timing
     if (this.isShielding) {
       this.shieldFrames--;
@@ -49,6 +57,14 @@ export class Player {
     // Handle shield cooldown
     if (this.shieldCooldown > 0) {
       this.shieldCooldown--;
+    }
+    
+    // Handle rainbow invulnerability timer
+    if (this.rainbowInvulnerable) {
+      this.rainbowInvulnerableTimer--;
+      if (this.rainbowInvulnerableTimer <= 0) {
+        this.rainbowInvulnerable = false;
+      }
     }
 
     // Get current speed (decreased during shield and time slow)
@@ -276,13 +292,13 @@ export class Player {
       }
     }
 
-    // Apply time slow effect to cooldowns
-    const cooldownDecrement = timeSlowActive ? 0.3 : 1.0;
-    
+    // Player shoots at normal speed even during time slow
     if (this.shootCooldown > 0) {
-      this.shootCooldown -= cooldownDecrement;
+      this.shootCooldown -= 1.0; // Always normal speed
     }
 
+    // Apply time slow effect to homing missile cooldown
+    const cooldownDecrement = timeSlowActive ? 0.3 : 1.0;
     if (this.homingMissileCooldown > 0) {
       this.homingMissileCooldown -= cooldownDecrement;
     }
@@ -315,8 +331,8 @@ export class Player {
     }
 
     if (this.shootCooldown <= 0) {
-      // Main weapon
-      if (this.mainWeaponLevel >= 5) {
+      // Main weapon - use level 5 laser during rainbow invulnerability
+      if (this.mainWeaponLevel >= 5 || this.rainbowInvulnerable) {
         // Rainbow laser beam
         bullets.push(new LaserClass(this.x, this.y, this.angle, 50, "rainbow"));
         this.shootCooldown = 1; // Allow continuous firing
@@ -578,14 +594,29 @@ export class Player {
 
     ctx.globalAlpha = shipOpacity;
 
-    // Draw filled arrow with cooldown color system
-    let shipColor = "#00ff88"; // Default green (shield ready)
-    if (this.shieldCooldown > 0) {
-      shipColor = "#ffff00"; // Yellow when shield is on cooldown
-    }
-    ctx.fillStyle = shipColor;
-
     const visualSize = this.size * 2.5; // 2.5x larger visual size
+
+    // Draw filled arrow with different colors based on state
+    let shipColor = "#00ff88"; // Default green
+    if (this.timeSlowActive) {
+      shipColor = "#00ff00"; // Bright green during time slow
+    }
+    if (this.isShielding) {
+      shipColor = "#ffff00"; // Yellow when shielding
+    }
+    if (this.rainbowInvulnerable) {
+      // Rainbow gradient when invulnerable
+      const gradient = ctx.createLinearGradient(-visualSize, -visualSize, visualSize, visualSize);
+      const time = Date.now() * 0.005;
+      gradient.addColorStop(0, `hsl(${(time * 60) % 360}, 100%, 50%)`);
+      gradient.addColorStop(0.25, `hsl(${(time * 60 + 90) % 360}, 100%, 50%)`);
+      gradient.addColorStop(0.5, `hsl(${(time * 60 + 180) % 360}, 100%, 50%)`);
+      gradient.addColorStop(0.75, `hsl(${(time * 60 + 270) % 360}, 100%, 50%)`);
+      gradient.addColorStop(1, `hsl(${(time * 60 + 360) % 360}, 100%, 50%)`);
+      ctx.fillStyle = gradient;
+    } else {
+      ctx.fillStyle = shipColor;
+    }
 
     // Simple arrow shape
     ctx.beginPath();
@@ -596,44 +627,39 @@ export class Player {
     ctx.closePath();
     ctx.fill();
 
-    // Add gold stroke when shielding
-    if (this.isShielding) {
-      ctx.strokeStyle = "#ffaa00"; // Gold stroke
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-
     // Dash trail effect removed for cleaner dash visual
 
     // Draw shield if active
     if (this.shield > 0) {
-      const shieldThickness = 3 + this.shield * 2; // Thickness increases with shield count
-      const shieldRadius = visualSize + 10 + this.shield * 2; // Radius also grows slightly
-
-      // Outer bright blue shield
+      // Draw blue stroke around the player ship outline
       ctx.globalAlpha = 0.8 * shipOpacity;
       ctx.strokeStyle = "#0099ff"; // Bright blue
-      ctx.lineWidth = shieldThickness;
+      ctx.lineWidth = 3;
+      
+      // Draw stroke around the ship shape
       ctx.beginPath();
-      ctx.arc(0, 0, shieldRadius, 0, Math.PI * 2);
+      ctx.moveTo(visualSize, 0); // Arrow tip
+      ctx.lineTo(-visualSize / 2, -visualSize / 2); // Top left
+      ctx.lineTo(-visualSize / 4, 0); // Middle left
+      ctx.lineTo(-visualSize / 2, visualSize / 2); // Bottom left
+      ctx.closePath();
       ctx.stroke();
 
-      // Inner shield glow
-      ctx.globalAlpha = 0.4 * shipOpacity;
-      ctx.strokeStyle = "#66ccff"; // Bright light blue
-      ctx.lineWidth = Math.max(1, shieldThickness - 2);
-      ctx.beginPath();
-      ctx.arc(0, 0, shieldRadius - 2, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Additional shield rings for multiple shields
+      // Additional shield strokes for multiple shields
       if (this.shield > 1) {
         for (let i = 1; i < this.shield; i++) {
-          ctx.globalAlpha = (0.4 - i * 0.1) * shipOpacity;
+          ctx.globalAlpha = (0.6 - i * 0.15) * shipOpacity;
           ctx.strokeStyle = "#0099ff";
-          ctx.lineWidth = Math.max(1, shieldThickness - i * 2);
+          ctx.lineWidth = 3;
+          
+          // Draw larger outline for each additional shield
+          const extraSize = visualSize + i * 3;
           ctx.beginPath();
-          ctx.arc(0, 0, shieldRadius + i * 5, 0, Math.PI * 2);
+          ctx.moveTo(extraSize, 0);
+          ctx.lineTo(-extraSize / 2, -extraSize / 2);
+          ctx.lineTo(-extraSize / 4, 0);
+          ctx.lineTo(-extraSize / 2, extraSize / 2);
+          ctx.closePath();
           ctx.stroke();
         }
       }
@@ -667,9 +693,9 @@ export class Player {
       ctx.stroke();
     }
 
-    // Draw visible hitbox (black filled circle)
+    // Draw visible hitbox (white filled circle)
     ctx.globalAlpha = shipOpacity;
-    ctx.fillStyle = "#000000";
+    ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.arc(0, 0, this.hitboxSize, 0, Math.PI * 2);
     ctx.fill();
@@ -708,5 +734,10 @@ export class Player {
       return true;
     }
     return false;
+  }
+
+  activateRainbowInvulnerability() {
+    this.rainbowInvulnerable = true;
+    this.rainbowInvulnerableTimer = this.rainbowInvulnerableDuration;
   }
 }

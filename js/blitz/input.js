@@ -13,6 +13,8 @@ export class InputHandler {
       shift: false,
       alt: false,
       rightClick: false,
+      z: false,
+      f: false,
       joystickX: 0,
       joystickY: 0,
       target: null,
@@ -81,6 +83,12 @@ export class InputHandler {
       case "AltRight":
         this.input.alt = true;
         break;
+      case "KeyZ":
+        this.input.z = true;
+        break;
+      case "KeyF":
+        this.input.f = true;
+        break;
     }
   }
 
@@ -112,6 +120,12 @@ export class InputHandler {
       case "AltLeft":
       case "AltRight":
         this.input.alt = false;
+        break;
+      case "KeyZ":
+        this.input.z = false;
+        break;
+      case "KeyF":
+        this.input.f = false;
         break;
     }
   }
@@ -189,21 +203,16 @@ export class InputHandler {
       // Left mouse button
       this.input.fire = true;
       this.input.firePressed = true;
-    } else if (evt.button === 2) {
-      // Right mouse button
-      this.input.rightClick = true;
-      evt.preventDefault(); // Prevent context menu
     }
+    // Right-click functionality removed
   }
 
   handleMouseUp(evt) {
     if (evt.button === 0) {
       // Left mouse button
       this.input.fire = false;
-    } else if (evt.button === 2) {
-      // Right mouse button
-      this.input.rightClick = false;
     }
+    // Right-click functionality removed
   }
 
   handleMouseLeave(evt) {

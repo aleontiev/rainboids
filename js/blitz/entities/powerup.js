@@ -13,6 +13,7 @@ export class Powerup {
       sideWeapon: "#aa44ff", // Purple
       secondShip: "#44ff44", // Green
       bomb: "#aa44ff", // Cool purple
+      rainbowStar: "#ff0000", // Will be overridden with rainbow gradient
     };
   }
 
@@ -29,26 +30,66 @@ export class Powerup {
     ctx.save();
     ctx.translate(this.x, this.y);
 
-    const color = this.colors[this.type];
     const pulse = 0.8 + 0.2 * Math.sin(this.pulseTimer);
 
-    // Draw outer circle
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = pulse;
-    ctx.beginPath();
-    ctx.arc(0, 0, this.size, 0, Math.PI * 2);
-    ctx.stroke();
+    if (this.type === "rainbowStar") {
+      // Rainbow gradient for rainbow star
+      const gradient = ctx.createLinearGradient(-this.size, -this.size, this.size, this.size);
+      const time = Date.now() * 0.005;
+      gradient.addColorStop(0, `hsl(${(time * 60) % 360}, 100%, 50%)`);
+      gradient.addColorStop(0.25, `hsl(${(time * 60 + 90) % 360}, 100%, 50%)`);
+      gradient.addColorStop(0.5, `hsl(${(time * 60 + 180) % 360}, 100%, 50%)`);
+      gradient.addColorStop(0.75, `hsl(${(time * 60 + 270) % 360}, 100%, 50%)`);
+      gradient.addColorStop(1, `hsl(${(time * 60 + 360) % 360}, 100%, 50%)`);
+      
+      // Draw glowing outer circle
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 4;
+      ctx.globalAlpha = pulse;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+      ctx.stroke();
 
-    // Draw inner circle
-    ctx.globalAlpha = pulse * 0.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, this.size * 0.7, 0, Math.PI * 2);
-    ctx.stroke();
+      // Draw inner glow circle
+      ctx.globalAlpha = pulse * 0.6;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.size * 0.7, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // Regular powerup rendering
+      const color = this.colors[this.type];
+      
+      // Draw outer circle
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = pulse;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Draw inner circle
+      ctx.globalAlpha = pulse * 0.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.size * 0.7, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     // Draw icon
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = color;
+    if (this.type === "rainbowStar") {
+      // Use rainbow gradient for the star icon
+      const gradient = ctx.createLinearGradient(-this.size, -this.size, this.size, this.size);
+      const time = Date.now() * 0.005;
+      gradient.addColorStop(0, `hsl(${(time * 60) % 360}, 100%, 50%)`);
+      gradient.addColorStop(0.25, `hsl(${(time * 60 + 90) % 360}, 100%, 50%)`);
+      gradient.addColorStop(0.5, `hsl(${(time * 60 + 180) % 360}, 100%, 50%)`);
+      gradient.addColorStop(0.75, `hsl(${(time * 60 + 270) % 360}, 100%, 50%)`);
+      gradient.addColorStop(1, `hsl(${(time * 60 + 360) % 360}, 100%, 50%)`);
+      ctx.strokeStyle = gradient;
+    } else {
+      ctx.strokeStyle = this.colors[this.type];
+    }
     ctx.lineWidth = 2;
 
     switch (this.type) {
@@ -153,6 +194,23 @@ export class Powerup {
         ctx.moveTo(0, -this.size * 0.2);
         ctx.lineTo(-this.size * 0.1, -this.size * 0.4);
         ctx.lineTo(this.size * 0.1, -this.size * 0.3);
+        ctx.stroke();
+        break;
+
+      case "rainbowStar":
+        // 5-pointed star icon
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+          const x = Math.cos(angle) * this.size * 0.3;
+          const y = Math.sin(angle) * this.size * 0.3;
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.closePath();
         ctx.stroke();
         break;
     }

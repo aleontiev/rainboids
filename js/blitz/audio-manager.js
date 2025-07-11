@@ -191,6 +191,17 @@ export class AudioManager {
     }
   }
 
+  restartBackgroundMusic() {
+    if (this.backgroundMusic) {
+      this.backgroundMusic.currentTime = 0; // Reset to beginning
+      if (!this.backgroundMusic.muted) {
+        this.backgroundMusic
+          .play()
+          .catch((e) => console.log("Background: audio restart failed:", e));
+      }
+    }
+  }
+
   playSound(sound) {
     if (!this.soundMuted && sound && sound.play) {
       sound.play();

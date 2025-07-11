@@ -137,7 +137,7 @@ class BlitzGame {
     this.timeSlowDuration = 300; // 5 seconds at 60fps
     this.timeSlowTimer = 0;
     this.timeSlowCooldown = 0;
-    this.timeSlowCooldownMax = 600; // 10 seconds cooldown
+    this.timeSlowCooldownMax = 900; // 15 seconds cooldown
 
     // Shield cooldown tracking removed - now handled by player
 
@@ -400,8 +400,11 @@ class BlitzGame {
     document.getElementById("game-over").style.display = "none";
     this.gameState = "PLAYING";
     
-    // Start background music when restarting
-    this.audio.startBackgroundMusic();
+    // Show power buttons again
+    this.death.showPowerButtons();
+    
+    // Restart background music from beginning
+    this.audio.restartBackgroundMusic();
     
     this.ui.update();
   }
@@ -415,7 +418,7 @@ class BlitzGame {
       x = this.canvas.width + 50;
       y = Math.random() * this.canvas.height;
     }
-    const types = ["shield", "mainWeapon", "sideWeapon", "secondShip", "bomb"];
+    const types = ["shield", "mainWeapon", "sideWeapon", "secondShip", "bomb", "rainbowStar"];
     const type = types[Math.floor(Math.random() * types.length)];
 
     this.powerups.push(new Powerup(x, y, type, this.isPortrait));
@@ -592,10 +595,13 @@ class BlitzGame {
 
     // Handle input
     if (input.shift) {
+      this.activateShield();
+    }
+    if (input.f) {
       this.activateTimeSlow();
     }
-    if (input.rightClick) {
-      this.activateShield();
+    if (input.z) {
+      this.activateBomb();
     }
 
     // Update player
@@ -1140,8 +1146,8 @@ class BlitzGame {
       }
     }
 
-    // Player vs asteroids (only if not shielding and not in godmode)
-    if (!this.player.isShielding && !this.player.godMode) {
+    // Player vs asteroids (only if not shielding, not in godmode, and not rainbow invulnerable)
+    if (!this.player.isShielding && !this.player.godMode && !this.player.rainbowInvulnerable) {
       for (let i = this.asteroids.length - 1; i >= 0; i--) {
         if (this.checkPlayerCollision(this.player, this.asteroids[i])) {
           if (this.player.secondShip.length > 0) {
@@ -1162,7 +1168,7 @@ class BlitzGame {
     }
 
     // Player vs all enemies (unified)
-    if (!this.player.isShielding && !this.player.godMode) {
+    if (!this.player.isShielding && !this.player.godMode && !this.player.rainbowInvulnerable) {
       for (let i = this.allEnemies.length - 1; i >= 0; i--) {
         if (this.checkPlayerCollision(this.player, this.allEnemies[i])) {
           if (this.player.secondShip.length > 0) {
@@ -1182,8 +1188,8 @@ class BlitzGame {
       }
     }
 
-    // Player vs enemy bullets (only if not shielding and not in godmode)
-    if (!this.player.isShielding && !this.player.godMode) {
+    // Player vs enemy bullets (only if not shielding, not in godmode, and not rainbow invulnerable)
+    if (!this.player.isShielding && !this.player.godMode && !this.player.rainbowInvulnerable) {
       for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
         if (this.checkPlayerCollision(this.player, this.enemyBullets[i])) {
           if (this.player.secondShip.length > 0) {
@@ -1206,7 +1212,7 @@ class BlitzGame {
     }
 
     // Player vs enemy lasers
-    if (!this.player.isShielding && !this.player.godMode) {
+    if (!this.player.isShielding && !this.player.godMode && !this.player.rainbowInvulnerable) {
       for (let i = this.enemyLasers.length - 1; i >= 0; i--) {
         if (this.checkPlayerLaserCollision(this.player, this.enemyLasers[i])) {
           if (this.player.secondShip.length > 0) {
@@ -1227,7 +1233,7 @@ class BlitzGame {
     }
 
     // Player vs enemy pulse circles
-    if (!this.player.isShielding && !this.player.godMode) {
+    if (!this.player.isShielding && !this.player.godMode && !this.player.rainbowInvulnerable) {
       for (let i = this.enemyPulseCircles.length - 1; i >= 0; i--) {
         if (this.checkPlayerCollision(this.player, this.enemyPulseCircles[i])) {
           if (this.player.secondShip.length > 0) {
@@ -1328,8 +1334,8 @@ class BlitzGame {
   }
 
   checkPlayerCollision(player, obj) {
-    // Player is immune to damage while shielding
-    if (player.isShielding) {
+    // Player is immune to damage while shielding, in god mode, or rainbow invulnerable
+    if (player.isShielding || player.godMode || player.rainbowInvulnerable) {
       return false;
     }
 
@@ -1418,6 +1424,9 @@ class BlitzGame {
         // Collect bomb instead of using it immediately
         this.bombCount = Math.min(this.bombCount + 1, 9); // Max 9 bombs for display purposes
         break;
+      case "rainbowStar":
+        this.player.activateRainbowInvulnerability();
+        break;
     }
   }
 
@@ -1436,12 +1445,29 @@ class BlitzGame {
       this.gameState === "PAUSED" ||
       this.gameState === "DEATH_ANIMATION"
     ) {
+      // Apply fade effect to all non-player elements during time slow
+      if (this.timeSlowActive) {
+        this.ctx.globalAlpha = 0.6; // Fade other elements
+      }
+      
       this.powerups.forEach((powerup) => powerup.render(this.ctx));
       this.explosions.forEach((explosion) => explosion.render(this.ctx));
       this.textParticles.forEach((particle) => particle.render(this.ctx));
+      
+      // Reset alpha for player (keep player at full opacity)
+      if (this.timeSlowActive) {
+        this.ctx.globalAlpha = 1.0;
+      }
+      
       if (this.gameState !== "DEATH_ANIMATION") {
         this.player.render(this.ctx);
       }
+      
+      // Apply fade effect to other elements again
+      if (this.timeSlowActive) {
+        this.ctx.globalAlpha = 0.6;
+      }
+      
       this.bullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyBullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyLasers.forEach((laser) => laser.render(this.ctx));
@@ -1453,6 +1479,9 @@ class BlitzGame {
         this.boss.render(this.ctx);
       }
       this.particles.forEach((particle) => particle.render(this.ctx));
+      
+      // Reset alpha after rendering all elements
+      this.ctx.globalAlpha = 1.0;
     }
 
     // Render death animation effects

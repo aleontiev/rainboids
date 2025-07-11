@@ -330,17 +330,40 @@ Params.prototype.hitHurt = function () {
 }
 
 Params.prototype.jump = function () {
-  this.wave_type = SQUARE;
-  this.p_duty = frnd(0.6);
-  this.p_base_freq = 0.3 + frnd(0.3);
-  this.p_freq_ramp = 0.1 + frnd(0.2);
-  this.p_env_attack = 0;
-  this.p_env_sustain = 0.1 + frnd(0.3);
-  this.p_env_decay = 0.1 + frnd(0.2);
-  if (rnd(1))
-    this.p_hpf_freq = frnd(0.3);
-  if (rnd(1))
-    this.p_lpf_freq = 1 - frnd(0.6);
+  // Smooth, longer jump sound with better frequency filtering
+  this.wave_type = SINE;           // Sine wave for smooth, soft sound
+  this.p_duty = 0;                 // Not applicable for sine wave
+  
+  // Frequency settings for smooth upward sweep
+  this.p_base_freq = 0.3;          // Consistent starting frequency
+  this.p_freq_ramp = 0.25;         // Gentle upward sweep
+  this.p_freq_dramp = 0;           // No delta sweep
+  
+  // Longer, smoother envelope
+  this.p_env_attack = 0.02;        // Soft attack
+  this.p_env_sustain = 0.3;        // Longer sustain for smoother sound
+  this.p_env_decay = 0.4;          // Longer decay for smooth fade
+  this.p_env_punch = 0;            // No punch for smoothness
+  
+  // No vibrato for consistent sound
+  this.p_vib_strength = 0;
+  this.p_vib_speed = 0;
+  
+  // No arpeggio or repeat
+  this.p_arp_mod = 0;
+  this.p_arp_speed = 0;
+  this.p_repeat_speed = 0;
+  
+  // No flanger
+  this.p_pha_offset = 0;
+  this.p_pha_ramp = 0;
+  
+  // Aggressive frequency filtering for smoothness
+  this.p_hpf_freq = 0.2;           // Cut low frequencies
+  this.p_hpf_ramp = 0;
+  this.p_lpf_freq = 0.6;           // Cut high frequencies aggressively
+  this.p_lpf_ramp = 0;
+  
   return this;
 }
 

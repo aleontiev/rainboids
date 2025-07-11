@@ -82,10 +82,14 @@ export class TitleScreen {
     const dx = targetX - x;
     const dy = targetY - y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const speed = 9 + Math.random() * 3; // Faster speed
-
-    // Size matching background stars but slightly larger
-    const size = 5 + Math.random() * 2.5;
+    
+    // Generate size first, then calculate velocity based on size
+    const size = 2 + Math.random() * 8; // Size range: 2-10 pixels
+    
+    // Larger stars have much higher velocity, smaller stars have lower velocity
+    // Size 2-4: speed 1-3, Size 4-6: speed 3-7, Size 6-8: speed 7-12, Size 8-10: speed 12-18
+    const baseSpeed = Math.pow(size / 2, 1.5); // Exponential relationship for more dramatic effect
+    const speed = baseSpeed + Math.random() * baseSpeed * 0.5; // Add some randomness
 
     // Use white, blue, or green colors as requested
     const colors = [
@@ -122,7 +126,7 @@ export class TitleScreen {
     });
 
     // Spawn shooting stars occasionally - slightly reduced for more balanced effect
-    if (Math.random() < 0.025) {
+    if (Math.random() < 0.2) {
       // 1.5% chance per frame (between original and doubled)
       this.spawnShootingStar();
     }
