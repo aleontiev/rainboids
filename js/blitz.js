@@ -7,8 +7,8 @@ import {
   Laser,
   HomingMissile,
   MiniBoss,
-  Boss,
 } from "./blitz/entities/enemy.js";
+import { Boss } from "./blitz/entities/boss.js";
 import { TextParticle, Debris } from "./blitz/entities/particle.js";
 import { Asteroid } from "./blitz/entities/asteroid.js";
 import { Metal } from "./blitz/entities/metal.js";
@@ -422,8 +422,16 @@ class BlitzGame {
       x = this.canvas.width + 50;
       y = Math.random() * this.canvas.height;
     }
-    const types = ["shield", "mainWeapon", "sideWeapon", "secondShip", "bomb", "rainbowStar"];
-    const type = types[Math.floor(Math.random() * types.length)];
+    // Weighted powerup selection - rainbow spawns 33% as often as others
+    const regularTypes = ["shield", "mainWeapon", "sideWeapon", "secondShip", "bomb"];
+    const random = Math.random();
+    
+    let type;
+    if (random < 0.833) { // 83.3% chance for regular powerups (5/6 original chance)
+      type = regularTypes[Math.floor(Math.random() * regularTypes.length)];
+    } else { // 16.7% chance for rainbow (1/6 original chance, but 33% of individual regular type)
+      type = "rainbowStar";
+    }
 
     this.powerups.push(new Powerup(x, y, type, this.isPortrait));
   }
@@ -632,7 +640,8 @@ class BlitzGame {
       this.isPortrait,
       this.autoaim,
       this.player.mainWeaponLevel,
-      this.timeSlowActive
+      this.timeSlowActive,
+      this.boss
     );
 
     // Player shooting (prevent firing during death animation)
@@ -815,39 +824,75 @@ class BlitzGame {
 
     // Update boss
     if (this.boss) {
-      this.boss.update(slowdownFactor);
+      this.boss.update(this.player.x, this.player.y);
       this.handleEnemyWeapons(this.boss);
     }
   }
 
   handleEnemyWeapons(enemy) {
-    // Handle primary weapon
-    if (enemy.canFirePrimary && enemy.canFirePrimary()) {
-      const weaponData = enemy.firePrimary(this.player.x, this.player.y);
-      if (Array.isArray(weaponData)) {
-        weaponData.forEach((bulletData) => {
-          this.createEnemyBullet(bulletData);
-        });
-      } else {
-        this.createEnemyBullet(weaponData);
-      }
-    }
+    // Handle new boss system
+    if (enemy instanceof Boss) {
+      // Fire left arm lasers
+      const leftArmLasers = enemy.fireLeftArm(this.player.x, this.player.y);
+      leftArmLasers.forEach((data) => {
+        this.enemyLasers.push(
+          new Laser(data.x, data.y, data.angle, data.speed, data.color)
+        );
+      });
 
-    // Handle secondary weapon
-    if (enemy.canFireSecondary && enemy.canFireSecondary()) {
-      const weaponData = enemy.fireSecondary(this.player.x, this.player.y);
-      if (Array.isArray(weaponData)) {
-        weaponData.forEach((data) => {
-          if (data.type === "laser") {
-            this.enemyLasers.push(
-              new Laser(data.x, data.y, data.angle, data.speed, data.color)
-            );
-          } else {
-            this.createEnemyBullet(data);
-          }
-        });
-      } else {
-        this.createEnemyBullet(weaponData);
+      // Fire right arm bullets
+      const rightArmBullets = enemy.fireRightArm(this.player.x, this.player.y);
+      rightArmBullets.forEach((bulletData) => {
+        this.createEnemyBullet(bulletData);
+      });
+
+      // Fire final phase attacks
+      const finalPhaseData = enemy.fireFinalPhase(this.player.x, this.player.y);
+      finalPhaseData.bullets.forEach((bulletData) => {
+        this.createEnemyBullet(bulletData);
+      });
+      
+      // Spawn enemies in final phase
+      finalPhaseData.enemies.forEach((enemyData) => {
+        this.enemies.push(
+          new Enemy(
+            enemyData.x,
+            enemyData.y,
+            enemyData.type,
+            this.isPortrait
+          )
+        );
+      });
+    } else {
+      // Handle other enemies (old system)
+      // Handle primary weapon
+      if (enemy.canFirePrimary && enemy.canFirePrimary()) {
+        const weaponData = enemy.firePrimary(this.player.x, this.player.y);
+        if (Array.isArray(weaponData)) {
+          weaponData.forEach((bulletData) => {
+            this.createEnemyBullet(bulletData);
+          });
+        } else {
+          this.createEnemyBullet(weaponData);
+        }
+      }
+
+      // Handle secondary weapon
+      if (enemy.canFireSecondary && enemy.canFireSecondary()) {
+        const weaponData = enemy.fireSecondary(this.player.x, this.player.y);
+        if (Array.isArray(weaponData)) {
+          weaponData.forEach((data) => {
+            if (data.type === "laser") {
+              this.enemyLasers.push(
+                new Laser(data.x, data.y, data.angle, data.speed, data.color)
+              );
+            } else {
+              this.createEnemyBullet(data);
+            }
+          });
+        } else {
+          this.createEnemyBullet(weaponData);
+        }
       }
     }
 
@@ -1166,7 +1211,7 @@ class BlitzGame {
             this.bullets.splice(i, 1);
           }
 
-          const result = this.handleEnemyDamage(enemy, 1);
+          const result = this.handleEnemyDamage(enemy, 1, bullet.x, bullet.y);
           if (result === "destroyed") {
             this.removeDestroyedEnemy(enemy);
           }
@@ -1641,7 +1686,7 @@ class BlitzGame {
       // Check level 1 boss if not already over a target
       if (!isOverTarget && this.boss) {
         const dist = Math.sqrt((x - this.boss.x) ** 2 + (y - this.boss.y) ** 2);
-        if (dist < this.boss.radius + 10) {
+        if (dist < this.boss.size + 10) {
           // Add 10px margin for easier targeting
           isOverTarget = true;
         }
@@ -1757,7 +1802,7 @@ class BlitzGame {
 
     // Damage level 1 boss if present
     if (this.boss) {
-      this.boss.takeDamage(100); // Very high damage to boss
+      this.handleEnemyDamage(this.boss, 100, this.boss.x, this.boss.y); // Very high damage to boss
     }
 
     // Create spectacular chain explosion effect covering entire screen
@@ -1860,9 +1905,23 @@ class BlitzGame {
 
   // Boss fight logic is now handled in updateAllEnemies and handleEnemyWeapons
 
-  handleEnemyDamage(enemy, damage) {
+  handleEnemyDamage(enemy, damage, bulletX = enemy.x, bulletY = enemy.y) {
     // Handle damage based on enemy type
-    if (enemy.takeDamage) {
+    if (enemy instanceof Boss) {
+      // New boss system with bullet coordinates
+      const result = enemy.takeDamage(damage, bulletX, bulletY);
+      if (result) {
+        this.effects.createEnemyExplosion(bulletX, bulletY);
+        this.audio.playSound(this.audio.sounds.enemyExplosion);
+        
+        if (enemy.isDefeated) {
+          this.startBossDeathSequence();
+          return "destroyed";
+        }
+        return "damaged";
+      }
+      return "no_damage";
+    } else if (enemy.takeDamage) {
       const result = enemy.takeDamage(damage);
       
       // Handle different damage results

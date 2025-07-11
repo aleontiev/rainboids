@@ -15,7 +15,8 @@ export const COLORS = {
         circle: '#00ff00',   // Green
         dive: '#800080',     // Purple
         laser: '#ff8800',    // Orange
-        pulse: '#ffffff'     // White
+        pulse: '#ffffff',    // White
+        square: '#000000'    // Black
     },
     POWERUP_COLORS: {
         shield: '#00aaff',
@@ -63,6 +64,6 @@ export const GAME_CONFIG = {
     MUSIC_VOLUME: 0.3
 };
 
-export const ENEMY_TYPES = ['straight', 'sine', 'zigzag', 'circle', 'dive', 'laser', 'pulse'];
+export const ENEMY_TYPES = ['straight', 'sine', 'zigzag', 'circle', 'dive', 'laser', 'pulse', 'square'];
 export const POWERUP_TYPES = ['shield', 'mainWeapon', 'sideWeapon', 'secondShip', 'bomb'];
 export const STAR_SHAPES = ['point', 'diamond', 'star4', 'star8', 'plus', 'cross'];

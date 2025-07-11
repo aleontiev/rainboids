@@ -41,7 +41,8 @@ export class Player {
     isPortrait,
     autoaimEnabled = true,
     mainWeaponLevel = 1,
-    timeSlowActive = false
+    timeSlowActive = false,
+    boss = null
   ) {
     // Store time slow state for rendering
     this.timeSlowActive = timeSlowActive;
@@ -195,14 +196,56 @@ export class Player {
 
     // Enhanced predictive aim with priority system
     // Only use autoaim if no mouse position (mobile) or if autoaim is explicitly enabled
+    
+    // Build complete target list including boss arms
+    const allTargets = [...enemies, ...asteroids];
+    
+    // Add boss arms as individual targets if boss exists
+    if (boss && !boss.isDefeated) {
+      if (!boss.leftArm.destroyed) {
+        // Get end position of left arm
+        const leftArmEnd = boss.leftArm.segments[boss.leftArm.segments.length - 1];
+        const leftArmWorldX = boss.x + leftArmEnd.x + Math.cos(leftArmEnd.angle) * leftArmEnd.length;
+        const leftArmWorldY = boss.y + leftArmEnd.y + Math.sin(leftArmEnd.angle) * leftArmEnd.length;
+        
+        allTargets.push({
+          x: leftArmWorldX,
+          y: leftArmWorldY,
+          type: "bossArm",
+          armType: "laser",
+          health: boss.leftArm.health,
+          size: 20,
+          boss: boss,
+          arm: "left"
+        });
+      }
+      
+      if (!boss.rightArm.destroyed) {
+        // Get end position of right arm
+        const rightArmEnd = boss.rightArm.segments[boss.rightArm.segments.length - 1];
+        const rightArmWorldX = boss.x + rightArmEnd.x + Math.cos(rightArmEnd.angle) * rightArmEnd.length;
+        const rightArmWorldY = boss.y + rightArmEnd.y + Math.sin(rightArmEnd.angle) * rightArmEnd.length;
+        
+        allTargets.push({
+          x: rightArmWorldX,
+          y: rightArmWorldY,
+          type: "bossArm",
+          armType: "missiles",
+          health: boss.rightArm.health,
+          size: 20,
+          boss: boss,
+          arm: "right"
+        });
+      }
+    }
+    
     if (
       (autoaimEnabled || !keys.mousePosition) &&
       keys.fire &&
-      (enemies.length > 0 || asteroids.length > 0)
+      allTargets.length > 0
     ) {
       let target = null;
       const bulletSpeed = getCurrentBulletSpeed(mainWeaponLevel);
-      const allTargets = [...enemies, ...asteroids];
       const shootingEnemyTypes = ["straight", "sine", "zigzag"];
 
       // Priority 1: Very close targets (within 200px) - any enemy or asteroid
@@ -335,7 +378,7 @@ export class Player {
       if (this.mainWeaponLevel >= 5 || this.rainbowInvulnerable) {
         // Rainbow laser beam
         bullets.push(new LaserClass(this.x, this.y, this.angle, 50, "rainbow"));
-        this.shootCooldown = 1; // Allow continuous firing
+        this.shootCooldown = 2; // Half the firing rate to reduce damage
         return "laser"; // Return laser type for continuous sound
       } else if (this.mainWeaponLevel === 1) {
         bullets.push(

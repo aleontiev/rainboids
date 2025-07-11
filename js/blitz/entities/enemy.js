@@ -55,6 +55,11 @@ export class Enemy {
         this.pulseInterval = 240 + Math.random() * 120;
         this.pulseTimer = 0;
         break;
+      case "square":
+        this.cornerTimer = 0;
+        this.cornerCooldown = 90; // 1.5 second cooldown
+        this.currentCorner = 0; // Which corner to shoot from next
+        break;
     }
   }
 
@@ -182,6 +187,14 @@ export class Enemy {
             this.firePulseRing(bullets);
           }
           break;
+        case "square":
+          this.y += this.speed * 0.7 * slowdownFactor;
+          this.cornerTimer += slowdownFactor;
+          if (this.cornerTimer > this.cornerCooldown) {
+            this.cornerTimer = 0;
+            this.fireFromCorner(bullets);
+          }
+          break;
       }
     } else {
       // Update based on type
@@ -298,6 +311,14 @@ export class Enemy {
             this.firePulseRing(bullets);
           }
           break;
+        case "square":
+          this.x -= this.speed * 0.7;
+          this.cornerTimer++;
+          if (this.cornerTimer > this.cornerCooldown) {
+            this.cornerTimer = 0;
+            this.fireFromCorner(bullets);
+          }
+          break;
       }
     }
 
@@ -357,6 +378,47 @@ export class Enemy {
     }
   }
 
+  fireFromCorner(bullets) {
+    // Shoot from one of the four corners
+    const bulletSpeed = 4;
+    const bulletSize = 7;
+    const bulletColor = COLORS.ENEMY_COLORS[this.type] || "#000000";
+    
+    // Define corner positions relative to ship center
+    const corners = [
+      { x: this.size * 0.7, y: -this.size * 0.7 }, // Top right
+      { x: this.size * 0.7, y: this.size * 0.7 },  // Bottom right  
+      { x: -this.size * 0.7, y: this.size * 0.7 }, // Bottom left
+      { x: -this.size * 0.7, y: -this.size * 0.7 } // Top left
+    ];
+    
+    const corner = corners[this.currentCorner];
+    const cornerX = this.x + corner.x;
+    const cornerY = this.y + corner.y;
+    
+    // Shoot towards player from this corner
+    const angle = Math.atan2(
+      // Add some randomness for interesting patterns
+      (Math.random() - 0.5) * 100,
+      this.isPortrait ? -100 : -200 // Shoot towards movement direction
+    );
+    
+    bullets.push(
+      new Bullet(
+        cornerX,
+        cornerY,
+        angle,
+        bulletSize,
+        bulletColor,
+        this.isPortrait,
+        bulletSpeed
+      )
+    );
+    
+    // Move to next corner
+    this.currentCorner = (this.currentCorner + 1) % 4;
+  }
+
   render(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -400,6 +462,7 @@ export class Enemy {
               ctx.fill();
             }
           }
+        }
         break;
 
       case "pulse":
@@ -427,89 +490,39 @@ export class Enemy {
 
     switch (this.type) {
       case "straight":
-        // Fighter - sleek triangular fighter with wings
+        // Simple triangle (like player ship)
         ctx.beginPath();
-        ctx.moveTo(this.size, 0);
-        ctx.lineTo(-this.size * 0.6, -this.size * 0.4);
-        ctx.lineTo(-this.size * 0.8, -this.size * 0.7);
-        ctx.lineTo(-this.size * 0.9, -this.size * 0.7);
-        ctx.lineTo(-this.size * 0.4, -this.size * 0.2);
-        ctx.lineTo(-this.size * 0.4, 0);
-        ctx.lineTo(-this.size * 0.4, this.size * 0.2);
-        ctx.lineTo(-this.size * 0.9, this.size * 0.7);
-        ctx.lineTo(-this.size * 0.8, this.size * 0.7);
-        ctx.lineTo(-this.size * 0.6, this.size * 0.4);
+        ctx.moveTo(this.size, 0); // Tip pointing forward
+        ctx.lineTo(-this.size * 0.5, -this.size * 0.5); // Top left
+        ctx.lineTo(-this.size * 0.3, 0); // Middle left
+        ctx.lineTo(-this.size * 0.5, this.size * 0.5); // Bottom left
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-
-        // Cockpit detail
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.arc(this.size * 0.3, 0, this.size * 0.15, 0, Math.PI * 2);
-        ctx.fill();
         break;
 
       case "sine":
-        // Interceptor - diamond-shaped with side fins
+        // Simple triangle (like player ship)
         ctx.beginPath();
-        ctx.moveTo(this.size * 0.8, 0);
-        ctx.lineTo(this.size * 0.2, -this.size * 0.8);
-        ctx.lineTo(-this.size * 0.2, -this.size * 0.5);
-        ctx.lineTo(-this.size * 0.8, -this.size * 0.3);
-        ctx.lineTo(-this.size * 0.8, this.size * 0.3);
-        ctx.lineTo(-this.size * 0.2, this.size * 0.5);
-        ctx.lineTo(this.size * 0.2, this.size * 0.8);
+        ctx.moveTo(this.size, 0); // Tip pointing forward
+        ctx.lineTo(-this.size * 0.5, -this.size * 0.5); // Top left
+        ctx.lineTo(-this.size * 0.3, 0); // Middle left
+        ctx.lineTo(-this.size * 0.5, this.size * 0.5); // Bottom left
         ctx.closePath();
         ctx.fill();
-        ctx.stroke();
-
-        // Wing stripes
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(this.size * 0.1, -this.size * 0.4);
-        ctx.lineTo(-this.size * 0.1, -this.size * 0.2);
-        ctx.moveTo(this.size * 0.1, this.size * 0.4);
-        ctx.lineTo(-this.size * 0.1, this.size * 0.2);
         ctx.stroke();
         break;
 
       case "zigzag":
-        // Assault Ship - angular predator design
+        // Simple triangle (like player ship)
         ctx.beginPath();
-        ctx.moveTo(this.size, 0);
-        ctx.lineTo(this.size * 0.3, -this.size * 0.5);
-        ctx.lineTo(-this.size * 0.2, -this.size * 0.9);
-        ctx.lineTo(-this.size * 0.6, -this.size * 0.6);
-        ctx.lineTo(-this.size * 0.9, -this.size * 0.2);
-        ctx.lineTo(-this.size * 0.5, 0);
-        ctx.lineTo(-this.size * 0.9, this.size * 0.2);
-        ctx.lineTo(-this.size * 0.6, this.size * 0.6);
-        ctx.lineTo(-this.size * 0.2, this.size * 0.9);
-        ctx.lineTo(this.size * 0.3, this.size * 0.5);
+        ctx.moveTo(this.size, 0); // Tip pointing forward
+        ctx.lineTo(-this.size * 0.5, -this.size * 0.5); // Top left
+        ctx.lineTo(-this.size * 0.3, 0); // Middle left
+        ctx.lineTo(-this.size * 0.5, this.size * 0.5); // Bottom left
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-
-        // Weapon ports
-        ctx.fillStyle = "#ff4444";
-        ctx.beginPath();
-        ctx.arc(
-          this.size * 0.1,
-          -this.size * 0.3,
-          this.size * 0.1,
-          0,
-          Math.PI * 2
-        );
-        ctx.arc(
-          this.size * 0.1,
-          this.size * 0.3,
-          this.size * 0.1,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
         break;
 
       case "circle":
@@ -540,16 +553,14 @@ export class Enemy {
         break;
 
       case "dive":
-        // Sleek pointed double-arrow
+        // Very pointy needle/spear shape
         ctx.beginPath();
-        ctx.moveTo(this.size * 0.9, 0); // Main arrow tip
-        ctx.lineTo(this.size * 0.3, -this.size * 0.3); // Upper left point
-        ctx.lineTo(this.size * 0.1, -this.size * 0.2); // Upper inner point
-        ctx.lineTo(-this.size * 0.3, -this.size * 0.2); // Upper back
-        ctx.lineTo(-this.size * 0.9, 0); // Rear arrow tip
-        ctx.lineTo(-this.size * 0.3, this.size * 0.2); // Lower back
-        ctx.lineTo(this.size * 0.1, this.size * 0.2); // Lower inner point
-        ctx.lineTo(this.size * 0.3, this.size * 0.3); // Lower right point
+        ctx.moveTo(this.size * 1.0, 0); // Sharp front tip
+        ctx.lineTo(this.size * 0.2, -this.size * 0.15); // Upper edge
+        ctx.lineTo(-this.size * 0.8, -this.size * 0.1); // Upper back
+        ctx.lineTo(-this.size * 1.0, 0); // Rear tip
+        ctx.lineTo(-this.size * 0.8, this.size * 0.1); // Lower back
+        ctx.lineTo(this.size * 0.2, this.size * 0.15); // Lower edge
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
@@ -558,13 +569,13 @@ export class Enemy {
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(this.size * 0.9, 0);
-        ctx.lineTo(-this.size * 0.9, 0);
+        ctx.moveTo(this.size * 1.0, 0);
+        ctx.lineTo(-this.size * 1.0, 0);
         ctx.stroke();
         break;
 
       case "laser":
-        // Battleship - elongated heavy cruiser
+        // Long cylinder laser ship
         // Add bright red glow when charging
         if (this.laserState === "charging") {
           const charge = this.laserChargeTime / 60; // 1 second charge time
@@ -577,12 +588,13 @@ export class Enemy {
           ctx.fillStyle = `rgba(255, ${100 - intensity * 50}, ${100 - intensity * 50}, 1)`;
         }
         
+        // Draw long cylinder
         ctx.beginPath();
         ctx.rect(
-          -this.size * 0.9,
-          -this.size * 0.3,
-          this.size * 1.8,
-          this.size * 0.6
+          -this.size * 1.2, // Longer cylinder
+          -this.size * 0.15, // Thinner cylinder
+          this.size * 2.4,   // Very long
+          this.size * 0.3    // Thin height
         );
         ctx.fill();
         ctx.stroke();
@@ -591,101 +603,67 @@ export class Enemy {
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
 
-        // Command bridge
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.rect(
-          -this.size * 0.2,
-          -this.size * 0.5,
-          this.size * 0.6,
-          this.size * 1.0
-        );
-        ctx.fill();
-        ctx.stroke();
-
-        // Main cannon
-        ctx.fillStyle = "#ff4444";
-        ctx.beginPath();
-        ctx.rect(
-          this.size * 0.9,
-          -this.size * 0.1,
-          this.size * 0.4,
-          this.size * 0.2
-        );
-        ctx.fill();
-        ctx.stroke();
-
-        // Hull details
+        // Cylinder details - segments
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 1;
+        for (let i = 0; i < 4; i++) {
+          const segmentX = -this.size + (i * this.size * 0.6);
+          ctx.beginPath();
+          ctx.moveTo(segmentX, -this.size * 0.15);
+          ctx.lineTo(segmentX, this.size * 0.15);
+          ctx.stroke();
+        }
+
+        // Laser aperture at front
+        ctx.fillStyle = "#ff0000";
         ctx.beginPath();
-        ctx.moveTo(-this.size * 0.7, -this.size * 0.2);
-        ctx.lineTo(this.size * 0.7, -this.size * 0.2);
-        ctx.moveTo(-this.size * 0.7, this.size * 0.2);
-        ctx.lineTo(this.size * 0.7, this.size * 0.2);
-        ctx.stroke();
+        ctx.arc(this.size * 1.2, 0, this.size * 0.08, 0, Math.PI * 2);
+        ctx.fill();
         
         // Laser charging stroke effect
         if (this.laserState === "charging") {
           const charge = this.laserChargeTime / 60; // 1 second charge time
           const intensity = Math.min(1, charge);
           
-          // Growing stroke around the entire ship
+          // Growing stroke around the cylinder (2x thicker)
           ctx.strokeStyle = `rgba(255, 255, 255, ${intensity * 0.8})`;
-          ctx.lineWidth = 2 + intensity * 6; // Grows from 2px to 8px
+          ctx.lineWidth = 4 + intensity * 12; // Grows from 4px to 16px
           ctx.beginPath();
           ctx.rect(
-            -this.size * 0.9,
-            -this.size * 0.3,
-            this.size * 1.8,
-            this.size * 0.6
+            -this.size * 1.2,
+            -this.size * 0.15,
+            this.size * 2.4,
+            this.size * 0.3
           );
           ctx.stroke();
         } else if (this.laserState === "firing") {
-          // White flash when firing
+          // White flash when firing (2x thicker)
           const flashIntensity = 1 - (this.laserChargeTime / 60); // Fade out over firing duration
           ctx.strokeStyle = `rgba(255, 255, 255, ${flashIntensity})`;
-          ctx.lineWidth = 8;
+          ctx.lineWidth = 16;
           ctx.beginPath();
           ctx.rect(
-            -this.size * 0.9,
-            -this.size * 0.3,
-            this.size * 1.8,
-            this.size * 0.6
+            -this.size * 1.2,
+            -this.size * 0.15,
+            this.size * 2.4,
+            this.size * 0.3
           );
           ctx.stroke();
         }
         break;
 
       case "pulse":
-        // Destroyer - square main body with weapon arrays
+        // Round ship that emits pulse rings
         ctx.beginPath();
-        ctx.rect(
-          -this.size * 0.4,
-          -this.size * 0.4,
-          this.size * 0.8,
-          this.size * 0.8
-        );
+        ctx.arc(0, 0, this.size * 0.7, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // Weapon arrays on corners
-        ctx.fillStyle = "#ffaa00";
-        const weaponSize = this.size * 0.25;
+        // Central core
+        ctx.fillStyle = "#ffffff";
         ctx.beginPath();
-        ctx.rect(-this.size * 0.7, -this.size * 0.7, weaponSize, weaponSize);
-        ctx.rect(this.size * 0.45, -this.size * 0.7, weaponSize, weaponSize);
-        ctx.rect(-this.size * 0.7, this.size * 0.45, weaponSize, weaponSize);
-        ctx.rect(this.size * 0.45, this.size * 0.45, weaponSize, weaponSize);
+        ctx.arc(0, 0, this.size * 0.3, 0, Math.PI * 2);
         ctx.fill();
-        ctx.stroke();
-
-        // Central power core
-        ctx.fillStyle = "#00ff88";
-        ctx.beginPath();
-        ctx.arc(0, 0, this.size * 0.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
 
         // Pulse indicator
         if (this.pulseCharge > 0.5) {
@@ -701,6 +679,45 @@ export class Enemy {
           );
           ctx.stroke();
         }
+        break;
+
+      case "square":
+        // Square ship with corner weapons
+        ctx.beginPath();
+        ctx.rect(
+          -this.size * 0.6,
+          -this.size * 0.6,
+          this.size * 1.2,
+          this.size * 1.2
+        );
+        ctx.fill();
+        ctx.stroke();
+
+        // Corner weapon ports
+        ctx.fillStyle = "#ff4444";
+        const weaponSize = this.size * 0.2;
+        const corners = [
+          { x: this.size * 0.5, y: -this.size * 0.5 }, // Top right
+          { x: this.size * 0.5, y: this.size * 0.5 },  // Bottom right
+          { x: -this.size * 0.5, y: this.size * 0.5 }, // Bottom left
+          { x: -this.size * 0.5, y: -this.size * 0.5 } // Top left
+        ];
+        
+        corners.forEach((corner, index) => {
+          ctx.beginPath();
+          ctx.rect(corner.x - weaponSize/2, corner.y - weaponSize/2, weaponSize, weaponSize);
+          ctx.fill();
+          ctx.stroke();
+          
+          // Highlight the active corner
+          if (index === this.currentCorner) {
+            ctx.strokeStyle = "#ffff00";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 2;
+          }
+        });
         break;
     }
 
@@ -1686,614 +1703,3 @@ export class HomingMissile {
   }
 }
 
-export class Boss {
-  constructor(x, y, isPortrait, canvasWidth, canvasHeight) {
-    this.x = x;
-    this.y = y;
-    this.isPortrait = isPortrait;
-    this.canvasWidth = canvasWidth;
-    this.canvasHeight = canvasHeight;
-    this.size = 120; // Very large boss
-    this.maxHealth = 2000; // 10x increased health (was 200)
-    this.health = this.maxHealth;
-    this.frameCount = 0;
-
-    // Movement
-    this.movePattern = "entering";
-    this.targetX = isPortrait ? canvasWidth / 2 : canvasWidth - 200;
-    this.targetY = isPortrait ? 200 : canvasHeight / 2;
-    this.speed = 1;
-    this.patrolDirection = 1;
-    this.patrolRange = 150;
-    this.startX = this.targetX;
-    this.startY = this.targetY;
-
-    // Shield system - 2 shields of 1000 each (10x increased)
-    this.shield = 2000; // Total shield: 1000 + 1000
-    this.maxShield = 2000;
-    this.shieldPhase1 = 1000; // First shield (10x increased)
-    this.shieldPhase2 = 1000; // Second shield (10x increased)
-
-    // Attack phases - now correspond to shield destruction
-    this.phase = 1; // Phase 1: First shield, Phase 2: Second shield, Phase 3: Health
-    this.phaseTimer = 0;
-    this.phaseDuration = 600; // 10 seconds per phase
-
-    // Weapons
-    this.primaryWeaponTimer = 0;
-    this.secondaryWeaponTimer = 0;
-    this.specialWeaponTimer = 0;
-    this.spiralWeaponTimer = 0; // New timer for spiral attack
-    this.primaryCooldown = 30; // Rapid fire
-    this.secondaryCooldown = 120; // 2 seconds
-    this.specialCooldown = 300; // 5 seconds
-    this.spiralWeaponCooldown = 180; // 3 seconds for spiral attack
-    this.laserSpeed = 3; // Speed for slow lasers (ensures 20+ frames visibility across screen)
-
-    // Visual effects
-    this.hitFlash = 0;
-    this.angle = 0;
-    this.rotationSpeed = 0.02;
-
-    // Death sequence
-    this.isDefeated = false;
-    this.deathTimer = 0;
-    this.explosionTimer = 0;
-  }
-
-  update() {
-    this.frameCount++;
-    this.angle += this.rotationSpeed;
-
-    if (this.isDefeated) {
-      this.deathTimer++;
-      return;
-    }
-
-    // Movement logic
-    if (this.movePattern === "entering") {
-      // Move to target position
-      const dx = this.targetX - this.x;
-      const dy = this.targetY - this.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance > 5) {
-        this.x += (dx / distance) * this.speed;
-        this.y += (dy / distance) * this.speed;
-      } else {
-        this.movePattern = "patrol";
-        this.startX = this.x;
-        this.startY = this.y;
-      }
-    } else if (this.movePattern === "patrol") {
-      // Patrol movement
-      if (this.isPortrait) {
-        this.x += this.patrolDirection * 0.5;
-        if (Math.abs(this.x - this.startX) > this.patrolRange) {
-          this.patrolDirection *= -1;
-        }
-      } else {
-        this.y += this.patrolDirection * 0.5;
-        if (Math.abs(this.y - this.startY) > this.patrolRange) {
-          this.patrolDirection *= -1;
-        }
-      }
-    }
-
-    // Phase management
-    this.phaseTimer++;
-    if (this.phaseTimer > this.phaseDuration) {
-      this.phase = Math.min(this.phase + 1, 4);
-      this.phaseTimer = 0;
-    }
-
-    // Weapon timers
-    this.primaryWeaponTimer++;
-    this.secondaryWeaponTimer++;
-    this.specialWeaponTimer++;
-    this.spiralWeaponTimer++; // Increment spiral weapon timer
-
-    // Hit flash
-    if (this.hitFlash > 0) {
-      this.hitFlash--;
-    }
-  }
-
-  canFirePrimary() {
-    return this.primaryWeaponTimer >= this.primaryCooldown;
-  }
-
-  firePrimary(playerX, playerY) {
-    if (!this.canFirePrimary()) return [];
-    this.primaryWeaponTimer = 0;
-
-    const bullets = [];
-    const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x); // Aim at actual player position
-
-    // Phase 1: Precision single shots (First Shield Phase)
-    if (this.phase === 1) {
-      bullets.push({
-        x: this.x,
-        y: this.y,
-        vx: Math.cos(angleToPlayer) * 6, // Faster bullets
-        vy: Math.sin(angleToPlayer) * 6,
-        size: 10, // Larger bullets
-        color: "#ff0000", // Red
-        type: "boss",
-      });
-    }
-    // Phase 2: Triple shot
-    else if (this.phase === 2) {
-      for (let i = -1; i <= 1; i++) {
-        const angle = angleToPlayer + i * 0.3;
-        bullets.push({
-          x: this.x,
-          y: this.y,
-          vx: Math.cos(angle) * 4,
-          vy: Math.sin(angle) * 4,
-          size: 7.5, // At least as large as normal enemy bullets
-          type: "boss",
-        });
-      }
-    }
-    // Phase 3: Spread shot
-    else if (this.phase === 3) {
-      for (let i = -2; i <= 2; i++) {
-        const angle = angleToPlayer + i * 0.4;
-        bullets.push({
-          x: this.x,
-          y: this.y,
-          vx: Math.cos(angle) * 5,
-          vy: Math.sin(angle) * 5,
-          size: 12.5, // Larger size for powerful attack (1.25x of 10)
-          type: "boss",
-        });
-      }
-    }
-    // Phase 4: Circle shot
-    else if (this.phase === 4) {
-      for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2;
-        bullets.push({
-          x: this.x,
-          y: this.y,
-          vx: Math.cos(angle) * 3,
-          vy: Math.sin(angle) * 3,
-          size: 15, // Even larger size for ultimate attack (1.25x of 12)
-          type: "boss",
-        });
-      }
-    }
-
-    return bullets;
-  }
-
-  canFireSecondary() {
-    return this.secondaryWeaponTimer >= this.secondaryCooldown;
-  }
-
-  fireSecondary(playerX, playerY) {
-    if (!this.canFireSecondary()) return [];
-    this.secondaryWeaponTimer = 0;
-
-    const bullets = [];
-
-    // Laser attacks in later phases
-    if (this.phase >= 2) {
-      // Create laser data (will be handled by game engine)
-      return [
-        {
-          type: "laser",
-          x: this.x,
-          y: this.y,
-          angle: Math.atan2(playerY - this.y, playerX - this.x),
-          speed: this.laserSpeed, // Pass the new speed
-          length: 400,
-          color: "#ff0000",
-        },
-      ];
-    }
-
-    return bullets;
-  }
-
-  canFireSpecial() {
-    return this.specialWeaponTimer >= this.specialCooldown && this.phase >= 3;
-  }
-
-  fireSpecial() {
-    if (!this.canFireSpecial()) return [];
-    this.specialWeaponTimer = 0;
-
-    // Pulse circle attack
-    return [
-      {
-        type: "pulse",
-        x: this.x,
-        y: this.y,
-        maxRadius: 300,
-        color: "#800080",
-      },
-    ];
-  }
-
-  canFireSpiral() {
-    return this.spiralWeaponTimer >= this.spiralWeaponCooldown;
-  }
-
-  fireSpiral() {
-    this.spiralWeaponTimer = 0;
-    const bullets = [];
-    const numBullets = 12; // Number of bullets in one wave
-    const baseAngle = this.frameCount * 0.05; // Rotate the spiral over time
-
-    for (let i = 0; i < numBullets; i++) {
-      const angle = baseAngle + (i / numBullets) * Math.PI * 2;
-      bullets.push({
-        x: this.x,
-        y: this.y,
-        vx: Math.cos(angle) * 2, // Slower bullet speed
-        vy: Math.sin(angle) * 2,
-        size: 8, // Larger size
-        type: "boss",
-      });
-    }
-    return bullets;
-  }
-
-  takeDamage(damage) {
-    // Shield absorbs damage first
-    if (this.shield > 0) {
-      this.shield -= damage;
-      this.hitFlash = 10;
-
-      // Check phase transitions based on shield remaining
-      if (this.shield <= 100 && this.phase === 1) {
-        this.phase = 2; // Enter phase 2 when first shield (100) is destroyed
-        return "phase_transition";
-      } else if (this.shield <= 0) {
-        this.shield = 0;
-        this.phase = 3; // Enter phase 3 when all shields are destroyed
-        return "shield_destroyed";
-      }
-      return "shield_damaged";
-    }
-
-    // Damage health if no shield (phase 3)
-    this.health -= damage;
-    this.hitFlash = 10;
-
-    if (this.health <= 0) {
-      this.isDefeated = true;
-      this.deathTimer = 0;
-      return "defeated";
-    }
-
-    return "hit";
-  }
-
-  getHealthPercentage() {
-    return this.health / this.maxHealth;
-  }
-
-  render(ctx) {
-    if (this.size <= 0) return;
-
-    ctx.save();
-    ctx.translate(this.x, this.y);
-    ctx.rotate(this.angle);
-
-    // Flash effect when hit
-    if (this.hitFlash > 0) {
-      ctx.globalAlpha = 0.5;
-    }
-
-    // Draw giant miniboss-style ship (scaled up Alpha design)
-    this.drawGiantMiniBoss(ctx);
-
-    // Pulsing effect based on phase
-    if (this.phase >= 2) {
-      ctx.globalAlpha = 0.3 + 0.2 * Math.sin(this.frameCount * 0.1);
-      ctx.strokeStyle = "#ff00ff";
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.size + 20, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    ctx.restore();
-
-    // Health bar
-    this.renderHealthBar(ctx);
-  }
-
-  drawGiantMiniBoss(ctx) {
-    // Giant Alpha mini-boss design with angry eyes
-    const baseColor = this.isDefeated ? "#666666" : "#ff4444";
-    const lightColor = this.isDefeated ? "#999999" : "#ffaaaa";
-    const weaponColor = this.isDefeated ? "#444444" : "#ff6666";
-
-    ctx.fillStyle = baseColor;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 4;
-
-    // Main hull (scaled up from miniboss)
-    ctx.beginPath();
-    ctx.rect(
-      -this.size * 0.8,
-      -this.size * 0.3,
-      this.size * 1.6,
-      this.size * 0.6
-    );
-    ctx.fill();
-    ctx.stroke();
-
-    // Command tower
-    ctx.fillStyle = lightColor;
-    ctx.beginPath();
-    ctx.rect(
-      -this.size * 0.2,
-      -this.size * 0.5,
-      this.size * 0.6,
-      this.size * 1.0
-    );
-    ctx.fill();
-    ctx.stroke();
-
-    // Weapon arrays (larger and more menacing)
-    ctx.fillStyle = weaponColor;
-    ctx.beginPath();
-    ctx.rect(
-      this.size * 0.5,
-      -this.size * 0.5,
-      this.size * 0.4,
-      this.size * 0.25
-    );
-    ctx.rect(
-      this.size * 0.5,
-      this.size * 0.25,
-      this.size * 0.4,
-      this.size * 0.25
-    );
-    ctx.rect(
-      -this.size * 0.9,
-      -this.size * 0.4,
-      this.size * 0.3,
-      this.size * 0.2
-    );
-    ctx.rect(
-      -this.size * 0.9,
-      this.size * 0.2,
-      this.size * 0.3,
-      this.size * 0.2
-    );
-    ctx.fill();
-    ctx.stroke();
-
-    // Additional armor plating
-    ctx.fillStyle = baseColor;
-    ctx.beginPath();
-    ctx.rect(
-      -this.size * 0.6,
-      -this.size * 0.7,
-      this.size * 0.4,
-      this.size * 0.15
-    );
-    ctx.rect(
-      -this.size * 0.6,
-      this.size * 0.55,
-      this.size * 0.4,
-      this.size * 0.15
-    );
-    ctx.fill();
-    ctx.stroke();
-
-    // Engine glow (larger)
-    ctx.fillStyle = "#ffaa00";
-    ctx.beginPath();
-    ctx.arc(
-      -this.size * 0.8,
-      -this.size * 0.2,
-      this.size * 0.15,
-      0,
-      Math.PI * 2
-    );
-    ctx.arc(
-      -this.size * 0.8,
-      this.size * 0.2,
-      this.size * 0.15,
-      0,
-      Math.PI * 2
-    );
-    ctx.arc(-this.size * 0.8, 0, this.size * 0.12, 0, Math.PI * 2);
-    ctx.fill();
-
-    // ANGRY EYES on the command tower
-    this.drawAngryEyes(ctx);
-  }
-
-  drawAngryEyes(ctx) {
-    const eyeColor = this.isDefeated ? "#444444" : "#ff0000";
-    const pupilColor = this.isDefeated ? "#222222" : "#000000";
-
-    // Left angry eye
-    ctx.fillStyle = eyeColor;
-    ctx.beginPath();
-    ctx.ellipse(
-      -this.size * 0.1,
-      -this.size * 0.15,
-      this.size * 0.08,
-      this.size * 0.06,
-      -0.3,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-
-    // Left pupil
-    ctx.fillStyle = pupilColor;
-    ctx.beginPath();
-    ctx.arc(
-      -this.size * 0.12,
-      -this.size * 0.12,
-      this.size * 0.03,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-
-    // Right angry eye
-    ctx.fillStyle = eyeColor;
-    ctx.beginPath();
-    ctx.ellipse(
-      this.size * 0.1,
-      -this.size * 0.15,
-      this.size * 0.08,
-      this.size * 0.06,
-      0.3,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-
-    // Right pupil
-    ctx.fillStyle = pupilColor;
-    ctx.beginPath();
-    ctx.arc(
-      this.size * 0.12,
-      -this.size * 0.12,
-      this.size * 0.03,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-
-    // Angry eyebrows
-    ctx.strokeStyle = this.isDefeated ? "#666666" : "#ff0000";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    // Left eyebrow (angled down toward center)
-    ctx.moveTo(-this.size * 0.18, -this.size * 0.25);
-    ctx.lineTo(-this.size * 0.05, -this.size * 0.22);
-    // Right eyebrow (angled down toward center)
-    ctx.moveTo(this.size * 0.18, -this.size * 0.25);
-    ctx.lineTo(this.size * 0.05, -this.size * 0.22);
-    ctx.stroke();
-
-    // Angry mouth/grille
-    ctx.strokeStyle = this.isDefeated ? "#666666" : "#ff4444";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    // Downward curved mouth
-    ctx.moveTo(-this.size * 0.12, this.size * 0.05);
-    ctx.quadraticCurveTo(
-      0,
-      this.size * 0.15,
-      this.size * 0.12,
-      this.size * 0.05
-    );
-    ctx.stroke();
-
-    // Additional anger lines on the hull
-    ctx.strokeStyle = this.isDefeated ? "#555555" : "#ff6666";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    // Diagonal anger marks
-    ctx.moveTo(-this.size * 0.25, -this.size * 0.4);
-    ctx.lineTo(-this.size * 0.15, -this.size * 0.3);
-    ctx.moveTo(this.size * 0.25, -this.size * 0.4);
-    ctx.lineTo(this.size * 0.15, -this.size * 0.3);
-    ctx.stroke();
-  }
-
-  renderHealthBar(ctx) {
-    const barWidth = 300;
-    const barHeight = 20;
-    const barX = this.x - barWidth / 2;
-    let currentY = this.y - this.size - 40;
-
-    // Phase 1 Shield (100 points)
-    if (this.phase >= 1) {
-      ctx.fillStyle = "#333333";
-      ctx.fillRect(barX, currentY, barWidth, barHeight);
-
-      if (this.shield > 100) {
-        // Phase 1 shield is full
-        ctx.fillStyle = "#0088ff";
-        ctx.fillRect(barX, currentY, barWidth, barHeight);
-      } else if (this.shield > 0 && this.phase === 1) {
-        // Phase 1 shield is partially damaged
-        const phase1Percent = (this.shield - 100) / 100;
-        ctx.fillStyle = "#0088ff";
-        ctx.fillRect(barX, currentY, barWidth * phase1Percent, barHeight);
-      }
-
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(barX, currentY, barWidth, barHeight);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = '12px "Press Start 2P"';
-      ctx.textAlign = "center";
-      ctx.fillText("SHIELD 1", this.x, currentY + 14);
-
-      currentY += barHeight + 5;
-    }
-
-    // Phase 2 Shield (100 points)
-    if (this.phase >= 2) {
-      ctx.fillStyle = "#333333";
-      ctx.fillRect(barX, currentY, barWidth, barHeight);
-
-      if (this.shield > 0 && this.phase === 2) {
-        // Phase 2 shield is active
-        const phase2Percent = this.shield / 100;
-        ctx.fillStyle = "#0088ff";
-        ctx.fillRect(barX, currentY, barWidth * phase2Percent, barHeight);
-      }
-
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(barX, currentY, barWidth, barHeight);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = '12px "Press Start 2P"';
-      ctx.textAlign = "center";
-      ctx.fillText("SHIELD 2", this.x, currentY + 14);
-
-      currentY += barHeight + 5;
-    }
-
-    // Phase 3 Health (200 points)
-    if (this.phase >= 3) {
-      ctx.fillStyle = "#333333";
-      ctx.fillRect(barX, currentY, barWidth, barHeight);
-
-      const healthPercent = this.getHealthPercentage();
-      ctx.fillStyle =
-        healthPercent > 0.5
-          ? "#00ff00"
-          : healthPercent > 0.25
-          ? "#ffff00"
-          : "#ff0000";
-      ctx.fillRect(barX, currentY, barWidth * healthPercent, barHeight);
-
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(barX, currentY, barWidth, barHeight);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = '12px "Press Start 2P"';
-      ctx.textAlign = "center";
-      ctx.fillText("HEALTH", this.x, currentY + 14);
-
-      currentY += barHeight + 5;
-    }
-
-    // Boss name
-    ctx.fillStyle = "#ffffff";
-    ctx.font = '16px "Press Start 2P"';
-    ctx.textAlign = "center";
-    ctx.fillText("SPACE OVERLORD", this.x, this.y - this.size - 60);
-  }
-}
