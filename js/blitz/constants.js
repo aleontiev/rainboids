@@ -9,13 +9,13 @@ export const GAME_STATES = {
 export const COLORS = {
     STAR_COLORS: ['#a6b3ff', '#c3a6ff', '#f3a6ff', '#ffa6f8', '#ffa6c7', '#ff528e', '#d98cff', '#ff8c00', '#ffffff', '#ffff88'],
     ENEMY_COLORS: {
-        straight: '#ff6666',
-        sine: '#ff8866',
-        zigzag: '#ffaa66',
-        circle: '#ffcc66',
-        dive: '#ffee66',
-        laser: '#ff4444',
-        pulse: '#ff9999'
+        straight: '#ffff00', // Yellow
+        sine: '#ff0000',     // Red
+        zigzag: '#0000ff',   // Blue
+        circle: '#00ff00',   // Green
+        dive: '#800080',     // Purple
+        laser: '#ff8800',    // Orange
+        pulse: '#ffffff'     // White
     },
     POWERUP_COLORS: {
         shield: '#00aaff',

@@ -175,10 +175,11 @@ export class UIManager {
   }
 
   update() {
-    // Update score display
+    // Update score display - show 0 if cheats were used
     const scoreElement = document.getElementById("score-value");
     if (scoreElement) {
-      scoreElement.textContent = this.game.score.toString();
+      const displayScore = this.game.cheatsUsed ? 0 : this.game.score;
+      scoreElement.textContent = displayScore.toString();
     }
 
     // Update timer display
@@ -200,7 +201,8 @@ export class UIManager {
 
     const finalScoreElement = document.getElementById("final-score-value");
     if (finalScoreElement) {
-      finalScoreElement.textContent = this.game.score.toString();
+      const displayScore = this.game.cheatsUsed ? 0 : this.game.score;
+      finalScoreElement.textContent = displayScore.toString();
     }
   }
 }

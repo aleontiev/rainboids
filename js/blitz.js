@@ -11,6 +11,7 @@ import {
 } from "./blitz/entities/enemy.js";
 import { TextParticle, Debris } from "./blitz/entities/particle.js";
 import { Asteroid } from "./blitz/entities/asteroid.js";
+import { Metal } from "./blitz/entities/metal.js";
 import { InputHandler } from "./blitz/input.js";
 import { TitleScreen } from "./blitz/title-screen.js";
 import { UIManager } from "./blitz/ui-manager.js";
@@ -41,6 +42,7 @@ class BlitzGame {
 
     this.autoaim = false; // Default off
     this.allUpgradesState = null; // Store state before all upgrades
+    this.cheatsUsed = false; // Track if cheats have been used this session
 
     this.resize();
 
@@ -70,7 +72,8 @@ class BlitzGame {
 
   saveHighScore(score) {
     try {
-      if (score > this.highScore) {
+      // Don't save high score if cheats were used
+      if (!this.cheatsUsed && score > this.highScore) {
         this.highScore = score;
         localStorage.setItem("rainboids-high-score", score.toString());
       }
@@ -83,6 +86,7 @@ class BlitzGame {
     this.score = 0;
     this.lives = 1;
     this.sceneOpacity = 1.0;
+    this.cheatsUsed = false; // Reset cheat tracking for new game
 
     let playerX, playerY;
     if (this.isPortrait) {
@@ -99,6 +103,7 @@ class BlitzGame {
     this.asteroids = [];
     this.enemies = [];
     this.allEnemies = []; // Unified enemy list for collision detection
+    this.metals = []; // Indestructible metal objects
     this.particles = [];
 
     this.isMobile = this.detectMobile();
@@ -125,6 +130,7 @@ class BlitzGame {
     this.powerups = [];
     this.explosions = [];
     this.powerupSpawnTimer = 0;
+    this.metalSpawnTimer = 0;
     this.textParticles = []; // For score popups
 
     // Audio state
@@ -422,6 +428,22 @@ class BlitzGame {
     this.powerups.push(new Powerup(x, y, type, this.isPortrait));
   }
 
+  spawnMetal() {
+    let x, y;
+    if (this.isPortrait) {
+      x = Math.random() * this.canvas.width;
+      y = -100; // Start above screen
+    } else {
+      x = this.canvas.width + 100; // Start to the right
+      y = Math.random() * this.canvas.height;
+    }
+    
+    const shapes = ["l", "L", "T"];
+    const shape = shapes[Math.floor(Math.random() * shapes.length)];
+    
+    this.metals.push(new Metal(x, y, shape, this.isPortrait));
+  }
+
   updateGamePhase() {
     // Only auto-advance to phase 2 at 30 seconds if still in phase 1
     if (this.gameTime < 30 && this.gamePhase === 1) {
@@ -615,14 +637,23 @@ class BlitzGame {
 
     // Player shooting (prevent firing during death animation)
     if (input.fire && !this.death.animationActive) {
-      this.player.shoot(
+      const weaponType = this.player.shoot(
         this.bullets,
         Bullet,
         Laser,
         HomingMissile,
         this.isPortrait
       );
-      this.audio.playSound(this.audio.sounds.shoot);
+      
+      // Handle different weapon sounds
+      if (weaponType === "laser") {
+        this.audio.startContinuousLaser();
+      } else if (weaponType === "bullet") {
+        this.audio.playSound(this.audio.sounds.shoot);
+      }
+    } else {
+      // Stop continuous laser sound when not firing
+      this.audio.stopContinuousLaser();
     }
 
     // Update bullets
@@ -655,6 +686,11 @@ class BlitzGame {
 
     this.enemyLasers = this.enemyLasers.filter((laser) =>
       laser.update(slowdownFactor)
+    );
+
+    // Update metals
+    this.metals = this.metals.filter((metal) =>
+      metal.update(slowdownFactor)
     );
 
 
@@ -869,6 +905,15 @@ class BlitzGame {
     if (this.powerupSpawnTimer > 1200 + Math.random() * 1800) {
       this.spawnPowerup();
       this.powerupSpawnTimer = 0;
+    }
+
+    // Spawn metals during phases 1 and 2
+    if (this.gamePhase >= 1 && this.gamePhase <= 2) {
+      this.metalSpawnTimer++;
+      if (this.metalSpawnTimer > 1800 + Math.random() * 2400) { // Less frequent than powerups
+        this.spawnMetal();
+        this.metalSpawnTimer = 0;
+      }
     }
 
     // Game progression phases
@@ -1131,6 +1176,92 @@ class BlitzGame {
             break; // Break from inner loop only if not a laser
           }
         }
+      }
+    }
+
+    // Player bullets vs metals (bounce off)
+    for (let i = this.bullets.length - 1; i >= 0; i--) {
+      for (let j = this.metals.length - 1; j >= 0; j--) {
+        const bullet = this.bullets[i];
+        const metal = this.metals[j];
+        
+        if (bullet instanceof Laser) {
+          // Lasers are destroyed by metal
+          const hitSegment = metal.checkBulletCollision(bullet);
+          if (hitSegment) {
+            this.bullets.splice(i, 1);
+            break;
+          }
+          continue;
+        }
+        
+        const hitSegment = metal.checkBulletCollision(bullet);
+        if (hitSegment) {
+          // Bounce the bullet
+          const bounceResult = metal.calculateBounceDirection(bullet, hitSegment);
+          bullet.angle = bounceResult.angle;
+          bullet.speed = bounceResult.speed;
+          
+          // Move bullet slightly away from metal to prevent multiple collisions
+          bullet.x += Math.cos(bullet.angle) * 5;
+          bullet.y += Math.sin(bullet.angle) * 5;
+          
+          break; // Only bounce once per frame
+        }
+      }
+    }
+
+    // Enemy bullets vs metals (bounce off)
+    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+      for (let j = this.metals.length - 1; j >= 0; j--) {
+        const bullet = this.enemyBullets[i];
+        const metal = this.metals[j];
+        
+        const hitSegment = metal.checkBulletCollision(bullet);
+        if (hitSegment) {
+          // Bounce the bullet
+          const bounceResult = metal.calculateBounceDirection(bullet, hitSegment);
+          bullet.angle = bounceResult.angle;
+          bullet.speed = bounceResult.speed;
+          
+          // Move bullet slightly away from metal to prevent multiple collisions
+          bullet.x += Math.cos(bullet.angle) * 5;
+          bullet.y += Math.sin(bullet.angle) * 5;
+          
+          break; // Only bounce once per frame
+        }
+      }
+    }
+
+    // Enemy lasers vs metals (destroyed by metal)
+    for (let i = this.enemyLasers.length - 1; i >= 0; i--) {
+      for (let j = this.metals.length - 1; j >= 0; j--) {
+        const laser = this.enemyLasers[i];
+        const metal = this.metals[j];
+        
+        const hitSegment = metal.checkBulletCollision(laser);
+        if (hitSegment) {
+          // Destroy the laser
+          this.enemyLasers.splice(i, 1);
+          break;
+        }
+      }
+    }
+
+    // Player vs metals (push player along with metal movement)
+    for (let i = this.metals.length - 1; i >= 0; i--) {
+      const metal = this.metals[i];
+      const hitSegment = metal.checkPlayerCollision(this.player);
+      if (hitSegment) {
+        // Push player along with metal movement
+        this.player.x += metal.vx;
+        this.player.y += metal.vy;
+        
+        // Keep player on screen
+        this.player.x = Math.max(20, Math.min(this.player.x, window.innerWidth - 20));
+        this.player.y = Math.max(20, Math.min(this.player.y, window.innerHeight - 20));
+        
+        break; // Only push once per frame
       }
     }
 
@@ -1438,6 +1569,7 @@ class BlitzGame {
       this.enemyBullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyLasers.forEach((laser) => laser.render(this.ctx));
       this.asteroids.forEach((asteroid) => asteroid.render(this.ctx));
+      this.metals.forEach((metal) => metal.render(this.ctx));
       this.enemies.forEach((enemy) => enemy.render(this.ctx));
       this.miniBosses.forEach((miniBoss) => miniBoss.render(this.ctx));
       if (this.boss) {

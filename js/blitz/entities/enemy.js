@@ -66,6 +66,9 @@ export class Enemy {
     slowdownFactor = 1.0
   ) {
     this.time += slowdownFactor;
+    
+    // Make enemies face the player
+    this.angle = Math.atan2(playerY - this.y, playerX - this.x);
 
     if (this.isPortrait) {
       // Portrait mode movement
@@ -133,15 +136,29 @@ export class Enemy {
               
             case "charging":
               this.laserChargeTime += slowdownFactor;
-              if (this.laserChargeTime > 120) { // 2 seconds charge time
+              if (this.laserChargeTime > 60) { // 1 second charge time
+                this.laserState = "preview";
+                this.laserChargeTime = 0;
+                // Add 30px radius targeting inaccuracy
+                const offsetX = (Math.random() - 0.5) * 60; // -30 to +30px
+                const offsetY = (Math.random() - 0.5) * 60; // -30 to +30px
+                this.laserAngle = Math.atan2(playerY + offsetY - this.y, playerX + offsetX - this.x);
+              }
+              break;
+              
+            case "preview":
+              this.laserChargeTime += slowdownFactor;
+              if (this.laserChargeTime > 15) { // 0.25 seconds preview
                 this.laserState = "firing";
                 this.laserChargeTime = 0;
-                // Create laser beam
+                // Create laser projectile
                 lasers.push(
                   new Laser(
                     this.x,
                     this.y,
-                    Math.atan2(playerY - this.y, playerX - this.x)
+                    this.laserAngle,
+                    this.laserSpeed, // Use the slower speed
+                    COLORS.ENEMY_COLORS[this.type] || "#ff6666" // Use enemy color
                   )
                 );
               }
@@ -234,15 +251,29 @@ export class Enemy {
               
             case "charging":
               this.laserChargeTime++;
-              if (this.laserChargeTime > 120) { // 2 seconds charge time
+              if (this.laserChargeTime > 60) { // 1 second charge time
+                this.laserState = "preview";
+                this.laserChargeTime = 0;
+                // Add 30px radius targeting inaccuracy
+                const offsetX = (Math.random() - 0.5) * 60; // -30 to +30px
+                const offsetY = (Math.random() - 0.5) * 60; // -30 to +30px
+                this.laserAngle = Math.atan2(playerY + offsetY - this.y, playerX + offsetX - this.x);
+              }
+              break;
+              
+            case "preview":
+              this.laserChargeTime++;
+              if (this.laserChargeTime > 15) { // 0.25 seconds preview
                 this.laserState = "firing";
                 this.laserChargeTime = 0;
-                // Create laser beam
+                // Create laser projectile
                 lasers.push(
                   new Laser(
                     this.x,
                     this.y,
-                    Math.atan2(playerY - this.y, playerX - this.x)
+                    this.laserAngle,
+                    this.laserSpeed, // Use the slower speed
+                    COLORS.ENEMY_COLORS[this.type] || "#ff6666" // Use enemy color
                   )
                 );
               }
@@ -285,16 +316,8 @@ export class Enemy {
         this.shootCooldown = 0;
         const angle = Math.atan2(player.y - this.y, player.x - this.x);
 
-        // Choose a random enemy bullet color
-        const enemyColors = [
-          "#ff0000",
-          "#800080",
-          "#0000ff",
-          "#ffa500",
-          "#ffff00",
-        ]; // Red, Purple, Blue, Orange, Yellow
-        const randomColor =
-          enemyColors[Math.floor(Math.random() * enemyColors.length)];
+        // Use the enemy's color for its bullets
+        const bulletColor = COLORS.ENEMY_COLORS[this.type] || "#ff6666";
 
         bullets.push(
           new Bullet(
@@ -302,7 +325,7 @@ export class Enemy {
             this.y,
             angle,
             7.5,
-            randomColor,
+            bulletColor,
             this.isPortrait,
             6.4
           )
@@ -347,7 +370,7 @@ export class Enemy {
       case "laser":
         // Draw energy gathering animation based on state
         if (this.laserState === "charging") {
-          const charge = this.laserChargeTime / 120; // 2 seconds charge time
+          const charge = this.laserChargeTime / 60; // 1 second charge time
           const intensity = Math.min(1, charge);
           
           // Pulsing energy circle
@@ -377,7 +400,6 @@ export class Enemy {
               ctx.fill();
             }
           }
-        }
         break;
 
       case "pulse":
@@ -518,42 +540,43 @@ export class Enemy {
         break;
 
       case "dive":
-        // Bomber - heavy triangular craft with bomb bay
+        // Sleek pointed double-arrow
         ctx.beginPath();
-        ctx.moveTo(this.size * 0.2, this.size * 0.8);
-        ctx.lineTo(-this.size * 0.9, -this.size * 0.3);
-        ctx.lineTo(-this.size * 0.5, -this.size * 0.6);
-        ctx.lineTo(this.size * 0.8, -this.size * 0.6);
-        ctx.lineTo(this.size * 0.9, -this.size * 0.3);
+        ctx.moveTo(this.size * 0.9, 0); // Main arrow tip
+        ctx.lineTo(this.size * 0.3, -this.size * 0.3); // Upper left point
+        ctx.lineTo(this.size * 0.1, -this.size * 0.2); // Upper inner point
+        ctx.lineTo(-this.size * 0.3, -this.size * 0.2); // Upper back
+        ctx.lineTo(-this.size * 0.9, 0); // Rear arrow tip
+        ctx.lineTo(-this.size * 0.3, this.size * 0.2); // Lower back
+        ctx.lineTo(this.size * 0.1, this.size * 0.2); // Lower inner point
+        ctx.lineTo(this.size * 0.3, this.size * 0.3); // Lower right point
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
 
-        // Bomb bay doors
-        ctx.fillStyle = "#444444";
-        ctx.beginPath();
-        ctx.rect(
-          -this.size * 0.3,
-          this.size * 0.1,
-          this.size * 0.6,
-          this.size * 0.4
-        );
-        ctx.fill();
-        ctx.stroke();
-
-        // Wing details
+        // Central spine detail
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(-this.size * 0.6, -this.size * 0.1);
-        ctx.lineTo(-this.size * 0.3, -this.size * 0.3);
-        ctx.moveTo(this.size * 0.6, -this.size * 0.1);
-        ctx.lineTo(this.size * 0.3, -this.size * 0.3);
+        ctx.moveTo(this.size * 0.9, 0);
+        ctx.lineTo(-this.size * 0.9, 0);
         ctx.stroke();
         break;
 
       case "laser":
         // Battleship - elongated heavy cruiser
+        // Add bright red glow when charging
+        if (this.laserState === "charging") {
+          const charge = this.laserChargeTime / 60; // 1 second charge time
+          const intensity = Math.min(1, charge);
+          const glowIntensity = 0.3 + Math.sin(this.laserChargeTime * 0.3) * 0.4;
+          
+          // Outer red glow
+          ctx.shadowColor = `rgba(255, 0, 0, ${intensity * glowIntensity})`;
+          ctx.shadowBlur = 15 + (intensity * 10);
+          ctx.fillStyle = `rgba(255, ${100 - intensity * 50}, ${100 - intensity * 50}, 1)`;
+        }
+        
         ctx.beginPath();
         ctx.rect(
           -this.size * 0.9,
@@ -563,6 +586,10 @@ export class Enemy {
         );
         ctx.fill();
         ctx.stroke();
+        
+        // Reset shadow
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
 
         // Command bridge
         ctx.fillStyle = "#ffffff";
@@ -597,6 +624,37 @@ export class Enemy {
         ctx.moveTo(-this.size * 0.7, this.size * 0.2);
         ctx.lineTo(this.size * 0.7, this.size * 0.2);
         ctx.stroke();
+        
+        // Laser charging stroke effect
+        if (this.laserState === "charging") {
+          const charge = this.laserChargeTime / 60; // 1 second charge time
+          const intensity = Math.min(1, charge);
+          
+          // Growing stroke around the entire ship
+          ctx.strokeStyle = `rgba(255, 255, 255, ${intensity * 0.8})`;
+          ctx.lineWidth = 2 + intensity * 6; // Grows from 2px to 8px
+          ctx.beginPath();
+          ctx.rect(
+            -this.size * 0.9,
+            -this.size * 0.3,
+            this.size * 1.8,
+            this.size * 0.6
+          );
+          ctx.stroke();
+        } else if (this.laserState === "firing") {
+          // White flash when firing
+          const flashIntensity = 1 - (this.laserChargeTime / 60); // Fade out over firing duration
+          ctx.strokeStyle = `rgba(255, 255, 255, ${flashIntensity})`;
+          ctx.lineWidth = 8;
+          ctx.beginPath();
+          ctx.rect(
+            -this.size * 0.9,
+            -this.size * 0.3,
+            this.size * 1.8,
+            this.size * 0.6
+          );
+          ctx.stroke();
+        }
         break;
 
       case "pulse":
@@ -755,6 +813,11 @@ export class MiniBoss {
 
   update(playerX, playerY, slowdownFactor = 1.0) {
     this.frameCount += slowdownFactor;
+
+    // Make miniboss face the player (if not dying)
+    if (!this.dying) {
+      this.angle = Math.atan2(playerY - this.y, playerX - this.x);
+    }
 
     // Handle death sequence
     if (this.dying) {
@@ -1474,7 +1537,8 @@ export class Laser {
     this.angle = angle;
     this.speed = speed || 50; // Use passed speed or default to 50
     this.color = color;
-    this.width = 20; // Thicker laser
+    this.width = 8; // Very thin laser for enemy lasers
+    this.length = 100; // Length of laser beam for collision detection
     this.life = 60; // Longer life (1 second)
     this.colorIndex = 0;
     this.rainbowColors = [
@@ -1664,7 +1728,7 @@ export class Boss {
     this.secondaryCooldown = 120; // 2 seconds
     this.specialCooldown = 300; // 5 seconds
     this.spiralWeaponCooldown = 180; // 3 seconds for spiral attack
-    this.laserSpeed = 5; // Speed for slow lasers
+    this.laserSpeed = 3; // Speed for slow lasers (ensures 20+ frames visibility across screen)
 
     // Visual effects
     this.hitFlash = 0;

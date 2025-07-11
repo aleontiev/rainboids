@@ -327,7 +327,7 @@ export class Player {
   ) {
     // Cannot shoot while shielding
     if (this.isShielding) {
-      return;
+      return null;
     }
 
     if (this.shootCooldown <= 0) {
@@ -336,6 +336,7 @@ export class Player {
         // Rainbow laser beam
         bullets.push(new LaserClass(this.x, this.y, this.angle, 50, "rainbow"));
         this.shootCooldown = 1; // Allow continuous firing
+        return "laser"; // Return laser type for continuous sound
       } else if (this.mainWeaponLevel === 1) {
         bullets.push(
           new BulletClass(
@@ -583,7 +584,10 @@ export class Player {
       });
 
       this.shootCooldown = 10;
+      return "bullet"; // Return bullet type for normal sound
     }
+    
+    return null; // No shot fired
   }
 
   render(ctx) {

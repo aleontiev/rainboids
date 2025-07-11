@@ -7,6 +7,9 @@ export class CheatManager {
     const godmodeBtn = document.getElementById("godmode-btn");
     const toggleGodmode = () => {
       this.game.player.godMode = !this.game.player.godMode;
+      if (this.game.player.godMode) {
+        this.game.cheatsUsed = true; // Mark cheats as used
+      }
       this.update();
     };
     godmodeBtn.addEventListener("click", toggleGodmode);
@@ -19,6 +22,9 @@ export class CheatManager {
     const allUpgradesBtn = document.getElementById("all-upgrades-btn");
     const toggleAllUpgrades = () => {
       if (this.game.allUpgradesState === null) {
+        // Mark cheats as used when activating all upgrades
+        this.game.cheatsUsed = true;
+        
         // Save current state and apply all upgrades
         this.game.allUpgradesState = {
           shield: this.game.player.shield,
