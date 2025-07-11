@@ -330,19 +330,19 @@ Params.prototype.hitHurt = function () {
 }
 
 Params.prototype.jump = function () {
-  // Smooth, longer jump sound with better frequency filtering
+  // Soft "pew" sound with higher frequency and more dropoff
   this.wave_type = SINE;           // Sine wave for smooth, soft sound
   this.p_duty = 0;                 // Not applicable for sine wave
   
-  // Frequency settings for smooth upward sweep
-  this.p_base_freq = 0.3;          // Consistent starting frequency
-  this.p_freq_ramp = 0.25;         // Gentle upward sweep
+  // Higher frequency settings for "pew" sound
+  this.p_base_freq = 0.6;          // Higher starting frequency
+  this.p_freq_ramp = 0.1;          // Slight upward sweep
   this.p_freq_dramp = 0;           // No delta sweep
   
-  // Longer, smoother envelope
-  this.p_env_attack = 0.02;        // Soft attack
-  this.p_env_sustain = 0.3;        // Longer sustain for smoother sound
-  this.p_env_decay = 0.4;          // Longer decay for smooth fade
+  // Shorter envelope with more dropoff
+  this.p_env_attack = 0.01;        // Very soft attack
+  this.p_env_sustain = 0.1;        // Short sustain for quick dropoff
+  this.p_env_decay = 0.25;         // Faster decay for more dropoff
   this.p_env_punch = 0;            // No punch for smoothness
   
   // No vibrato for consistent sound
@@ -358,11 +358,11 @@ Params.prototype.jump = function () {
   this.p_pha_offset = 0;
   this.p_pha_ramp = 0;
   
-  // Aggressive frequency filtering for smoothness
-  this.p_hpf_freq = 0.2;           // Cut low frequencies
+  // Filtering to avoid harsh frequencies
+  this.p_hpf_freq = 0.1;           // Gentle high-pass filter
   this.p_hpf_ramp = 0;
-  this.p_lpf_freq = 0.6;           // Cut high frequencies aggressively
-  this.p_lpf_ramp = 0;
+  this.p_lpf_freq = 0.8;           // Less aggressive low-pass filter
+  this.p_lpf_ramp = -0.1;          // Gentle roll-off over time
   
   return this;
 }

@@ -203,10 +203,10 @@ export class Player {
     // Add boss arms as individual targets if boss exists
     if (boss && !boss.isDefeated) {
       if (!boss.leftArm.destroyed) {
-        // Get end position of left arm
-        const leftArmEnd = boss.leftArm.segments[boss.leftArm.segments.length - 1];
-        const leftArmWorldX = boss.x + leftArmEnd.x + Math.cos(leftArmEnd.angle) * leftArmEnd.length;
-        const leftArmWorldY = boss.y + leftArmEnd.y + Math.sin(leftArmEnd.angle) * leftArmEnd.length;
+        // Get center position of left arm (middle segment for better targeting)
+        const leftArmCenter = boss.leftArm.segments[1] || boss.leftArm.segments[0];
+        const leftArmWorldX = boss.x + leftArmCenter.x;
+        const leftArmWorldY = boss.y + leftArmCenter.y;
         
         allTargets.push({
           x: leftArmWorldX,
@@ -214,17 +214,17 @@ export class Player {
           type: "bossArm",
           armType: "laser",
           health: boss.leftArm.health,
-          size: 20,
+          size: 40, // Much larger target size
           boss: boss,
           arm: "left"
         });
       }
       
       if (!boss.rightArm.destroyed) {
-        // Get end position of right arm
-        const rightArmEnd = boss.rightArm.segments[boss.rightArm.segments.length - 1];
-        const rightArmWorldX = boss.x + rightArmEnd.x + Math.cos(rightArmEnd.angle) * rightArmEnd.length;
-        const rightArmWorldY = boss.y + rightArmEnd.y + Math.sin(rightArmEnd.angle) * rightArmEnd.length;
+        // Get center position of right arm (middle segment for better targeting)
+        const rightArmCenter = boss.rightArm.segments[1] || boss.rightArm.segments[0];
+        const rightArmWorldX = boss.x + rightArmCenter.x;
+        const rightArmWorldY = boss.y + rightArmCenter.y;
         
         allTargets.push({
           x: rightArmWorldX,
@@ -232,7 +232,7 @@ export class Player {
           type: "bossArm",
           armType: "missiles",
           health: boss.rightArm.health,
-          size: 20,
+          size: 40, // Much larger target size
           boss: boss,
           arm: "right"
         });

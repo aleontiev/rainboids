@@ -30,7 +30,7 @@ export class Boss {
     this.mouthState = 0; // 0 = closed, 1 = open
     this.mouthTimer = 0;
 
-    // Boss arms system with articulation
+    // Boss arms system with articulation - much larger arms
     this.leftArm = {
       health: 500,
       maxHealth: 500,
@@ -41,13 +41,14 @@ export class Boss {
       laserCharging: false,
       laserChargeTime: 0,
       segments: [
-        { x: 0, y: 0, angle: Math.PI, length: 35 }, // First segment points left
-        { x: 0, y: 0, angle: 0, length: 30 }
+        { x: 0, y: 0, angle: Math.PI, length: 80 }, // Much larger first segment
+        { x: 0, y: 0, angle: 0, length: 60 }, // Much larger second segment
+        { x: 0, y: 0, angle: 0, length: 50 }  // Large weapon segment
       ],
-      targetAngles: [Math.PI, 0],
+      targetAngles: [Math.PI, 0, 0],
       animationTime: 0,
-      baseX: -this.size * 0.35, // Left side of body
-      baseY: 0
+      baseX: -this.size * 0.45, // Further out from body
+      baseY: -this.size * 0.1    // Slightly above center
     };
     
     this.rightArm = {
@@ -59,13 +60,14 @@ export class Boss {
       maxCooldown: 90, // 1.5 seconds
       burstCooldown: 0,
       segments: [
-        { x: 0, y: 0, angle: 0, length: 35 }, // First segment points right
-        { x: 0, y: 0, angle: 0, length: 30 }
+        { x: 0, y: 0, angle: 0, length: 80 }, // Much larger first segment
+        { x: 0, y: 0, angle: 0, length: 60 }, // Much larger second segment
+        { x: 0, y: 0, angle: 0, length: 50 }  // Large weapon segment
       ],
-      targetAngles: [0, 0],
+      targetAngles: [0, 0, 0],
       animationTime: 0,
-      baseX: this.size * 0.35, // Right side of body
-      baseY: 0
+      baseX: this.size * 0.45, // Further out from body
+      baseY: this.size * 0.1    // Slightly below center
     };
     
     // Initialize arm positions
@@ -189,18 +191,20 @@ export class Boss {
     // Generate target angles for organic movement based on arm type
     if (arm.type === "laser") {
       // Laser arm moves more deliberately, but aims toward player
-      arm.targetAngles[0] = angleToPlayer + Math.sin(arm.animationTime * 0.8) * 0.2;
-      arm.targetAngles[1] = Math.sin(arm.animationTime * 1.2) * 0.3;
+      arm.targetAngles[0] = angleToPlayer + Math.sin(arm.animationTime * 0.8) * 0.3;
+      arm.targetAngles[1] = Math.sin(arm.animationTime * 1.2) * 0.4;
+      arm.targetAngles[2] = Math.sin(arm.animationTime * 1.5) * 0.2;
     } else {
       // Missile arm moves more aggressively, tracking player
-      arm.targetAngles[0] = angleToPlayer + Math.sin(arm.animationTime) * 0.3;
-      arm.targetAngles[1] = Math.sin(arm.animationTime * 1.5) * 0.2;
+      arm.targetAngles[0] = angleToPlayer + Math.sin(arm.animationTime) * 0.4;
+      arm.targetAngles[1] = Math.sin(arm.animationTime * 1.5) * 0.3;
+      arm.targetAngles[2] = Math.sin(arm.animationTime * 1.8) * 0.2;
     }
     
     // Smoothly interpolate current angles toward targets
     for (let i = 0; i < arm.segments.length; i++) {
       const diff = arm.targetAngles[i] - arm.segments[i].angle;
-      arm.segments[i].angle += diff * 0.1;
+      arm.segments[i].angle += diff * 0.08; // Slightly slower for larger arms
     }
     
     // Calculate segment positions
@@ -234,35 +238,57 @@ export class Boss {
     const relativeX = bulletX - this.x;
     const relativeY = bulletY - this.y;
     
-    // Check left arm (articulated segments)
+    // Check left arm (articulated segments) - much larger hit areas
     if (!this.leftArm.destroyed) {
       for (let i = 0; i < this.leftArm.segments.length; i++) {
         const segment = this.leftArm.segments[i];
         const segmentX = segment.x;
         const segmentY = segment.y;
+        const segmentRadius = 35 - i * 5; // Much larger hit areas, tapering
         
-        if (Math.abs(relativeX - segmentX) < 18 && 
-            Math.abs(relativeY - segmentY) < 18) {
+        if (Math.abs(relativeX - segmentX) < segmentRadius && 
+            Math.abs(relativeY - segmentY) < segmentRadius) {
           return 'leftArm';
         }
       }
+      
+      // Check weapon area for left arm
+      const lastSegment = this.leftArm.segments[this.leftArm.segments.length - 1];
+      const weaponX = lastSegment.x + Math.cos(lastSegment.angle) * lastSegment.length;
+      const weaponY = lastSegment.y + Math.sin(lastSegment.angle) * lastSegment.length;
+      
+      if (Math.abs(relativeX - weaponX) < 50 && 
+          Math.abs(relativeY - weaponY) < 30) {
+        return 'leftArm';
+      }
     }
 
-    // Check right arm (articulated segments)
+    // Check right arm (articulated segments) - much larger hit areas
     if (!this.rightArm.destroyed) {
       for (let i = 0; i < this.rightArm.segments.length; i++) {
         const segment = this.rightArm.segments[i];
         const segmentX = segment.x;
         const segmentY = segment.y;
+        const segmentRadius = 35 - i * 5; // Much larger hit areas, tapering
         
-        if (Math.abs(relativeX - segmentX) < 18 && 
-            Math.abs(relativeY - segmentY) < 18) {
+        if (Math.abs(relativeX - segmentX) < segmentRadius && 
+            Math.abs(relativeY - segmentY) < segmentRadius) {
           return 'rightArm';
         }
       }
+      
+      // Check weapon area for right arm
+      const lastSegment = this.rightArm.segments[this.rightArm.segments.length - 1];
+      const weaponX = lastSegment.x + Math.cos(lastSegment.angle) * lastSegment.length;
+      const weaponY = lastSegment.y + Math.sin(lastSegment.angle) * lastSegment.length;
+      
+      if (Math.abs(relativeX - weaponX) < 50 && 
+          Math.abs(relativeY - weaponY) < 40) {
+        return 'rightArm';
+      }
     }
 
-    // Check body (rectangle-ish)
+    // Check body (rectangle-ish) - keep body hit area the same
     if (Math.abs(relativeX) < this.size * 0.4 && 
         Math.abs(relativeY) < this.size * 0.6) {
       return 'body';
@@ -637,9 +663,31 @@ export class Boss {
   drawArticulatedArm(ctx, arm, color) {
     ctx.save();
     
+    // Draw connection joint to body first
+    ctx.save();
+    ctx.translate(arm.baseX, arm.baseY);
+    
+    // Large connection joint to body
     ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.fillStyle = color;
+    ctx.lineWidth = 3;
+    ctx.fillStyle = "#666666";
+    ctx.beginPath();
+    ctx.arc(0, 0, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Connection bolts
+    ctx.fillStyle = "#333333";
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const boltX = Math.cos(angle) * 12;
+      const boltY = Math.sin(angle) * 12;
+      ctx.beginPath();
+      ctx.arc(boltX, boltY, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    ctx.restore();
     
     // Draw segments and joints
     for (let i = 0; i < arm.segments.length; i++) {
@@ -649,38 +697,62 @@ export class Boss {
       ctx.save();
       ctx.translate(segment.x, segment.y);
       
-      // Round joint
+      // Much larger round joint
+      const jointSize = 16 - i * 2; // Taper joints
       ctx.beginPath();
-      ctx.arc(0, 0, 8, 0, Math.PI * 2);
+      ctx.arc(0, 0, jointSize, 0, Math.PI * 2);
       ctx.fillStyle = "#888888";
       ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
       ctx.stroke();
       
-      // Draw segment cylinder
+      // Joint details
+      ctx.fillStyle = "#444444";
+      ctx.beginPath();
+      ctx.arc(0, 0, jointSize * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw segment cylinder - much larger
       ctx.rotate(segment.angle);
       const segmentWidth = segment.length;
-      const segmentHeight = 14 - i * 2; // Taper the arm
+      const segmentHeight = 28 - i * 4; // Much larger segments, tapering
       
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.rect(0, -segmentHeight/2, segmentWidth, segmentHeight);
       ctx.fill();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
       ctx.stroke();
       
-      // Add segment details
+      // Add segment details - more prominent
       ctx.strokeStyle = "#cccccc";
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(segmentWidth * 0.3, -segmentHeight/2 + 2);
-      ctx.lineTo(segmentWidth * 0.3, segmentHeight/2 - 2);
-      ctx.moveTo(segmentWidth * 0.7, -segmentHeight/2 + 2);
-      ctx.lineTo(segmentWidth * 0.7, segmentHeight/2 - 2);
+      ctx.moveTo(segmentWidth * 0.2, -segmentHeight/2 + 4);
+      ctx.lineTo(segmentWidth * 0.2, segmentHeight/2 - 4);
+      ctx.moveTo(segmentWidth * 0.5, -segmentHeight/2 + 4);
+      ctx.lineTo(segmentWidth * 0.5, segmentHeight/2 - 4);
+      ctx.moveTo(segmentWidth * 0.8, -segmentHeight/2 + 4);
+      ctx.lineTo(segmentWidth * 0.8, segmentHeight/2 - 4);
       ctx.stroke();
+      
+      // Add hydraulic details
+      ctx.strokeStyle = "#999999";
+      ctx.lineWidth = 1;
+      for (let j = 0; j < 3; j++) {
+        const detailY = (j - 1) * (segmentHeight / 4);
+        ctx.beginPath();
+        ctx.moveTo(segmentWidth * 0.1, detailY);
+        ctx.lineTo(segmentWidth * 0.9, detailY);
+        ctx.stroke();
+      }
       
       ctx.restore();
     }
     
-    // Draw weapon at end of arm
+    // Draw much larger weapon at end of arm
     const lastSegment = arm.segments[arm.segments.length - 1];
     const weaponX = lastSegment.x + Math.cos(lastSegment.angle) * lastSegment.length;
     const weaponY = lastSegment.y + Math.sin(lastSegment.angle) * lastSegment.length;
@@ -690,57 +762,70 @@ export class Boss {
     ctx.rotate(lastSegment.angle);
     
     ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3;
     
     if (arm.type === "laser") {
-      // Laser weapon with side shooters
+      // Much larger laser weapon with side shooters
       ctx.fillStyle = color;
       
-      // Main laser housing
+      // Main laser housing - much larger
       ctx.beginPath();
-      ctx.rect(0, -10, 25, 20);
+      ctx.rect(0, -25, 60, 50);
       ctx.fill();
       ctx.stroke();
       
-      // Main laser barrel
+      // Main laser barrel - much larger
       ctx.beginPath();
-      ctx.rect(25, -3, 20, 6);
+      ctx.rect(60, -8, 40, 16);
       ctx.fill();
       ctx.stroke();
       
-      // Side shooters for homing missiles
+      // Side shooters for homing missiles - larger
       ctx.fillStyle = "#ff4400";
       ctx.beginPath();
-      ctx.rect(15, -15, 8, 5);
-      ctx.rect(15, 10, 8, 5);
+      ctx.rect(40, -35, 20, 10);
+      ctx.rect(40, 25, 20, 10);
       ctx.fill();
       ctx.stroke();
+      
+      // Laser focusing lenses
+      ctx.strokeStyle = "#00ffff";
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(80 + i * 8, 0, 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       
       // Charging effect
       if (arm.laserCharging) {
         ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 4 + Math.sin(arm.laserChargeTime * 0.3) * 2;
+        ctx.lineWidth = 6 + Math.sin(arm.laserChargeTime * 0.3) * 3;
         ctx.beginPath();
-        ctx.rect(0, -10, 25, 20);
+        ctx.rect(0, -25, 60, 50);
         ctx.stroke();
       }
     } else {
-      // Massive missile launcher
+      // Massive missile launcher - much larger
       ctx.fillStyle = color;
       
-      // Main launcher body
+      // Main launcher body - much larger
       ctx.beginPath();
-      ctx.rect(0, -15, 35, 30);
+      ctx.rect(0, -35, 80, 70);
       ctx.fill();
       ctx.stroke();
       
-      // Missile tubes
+      // Missile tubes - larger and more numerous
       const tubePositions = [
-        {x: 35, y: -8, size: 4},
-        {x: 35, y: 0, size: 5},
-        {x: 35, y: 8, size: 4},
-        {x: 30, y: -4, size: 3},
-        {x: 30, y: 4, size: 3}
+        {x: 80, y: -20, size: 8},
+        {x: 80, y: -5, size: 10},
+        {x: 80, y: 5, size: 8},
+        {x: 80, y: 20, size: 8},
+        {x: 70, y: -15, size: 6},
+        {x: 70, y: 0, size: 7},
+        {x: 70, y: 15, size: 6},
+        {x: 60, y: -10, size: 5},
+        {x: 60, y: 10, size: 5}
       ];
       
       ctx.fillStyle = "#333333";
@@ -751,16 +836,16 @@ export class Boss {
         ctx.stroke();
       }
       
-      // Launcher details
+      // Launcher details - more prominent
       ctx.strokeStyle = "#cccccc";
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(5, -15);
-      ctx.lineTo(5, 15);
-      ctx.moveTo(15, -15);
-      ctx.lineTo(15, 15);
-      ctx.moveTo(25, -15);
-      ctx.lineTo(25, 15);
+      ctx.moveTo(10, -35);
+      ctx.lineTo(10, 35);
+      ctx.moveTo(30, -35);
+      ctx.lineTo(30, 35);
+      ctx.moveTo(50, -35);
+      ctx.lineTo(50, 35);
       ctx.stroke();
     }
     
