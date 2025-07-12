@@ -1,14 +1,12 @@
 // MiniBoss entity for Rainboids: Blitz
 import { GAME_CONFIG, COLORS } from "../constants.js";
+import { BaseEnemy } from "./enemy.js";
 
-export class MiniBoss {
+export class MiniBoss extends BaseEnemy {
   constructor(x, y, type, isPortrait, canvasWidth = 700) {
-    this.x = x;
-    this.y = y;
+    super(x, y, isPortrait, 0.5); // Call BaseEnemy constructor with speed 0.5
     this.type = type; // 'alpha' or 'beta'
-    this.isPortrait = isPortrait;
     this.size = 90; // Much larger than regular enemies (was 60)
-    this.speed = 0.5; // Slower movement (was 1)
     this.maxHealth = 100; // Reduced max health
     this.health = this.maxHealth;
     this.frameCount = 0;

@@ -1,8 +1,8 @@
-export class Boss {
+import { BaseEnemy } from "./enemy.js";
+
+export class Boss extends BaseEnemy {
   constructor(x, y, isPortrait, canvasWidth, canvasHeight) {
-    this.x = x;
-    this.y = y;
-    this.isPortrait = isPortrait;
+    super(x, y, isPortrait, 1); // Call BaseEnemy constructor with speed 1
     this.canvasWidth = canvasWidth;
     this.canvasHeight = canvasHeight;
     this.size = 120; // Very large boss
@@ -14,7 +14,6 @@ export class Boss {
     this.movePattern = "entering";
     this.targetX = isPortrait ? canvasWidth / 2 : canvasWidth - 200;
     this.targetY = isPortrait ? 200 : canvasHeight / 2;
-    this.speed = 1;
     this.patrolDirection = 1;
     this.patrolRange = 150;
     this.startX = this.targetX;
@@ -84,7 +83,6 @@ export class Boss {
 
     // Visual effects
     this.hitFlash = 0;
-    this.angle = 0; // No rotation
 
     // Death sequence
     this.isDefeated = false;

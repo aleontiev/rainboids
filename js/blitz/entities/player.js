@@ -389,7 +389,8 @@ export class Player {
             10,
             "#00ff88",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           ) // Speed 8 (same as level 2)
         ); // Cool green
         this.shootCooldown = 30; // Half as often as level 2 (0.5 seconds at 60fps)
@@ -402,7 +403,8 @@ export class Player {
             14,
             "#00ffcc",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         ); // Teal, faster
         this.shootCooldown = 15; // Faster
@@ -415,7 +417,8 @@ export class Player {
             14,
             "#00ffff",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         ); // Cyan
         bullets.push(
@@ -426,7 +429,8 @@ export class Player {
             14,
             "#00ffff",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         );
         bullets.push(
@@ -437,7 +441,8 @@ export class Player {
             14,
             "#00ffff",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         );
         this.shootCooldown = 15; // Same as level 2
@@ -450,7 +455,8 @@ export class Player {
             18,
             "#4488ff",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         ); // Cool blue, fast
         bullets.push(
@@ -461,7 +467,8 @@ export class Player {
             18,
             "#4488ff",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         );
         bullets.push(
@@ -472,7 +479,8 @@ export class Player {
             18,
             "#4488ff",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         );
         this.shootCooldown = 8; // Very fast
@@ -491,7 +499,8 @@ export class Player {
             8,
             "#8844ff",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         );
       }
@@ -506,7 +515,8 @@ export class Player {
             8,
             "#8844ff",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         );
       }
@@ -572,7 +582,8 @@ export class Player {
             8,
             "#8844ff",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         );
         bullets.push(
@@ -583,7 +594,8 @@ export class Player {
             8,
             "#8844ff",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         );
 
@@ -621,7 +633,8 @@ export class Player {
             8,
             secondShipBulletColor,
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED
+            GAME_CONFIG.BULLET_SPEED,
+            true
           )
         );
       });

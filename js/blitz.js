@@ -1,7 +1,10 @@
 // Rainboids: Blitz - A bullet hell space shooter
 import { Player } from "./blitz/entities/player.js";
 import { Powerup } from "./blitz/entities/powerup.js";
-import { Enemy, Bullet, Laser } from "./blitz/entities/enemy.js";
+import { Enemy } from "./blitz/entities/enemy.js";
+import { Bullet } from "./blitz/entities/bullet.js";
+import { Laser } from "./blitz/entities/laser.js";
+import { SpreadingBullet } from "./blitz/entities/spreading-bullet.js";
 import { MiniBoss } from "./blitz/entities/miniboss.js";
 import { HomingMissile } from "./blitz/entities/homing-missile.js";
 import { Boss } from "./blitz/entities/boss.js";
@@ -285,7 +288,6 @@ class BlitzGame {
 
     this.audio.setupControls();
 
-    /*
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && this.gameState === "PLAYING") {
         this.pauseGame();
@@ -297,7 +299,6 @@ class BlitzGame {
         this.pauseGame();
       }
     });
-    */
   }
 
   startGame() {
@@ -405,15 +406,22 @@ class BlitzGame {
   }
 
   getEnemySpawnRate() {
+    let baseRate;
     switch (this.gamePhase) {
       case 1:
         if (this.gameTime < 10) {
-          return 150;
+          baseRate = 150;
+        } else if (this.gameTime < 20) {
+          baseRate = 120;
+        } else {
+          baseRate = 90;
         }
-        if (this.gameTime < 20) {
-          return 120;
+        // Reduce spawn rate by 20% for the first 30 seconds
+        if (this.gameTime < 30) {
+          return baseRate * 1.25; // Increase interval by 25% to reduce spawns by 20%
+        } else {
+          return baseRate;
         }
-        return 90;
       case 2:
         return 300;
       case 3:
@@ -583,12 +591,13 @@ class BlitzGame {
     // Player shooting (prevent firing during death animation)
     if (input.fire && !this.death.animationActive) {
       const weaponType = this.player.shoot(
-        this.bullets,
-        Bullet,
-        Laser,
-        HomingMissile,
-        this.isPortrait
-      );
+          this.bullets,
+          Bullet,
+          Laser,
+          HomingMissile,
+          this.isPortrait,
+          true // isPlayerBullet
+        );
 
       // Handle different weapon sounds
       if (weaponType === "laser") {
@@ -617,16 +626,22 @@ class BlitzGame {
 
     // Update enemy bullets
     this.enemyBullets = this.enemyBullets.filter((bullet) => {
-      bullet.update(slowdownFactor);
-      if (bullet.enemyType === "pulse") {
-        return bullet.life > 0;
+      if (bullet instanceof SpreadingBullet) {
+        return bullet.update(slowdownFactor, (newBullet) => {
+          this.enemyBullets.push(newBullet);
+        });
+      } else {
+        bullet.update(slowdownFactor);
+        if (bullet.enemyType === "pulse") {
+          return bullet.life > 0;
+        }
+        return (
+          bullet.x > -50 &&
+          bullet.x < this.canvas.width + 50 &&
+          bullet.y > -50 &&
+          bullet.y < this.canvas.height + 50
+        );
       }
-      return (
-        bullet.x > -50 &&
-        bullet.x < this.canvas.width + 50 &&
-        bullet.y > -50 &&
-        bullet.y < this.canvas.height + 50
-      );
     });
 
     this.enemyLasers = this.enemyLasers.filter((laser) =>
@@ -1158,6 +1173,27 @@ class BlitzGame {
           // If it's a laser, it can hit multiple targets, so don't break from inner loop
           if (!(bullet instanceof Laser)) {
             break; // Break from inner loop only if not a laser
+          }
+        }
+      }
+    }
+
+    // Player bullets vs enemy bullets (specifically SpreadingBullet)
+    for (let i = this.bullets.length - 1; i >= 0; i--) {
+      for (let j = this.enemyBullets.length - 1; j >= 0; j--) {
+        const playerBullet = this.bullets[i];
+        const enemyBullet = this.enemyBullets[j];
+
+        if (enemyBullet instanceof SpreadingBullet) {
+          if (this.checkCollision(playerBullet, enemyBullet)) {
+            // Damage the spreading bullet
+            const destroyed = enemyBullet.takeDamage(1);
+            if (destroyed) {
+              // If destroyed, it will explode in its update method
+              // We don't remove it here, its update will handle removal after explosion
+            }
+            this.bullets.splice(i, 1); // Remove player bullet
+            break; // Only hit one spreading bullet per player bullet
           }
         }
       }
