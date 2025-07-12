@@ -1,13 +1,9 @@
 // Rainboids: Blitz - A bullet hell space shooter
 import { Player } from "./blitz/entities/player.js";
 import { Powerup } from "./blitz/entities/powerup.js";
-import {
-  Enemy,
-  Bullet,
-  Laser,
-  HomingMissile,
-  MiniBoss,
-} from "./blitz/entities/enemy.js";
+import { Enemy, Bullet, Laser } from "./blitz/entities/enemy.js";
+import { MiniBoss } from "./blitz/entities/miniboss.js";
+import { HomingMissile } from "./blitz/entities/homing-missile.js";
 import { Boss } from "./blitz/entities/boss.js";
 import { TextParticle, Debris } from "./blitz/entities/particle.js";
 import { Asteroid } from "./blitz/entities/asteroid.js";
@@ -21,13 +17,31 @@ import { LevelManager } from "./blitz/level-manager.js";
 import { CheatManager } from "./blitz/cheat-manager.js";
 import { BackgroundManager } from "./blitz/background-manager.js";
 import { DeathManager } from "./blitz/death-manager.js";
+import { DialogManager } from "./blitz/dialog-manager.js";
 
 class BlitzGame {
   constructor() {
     window.blitz = this; // Make game accessible for sound effects
-    this.canvas = document.getElementById("gameCanvas");
+
+    // Cache all HTML elements
+    this.elements = {
+      gameCanvas: document.getElementById("gameCanvas"),
+      titleCanvas: document.getElementById("titleCanvas"),
+      titleScreen: document.getElementById("title-screen"),
+      gameOver: document.getElementById("game-over"),
+      restartBtn: document.getElementById("restart-btn"),
+      timeSlowButton: document.getElementById("time-slow-button"),
+      pauseButton: document.getElementById("pause-button"),
+      shieldButton: document.getElementById("shield-button"),
+      bombButton: document.getElementById("bomb-button"),
+      unpauseButton: document.getElementById("pause-close-button"),
+      pauseOverlay: document.getElementById("pause-overlay"),
+      levelCleared: document.getElementById("level-cleared"),
+    };
+
+    this.canvas = this.elements.gameCanvas;
     this.ctx = this.canvas.getContext("2d");
-    this.titleCanvas = document.getElementById("titleCanvas");
+    this.titleCanvas = this.elements.titleCanvas;
     this.titleCtx = this.titleCanvas.getContext("2d");
     this.titleScreen = new TitleScreen(this.titleCanvas, this.titleCtx);
     this.inputHandler = new InputHandler(this.canvas);
@@ -38,6 +52,7 @@ class BlitzGame {
     this.cheats = new CheatManager(this);
     this.effects = new EffectsManager(this);
     this.audio = new AudioManager(this);
+    this.dialog = new DialogManager(this);
     this.highScore = this.loadHighScore();
 
     this.autoaim = false; // Default off
@@ -47,14 +62,12 @@ class BlitzGame {
     this.resize();
 
     this.gameState = "TITLE";
-
     // one time setup
     this.setupEventListeners();
     this.initializeLucideIcons();
     this.background.setup();
     this.audio.setup();
     this.cheats.setup();
-    this.setupBossDialog();
 
     this.reset();
     document.body.classList.add("game-ready");
@@ -122,10 +135,7 @@ class BlitzGame {
     this.miniBosses = [];
     this.boss = null;
 
-    // Boss dialog system
-    this.bossDialogState = 0; // 0: hidden, 1: "...", 2: threat message, 3: closed
-    this.bossDialogActive = false;
-    this.bossDialogTimer = 0;
+    // Boss dialog system handled by DialogManager
 
     this.powerups = [];
     this.explosions = [];
@@ -157,7 +167,7 @@ class BlitzGame {
     this.miniBossGodModeTimer = 0;
     this.cleanupPhaseTimer = 0;
     this.cleanupPowerupsSpawned = false;
-    this.bossDialogActive = false;
+    this.dialog.reset();
     this.gamePhase = 1;
   }
 
@@ -186,8 +196,33 @@ class BlitzGame {
     this.titleScreen.resize(window.innerWidth, window.innerHeight);
   }
 
+  // DRY helper for adding both click and touchstart events
+  addHandler(element, handler) {
+    if (!element) return;
+
+    element.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handler(e);
+    });
+
+    element.addEventListener(
+      "touchstart",
+      (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        handler(e);
+      },
+      { passive: false }
+    );
+  }
+
   setupEventListeners() {
-    // Click/Touch to start
+    const restartBtn = this.elements.restartBtn;
+    const timeSlowButton = this.elements.timeSlowButton;
+    const pauseButton = this.elements.pauseButton;
+    const shieldButton = this.elements.shieldButton;
+    const bombButton = this.elements.bombButton;
+    const unpauseButton = this.elements.unpauseButton;
 
     const starter = () => {
       if (this.gameState === "TITLE") {
@@ -196,128 +231,41 @@ class BlitzGame {
         this.restart();
       }
     };
-    document.addEventListener("click", starter);
-    document.addEventListener("touchstart", starter);
-    document.addEventListener("keydown", starter);
 
-    // Restart button
-    const restartBtn = document.getElementById("restart-btn");
-    if (restartBtn) {
-      restartBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        starter();
-      });
-    }
+    this.addHandler(document, () => starter());
+    this.addHandler(restartBtn, () => starter());
 
     // Resize handler
     window.addEventListener("resize", () => {
       this.resize();
     });
 
-    // Pause button
-    const pauseButton = document.getElementById("pause-button");
-    if (pauseButton) {
-      pauseButton.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (this.gameState === "PLAYING") {
-          this.pauseGame();
-        } else if (this.gameState === "PAUSED") {
-          this.resumeGame();
-        }
-      });
-      pauseButton.addEventListener(
-        "touchstart",
-        (e) => {
-          e.stopPropagation();
-          e.preventDefault(); // Prevent default touch behavior like scrolling
-          if (this.gameState === "PLAYING") {
-            this.pauseGame();
-          } else if (this.gameState === "PAUSED") {
-            this.resumeGame();
-          }
-        },
-        { passive: false }
-      );
-    }
+    this.addHandler(pauseButton, () => {
+      if (this.gameState === "PLAYING") {
+        this.pauseGame();
+      } else if (this.gameState === "PAUSED") {
+        this.resumeGame();
+      }
+    });
 
-    // Shield button
-    const shieldButton = document.getElementById("shield-button");
-    if (shieldButton) {
-      shieldButton.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (this.gameState === "PLAYING") {
-          this.activateShield();
-        }
-      });
-      shieldButton.addEventListener(
-        "touchstart",
-        (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          if (this.gameState === "PLAYING") {
-            this.activateShield();
-          }
-        },
-        { passive: false }
-      );
-    }
+    this.addHandler(shieldButton, () => {
+      if (this.gameState === "PLAYING") {
+        this.activateShield();
+      }
+    });
 
-    // Time Slow button
-    const timeSlowButton = document.getElementById("time-slow-button");
-    if (timeSlowButton) {
-      timeSlowButton.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (this.gameState === "PLAYING") {
-          this.activateTimeSlow();
-        }
-      });
-      timeSlowButton.addEventListener(
-        "touchstart",
-        (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          if (this.gameState === "PLAYING") {
-            this.activateTimeSlow();
-          }
-        },
-        { passive: false }
-      );
-    }
+    this.addHandler(timeSlowButton, () => {
+      if (this.gameState === "PLAYING") {
+        this.activateTimeSlow();
+      }
+    });
 
-    // Bomb button
-    const bombButton = document.getElementById("bomb-button");
-    if (bombButton) {
-      bombButton.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (this.gameState === "PLAYING") {
-          this.activateBomb();
-        }
-      });
-      bombButton.addEventListener(
-        "touchstart",
-        (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          if (this.gameState === "PLAYING") {
-            this.activateBomb();
-          }
-        },
-        { passive: false }
-      );
-    }
+    this.addHandler(bombButton, () => {
+      if (this.gameState === "PLAYING") {
+        this.activateBomb();
+      }
+    });
 
-    // Help button (top-left UI)
-    const uiElement = document.getElementById("ui");
-    if (uiElement) {
-      uiElement.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (this.gameState === "PLAYING") {
-          this.showHelp();
-        }
-      });
-    }
-
-    // Toggle pause with 'Escape' key
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         if (this.gameState === "PLAYING") {
@@ -328,62 +276,34 @@ class BlitzGame {
       }
     });
 
-    // Toggle pause with 'X' button click
-    const pauseCloseButton = document.getElementById("pause-close-button");
-    if (pauseCloseButton) {
-      pauseCloseButton.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (this.gameState === "PAUSED") {
-          // Only resume if already paused
-          this.resumeGame();
-        }
-      });
-      pauseCloseButton.addEventListener(
-        "touchstart",
-        (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          if (this.gameState === "PAUSED") {
-            this.resumeGame();
-          }
-        },
-        { passive: false }
-      );
-    }
+    this.addHandler(unpauseButton, () => {
+      if (this.gameState === "PAUSED") {
+        // Only resume if already paused
+        this.resumeGame();
+      }
+    });
 
     this.audio.setupControls();
 
-    // Auto-pause when user navigates away from page
+    /*
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && this.gameState === "PLAYING") {
         this.pauseGame();
       }
     });
 
-    // Also handle window blur/focus events for additional coverage
     window.addEventListener("blur", () => {
       if (this.gameState === "PLAYING") {
         this.pauseGame();
       }
     });
-  }
-
-  showHelp() {
-    this.gameState = "PAUSED";
-    document.getElementById("pause-overlay").style.display = "flex";
-    document.body.style.cursor = "default"; // Show cursor
-  }
-
-  hideHelp() {
-    this.gameState = "PLAYING";
-    document.getElementById("pause-overlay").style.display = "none";
-    document.body.style.cursor = "none"; // Hide cursor
+    */
   }
 
   startGame() {
     this.gameState = "PLAYING";
-    document.getElementById("title-screen").style.display = "none";
-    document.getElementById("game-over").style.display = "none";
+    this.elements.titleScreen.style.display = "none";
+    this.elements.gameOver.style.display = "none";
 
     // Initialize and start audio only on first game start (after user interaction)
     if (this.firstGameStart) {
@@ -401,15 +321,15 @@ class BlitzGame {
   restart() {
     this.reset();
     this.background.setup();
-    document.getElementById("game-over").style.display = "none";
+    this.elements.gameOver.style.display = "none";
     this.gameState = "PLAYING";
-    
+
     // Show power buttons again
     this.death.showPowerButtons();
-    
+
     // Restart background music from beginning
     this.audio.restartBackgroundMusic();
-    
+
     this.ui.update();
   }
 
@@ -423,13 +343,19 @@ class BlitzGame {
       y = Math.random() * this.canvas.height;
     }
     // Weighted powerup selection - rainbow spawns 33% as often as others
-    const regularTypes = ["shield", "mainWeapon", "sideWeapon", "secondShip", "bomb"];
+    const regularTypes = [
+      "shield",
+      "mainWeapon",
+      "sideWeapon",
+      "secondShip",
+      "bomb",
+    ];
     const random = Math.random();
-    
+
     let type;
-    if (random < 0.833) { // 83.3% chance for regular powerups (5/6 original chance)
+    if (random < 9) {
       type = regularTypes[Math.floor(Math.random() * regularTypes.length)];
-    } else { // 16.7% chance for rainbow (1/6 original chance, but 33% of individual regular type)
+    } else {
       type = "rainbowStar";
     }
 
@@ -445,10 +371,10 @@ class BlitzGame {
       x = this.canvas.width + 100; // Start to the right
       y = Math.random() * this.canvas.height;
     }
-    
+
     const shapes = ["l", "L", "T"];
     const shape = shapes[Math.floor(Math.random() * shapes.length)];
-    
+
     this.metals.push(new Metal(x, y, shape, this.isPortrait));
   }
 
@@ -481,13 +407,19 @@ class BlitzGame {
   getEnemySpawnRate() {
     switch (this.gamePhase) {
       case 1:
-        return 180; // Phase 1: Every 3 seconds
+        if (this.gameTime < 10) {
+          return 150;
+        }
+        if (this.gameTime < 20) {
+          return 120;
+        }
+        return 90;
       case 2:
-        return 999999; // Phase 2: No enemies during miniboss fight
+        return 300;
       case 3:
-        return 999999; // Phase 3: No enemies during cleanup
+        return 999999;
       case 4:
-        return 999999; // Phase 4: No enemies during boss
+        return 90;
       default:
         return 180;
     }
@@ -552,10 +484,11 @@ class BlitzGame {
     }
 
     const types = [
-      "straight",
+      "square",
+      "pulse",
       "sine",
-      "zigzag",
       "circle",
+      "zigzag",
       "dive",
       "laser",
       "pulse",
@@ -614,6 +547,9 @@ class BlitzGame {
     // Update background
     this.background.update();
 
+    // Update dialog system
+    this.dialog.update(deltaTime);
+
     // Update UI cooldown visuals
     this.ui.updateCooldownVisuals();
   }
@@ -653,7 +589,7 @@ class BlitzGame {
         HomingMissile,
         this.isPortrait
       );
-      
+
       // Handle different weapon sounds
       if (weaponType === "laser") {
         this.audio.startContinuousLaser();
@@ -698,10 +634,7 @@ class BlitzGame {
     );
 
     // Update metals
-    this.metals = this.metals.filter((metal) =>
-      metal.update(slowdownFactor)
-    );
-
+    this.metals = this.metals.filter((metal) => metal.update(slowdownFactor));
 
     // Update asteroids
     this.asteroids = this.asteroids.filter((asteroid) => {
@@ -749,22 +682,34 @@ class BlitzGame {
     }
 
     // Update regular enemies
+    const clonedEnemies = [];
     this.enemies = this.enemies.filter((enemy) => {
       enemy.update(
         this.player.x,
         this.player.y,
         this.enemyBullets,
         this.enemyLasers,
-        slowdownFactor
+        slowdownFactor,
+        (enemy) => clonedEnemies.push(enemy)
       );
       enemy.shoot(this.enemyBullets, this.player);
-      return enemy.x > -50;
+      if (this.isPortrait) {
+        return enemy.y > -50;
+      } else {
+        return enemy.x > -50;
+      }
     });
+    // add any recently cloned ones
+    this.enemies.push(...clonedEnemies);
 
     // Update mini-bosses
     this.miniBosses.forEach((miniBoss) => {
-      const updateResult = miniBoss.update(this.player.x, this.player.y, slowdownFactor);
-      
+      const updateResult = miniBoss.update(
+        this.player.x,
+        this.player.y,
+        slowdownFactor
+      );
+
       if (updateResult === "rain_explosion") {
         // Create random explosion around the miniboss
         const explosionRadius = 100;
@@ -772,7 +717,7 @@ class BlitzGame {
         const randomDistance = Math.random() * explosionRadius;
         const explosionX = miniBoss.x + Math.cos(randomAngle) * randomDistance;
         const explosionY = miniBoss.y + Math.sin(randomAngle) * randomDistance;
-        
+
         this.effects.createRainbowExplosion(explosionX, explosionY);
         this.audio.playSound(this.audio.sounds.enemyExplosion);
       } else if (updateResult === "final_explosion") {
@@ -780,11 +725,11 @@ class BlitzGame {
         this.effects.createRainbowExplosion(miniBoss.x, miniBoss.y, true); // Large explosion
         this.effects.createChainExplosion(miniBoss.x, miniBoss.y, 5); // Chain explosion
         this.audio.playSound(this.audio.sounds.enemyExplosion);
-        
+
         // Award score
         this.score += 1000;
         this.ui.update();
-        
+
         // Mark for removal
         miniBoss.readyToRemove = true;
       } else if (!miniBoss.dying) {
@@ -808,10 +753,11 @@ class BlitzGame {
     });
 
     // Remove minibosses that are ready to be removed
-    this.miniBosses = this.miniBosses.filter(miniBoss => {
+    this.miniBosses = this.miniBosses.filter((miniBoss) => {
       if (miniBoss.readyToRemove) {
         // Check if all mini-bosses are defeated
-        if (this.miniBosses.length === 1) { // Will be 0 after filtering
+        if (this.miniBosses.length === 1) {
+          // Will be 0 after filtering
           this.miniBossesDefeated = true;
           this.cleanupPhaseTimer = 0;
           this.cleanupEnemiesExploded = false;
@@ -851,16 +797,11 @@ class BlitzGame {
       finalPhaseData.bullets.forEach((bulletData) => {
         this.createEnemyBullet(bulletData);
       });
-      
+
       // Spawn enemies in final phase
       finalPhaseData.enemies.forEach((enemyData) => {
         this.enemies.push(
-          new Enemy(
-            enemyData.x,
-            enemyData.y,
-            enemyData.type,
-            this.isPortrait
-          )
+          new Enemy(enemyData.x, enemyData.y, enemyData.type, this.isPortrait)
         );
       });
     } else {
@@ -955,7 +896,8 @@ class BlitzGame {
     // Spawn metals during phases 1 and 2
     if (this.gamePhase >= 1 && this.gamePhase <= 2) {
       this.metalSpawnTimer++;
-      if (this.metalSpawnTimer > 1800 + Math.random() * 2400) { // Less frequent than powerups
+      if (this.metalSpawnTimer > 1800 + Math.random() * 2400) {
+        // Less frequent than powerups
         this.spawnMetal();
         this.metalSpawnTimer = 0;
       }
@@ -1006,8 +948,6 @@ class BlitzGame {
       this.handleCleanupPhase(deltaTime);
     }
 
-    // Boss fight is now handled in updateAllEnemies
-
     // Handle boss dialog delay phase
     if (this.gamePhase === "WAITING_FOR_BOSS_DIALOG") {
       if (
@@ -1019,7 +959,7 @@ class BlitzGame {
         this.bossDialogTimer += deltaTime;
         if (this.bossDialogTimer >= 5000) {
           this.gamePhase = 5;
-          this.showBossDialog();
+          this.dialog.show();
         }
       }
     }
@@ -1090,8 +1030,7 @@ class BlitzGame {
 
       if (this.cleanupPhaseTimer >= 6000) {
         this.gamePhase = 4;
-        this.bossDialogActive = true;
-        this.showBossDialog();
+        this.dialog.show();
       }
     }
   }
@@ -1229,7 +1168,7 @@ class BlitzGame {
       for (let j = this.metals.length - 1; j >= 0; j--) {
         const bullet = this.bullets[i];
         const metal = this.metals[j];
-        
+
         if (bullet instanceof Laser) {
           // Lasers are destroyed by metal
           const hitSegment = metal.checkBulletCollision(bullet);
@@ -1239,18 +1178,21 @@ class BlitzGame {
           }
           continue;
         }
-        
+
         const hitSegment = metal.checkBulletCollision(bullet);
         if (hitSegment) {
           // Bounce the bullet
-          const bounceResult = metal.calculateBounceDirection(bullet, hitSegment);
+          const bounceResult = metal.calculateBounceDirection(
+            bullet,
+            hitSegment
+          );
           bullet.angle = bounceResult.angle;
           bullet.speed = bounceResult.speed;
-          
+
           // Move bullet slightly away from metal to prevent multiple collisions
           bullet.x += Math.cos(bullet.angle) * 5;
           bullet.y += Math.sin(bullet.angle) * 5;
-          
+
           break; // Only bounce once per frame
         }
       }
@@ -1261,18 +1203,21 @@ class BlitzGame {
       for (let j = this.metals.length - 1; j >= 0; j--) {
         const bullet = this.enemyBullets[i];
         const metal = this.metals[j];
-        
+
         const hitSegment = metal.checkBulletCollision(bullet);
         if (hitSegment) {
           // Bounce the bullet
-          const bounceResult = metal.calculateBounceDirection(bullet, hitSegment);
+          const bounceResult = metal.calculateBounceDirection(
+            bullet,
+            hitSegment
+          );
           bullet.angle = bounceResult.angle;
           bullet.speed = bounceResult.speed;
-          
+
           // Move bullet slightly away from metal to prevent multiple collisions
           bullet.x += Math.cos(bullet.angle) * 5;
           bullet.y += Math.sin(bullet.angle) * 5;
-          
+
           break; // Only bounce once per frame
         }
       }
@@ -1283,7 +1228,7 @@ class BlitzGame {
       for (let j = this.metals.length - 1; j >= 0; j--) {
         const laser = this.enemyLasers[i];
         const metal = this.metals[j];
-        
+
         const hitSegment = metal.checkBulletCollision(laser);
         if (hitSegment) {
           // Destroy the laser
@@ -1301,17 +1246,27 @@ class BlitzGame {
         // Push player along with metal movement
         this.player.x += metal.vx;
         this.player.y += metal.vy;
-        
+
         // Keep player on screen
-        this.player.x = Math.max(20, Math.min(this.player.x, window.innerWidth - 20));
-        this.player.y = Math.max(20, Math.min(this.player.y, window.innerHeight - 20));
-        
+        this.player.x = Math.max(
+          20,
+          Math.min(this.player.x, window.innerWidth - 20)
+        );
+        this.player.y = Math.max(
+          20,
+          Math.min(this.player.y, window.innerHeight - 20)
+        );
+
         break; // Only push once per frame
       }
     }
 
     // Player vs asteroids (only if not shielding, not in godmode, and not rainbow invulnerable)
-    if (!this.player.isShielding && !this.player.godMode && !this.player.rainbowInvulnerable) {
+    if (
+      !this.player.isShielding &&
+      !this.player.godMode &&
+      !this.player.rainbowInvulnerable
+    ) {
       for (let i = this.asteroids.length - 1; i >= 0; i--) {
         if (this.checkPlayerCollision(this.player, this.asteroids[i])) {
           if (this.player.secondShip.length > 0) {
@@ -1332,7 +1287,11 @@ class BlitzGame {
     }
 
     // Player vs all enemies (unified)
-    if (!this.player.isShielding && !this.player.godMode && !this.player.rainbowInvulnerable) {
+    if (
+      !this.player.isShielding &&
+      !this.player.godMode &&
+      !this.player.rainbowInvulnerable
+    ) {
       for (let i = this.allEnemies.length - 1; i >= 0; i--) {
         if (this.checkPlayerCollision(this.player, this.allEnemies[i])) {
           if (this.player.secondShip.length > 0) {
@@ -1353,7 +1312,11 @@ class BlitzGame {
     }
 
     // Player vs enemy bullets (only if not shielding, not in godmode, and not rainbow invulnerable)
-    if (!this.player.isShielding && !this.player.godMode && !this.player.rainbowInvulnerable) {
+    if (
+      !this.player.isShielding &&
+      !this.player.godMode &&
+      !this.player.rainbowInvulnerable
+    ) {
       for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
         if (this.checkPlayerCollision(this.player, this.enemyBullets[i])) {
           if (this.player.secondShip.length > 0) {
@@ -1376,7 +1339,11 @@ class BlitzGame {
     }
 
     // Player vs enemy lasers
-    if (!this.player.isShielding && !this.player.godMode && !this.player.rainbowInvulnerable) {
+    if (
+      !this.player.isShielding &&
+      !this.player.godMode &&
+      !this.player.rainbowInvulnerable
+    ) {
       for (let i = this.enemyLasers.length - 1; i >= 0; i--) {
         if (this.checkPlayerLaserCollision(this.player, this.enemyLasers[i])) {
           if (this.player.secondShip.length > 0) {
@@ -1395,7 +1362,6 @@ class BlitzGame {
         }
       }
     }
-
 
     // Player vs powerups
     for (let i = this.powerups.length - 1; i >= 0; i--) {
@@ -1451,26 +1417,26 @@ class BlitzGame {
     // Line-to-circle collision detection
     const dx = player.x - laser.x;
     const dy = player.y - laser.y;
-    
+
     // Calculate laser direction vector
     const laserDx = Math.cos(laser.angle);
     const laserDy = Math.sin(laser.angle);
-    
+
     // Project player position onto laser line
     const projection = dx * laserDx + dy * laserDy;
-    
+
     // Clamp projection to laser length
     const clampedProjection = Math.max(0, Math.min(laser.length, projection));
-    
+
     // Find closest point on laser to player
     const closestX = laser.x + clampedProjection * laserDx;
     const closestY = laser.y + clampedProjection * laserDy;
-    
+
     // Check distance from player to closest point on laser
     const distanceToLaser = Math.sqrt(
       (player.x - closestX) ** 2 + (player.y - closestY) ** 2
     );
-    
+
     // Collision if distance is less than player hitbox + laser width
     return distanceToLaser < player.hitboxSize + laser.width / 2;
   }
@@ -1591,25 +1557,25 @@ class BlitzGame {
       if (this.timeSlowActive) {
         this.ctx.globalAlpha = 0.6; // Fade other elements
       }
-      
+
       this.powerups.forEach((powerup) => powerup.render(this.ctx));
       this.explosions.forEach((explosion) => explosion.render(this.ctx));
       this.textParticles.forEach((particle) => particle.render(this.ctx));
-      
+
       // Reset alpha for player (keep player at full opacity)
       if (this.timeSlowActive) {
         this.ctx.globalAlpha = 1.0;
       }
-      
+
       if (this.gameState !== "DEATH_ANIMATION") {
         this.player.render(this.ctx);
       }
-      
+
       // Apply fade effect to other elements again
       if (this.timeSlowActive) {
         this.ctx.globalAlpha = 0.6;
       }
-      
+
       this.bullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyBullets.forEach((bullet) => bullet.render(this.ctx));
       this.enemyLasers.forEach((laser) => laser.render(this.ctx));
@@ -1621,7 +1587,7 @@ class BlitzGame {
         this.boss.render(this.ctx);
       }
       this.particles.forEach((particle) => particle.render(this.ctx));
-      
+
       // Reset alpha after rendering all elements
       this.ctx.globalAlpha = 1.0;
     }
@@ -1714,18 +1680,18 @@ class BlitzGame {
 
   pauseGame() {
     this.gameState = "PAUSED";
-    document.getElementById("pause-overlay").style.display = "flex";
+    this.elements.pauseOverlay.style.display = "flex";
     document.body.style.cursor = "default";
-    
+
     // Pause background music when game is paused
     this.audio.pauseBackgroundMusic();
   }
 
   resumeGame() {
     this.gameState = "PLAYING";
-    document.getElementById("pause-overlay").style.display = "none";
+    this.elements.pauseOverlay.style.display = "none";
     document.body.style.cursor = "none";
-    
+
     // Resume background music when game resumes
     this.audio.resumeBackgroundMusic();
   }
@@ -1819,70 +1785,6 @@ class BlitzGame {
     }
   }
 
-  setupBossDialog() {
-    const bossDialog = document.getElementById("boss-dialog");
-    const levelCleared = document.getElementById("level-cleared");
-
-    // Boss dialog click handler
-    bossDialog.addEventListener("click", () => this.advanceBossDialog());
-    bossDialog.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      this.advanceBossDialog();
-    });
-
-    // Level cleared click handler
-    levelCleared.addEventListener("click", () => this.restart());
-    levelCleared.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      this.restart();
-    });
-
-    // Space key handler for dialog
-    document.addEventListener("keydown", (e) => {
-      if (e.key === " " || e.key === "Space") {
-        if (this.bossDialogActive) {
-          e.preventDefault();
-          this.advanceBossDialog();
-        } else if (this.gameState === "LEVEL_CLEARED") {
-          e.preventDefault();
-          this.restart();
-        }
-      }
-    });
-  }
-
-  showBossDialog() {
-    this.bossDialogState = 1;
-    this.bossDialogActive = true;
-    this.gameState = "BOSS_DIALOG";
-    document.getElementById("boss-dialog").style.display = "block";
-    document.getElementById("boss-text").textContent = "...";
-  }
-
-  advanceBossDialog() {
-    if (!this.bossDialogActive) return;
-
-    this.bossDialogState++;
-
-    if (this.bossDialogState === 2) {
-      document.getElementById("boss-text").textContent =
-        "Who dares enter my space?";
-    } else if (this.bossDialogState === 3) {
-      document.getElementById("boss-text").textContent =
-        "Prepare to die, humans!";
-    } else if (this.bossDialogState === 4) {
-      this.hideBossDialog();
-      this.spawnBoss();
-    }
-  }
-
-  hideBossDialog() {
-    this.bossDialogActive = false;
-    document.getElementById("boss-dialog").style.display = "none";
-    this.gameState = "PLAYING";
-    this.gamePhase = 5; // Phase 5: Boss fight phase
-  }
-
   spawnBoss() {
     let bossX, bossY;
 
@@ -1913,7 +1815,7 @@ class BlitzGame {
       if (result) {
         this.effects.createEnemyExplosion(bulletX, bulletY);
         this.audio.playSound(this.audio.sounds.enemyExplosion);
-        
+
         if (enemy.isDefeated) {
           this.startBossDeathSequence();
           return "destroyed";
@@ -1923,7 +1825,7 @@ class BlitzGame {
       return "no_damage";
     } else if (enemy.takeDamage) {
       const result = enemy.takeDamage(damage);
-      
+
       // Handle different damage results
       if (result === "godmode") {
         // No effect, no explosion for god mode
@@ -1939,7 +1841,7 @@ class BlitzGame {
       } else if (result === "destroyed" || result === "defeated") {
         this.effects.createEnemyExplosion(enemy.x, enemy.y);
         this.audio.playSound(this.audio.sounds.enemyExplosion);
-        
+
         // Award score based on enemy type
         if (enemy.maxHealth > 1000) {
           // Boss
@@ -1951,7 +1853,7 @@ class BlitzGame {
           // Regular enemy
           this.score += 200;
         }
-        
+
         this.ui.update();
         return "destroyed";
       } else if (result === "dying") {
@@ -1967,7 +1869,7 @@ class BlitzGame {
       this.ui.update();
       return "destroyed";
     }
-    
+
     return null;
   }
 
@@ -1978,11 +1880,11 @@ class BlitzGame {
       this.enemies.splice(enemyIndex, 1);
       return;
     }
-    
+
     const miniBossIndex = this.miniBosses.indexOf(enemy);
     if (miniBossIndex !== -1) {
       this.miniBosses.splice(miniBossIndex, 1);
-      
+
       // Check if all mini-bosses are defeated
       if (this.miniBosses.length === 0) {
         this.miniBossesDefeated = true;
@@ -1992,7 +1894,7 @@ class BlitzGame {
       }
       return;
     }
-    
+
     if (this.boss === enemy) {
       this.boss = null;
       return;
@@ -2030,12 +1932,11 @@ class BlitzGame {
 
   fadeToLevelCleared() {
     this.gameState = "LEVEL_CLEARED";
-    document.getElementById("level-cleared").style.display = "flex";
+    this.elements.levelCleared.style.display = "flex";
 
     // Fade out the canvas
-    const canvas = document.getElementById("gameCanvas");
-    canvas.style.transition = "opacity 1s";
-    canvas.style.opacity = "0.1";
+    this.elements.gameCanvas.style.transition = "opacity 1s";
+    this.elements.gameCanvas.style.opacity = "0.1";
   }
 
   loop(currentTime) {
@@ -2046,7 +1947,6 @@ class BlitzGame {
     if (this.gameState === "TITLE") {
       this.titleScreen.update();
     } else if (this.gameState === "PLAYING") {
-      // Calculate time slow factor
       let gameSlowdownFactor = 1.0;
       if (this.timeSlowActive) {
         gameSlowdownFactor = 0.3; // 3x slower for enemies and bullets

@@ -82,8 +82,8 @@ canvas {
 }
 
 .action-btn {
-  width: 50px;
-  height: 50px;
+  width: 65px;
+  height: 65px;
   background-color: rgba(255, 255, 255, 0.2);
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
@@ -92,7 +92,7 @@ canvas {
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 20px;
+  font-size: 24px;
   transition: all 0.2s ease;
 }
 
@@ -108,8 +108,8 @@ canvas {
 }
 
 .action-btn i {
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
 }
 
 /* Cooldown ring effect */
@@ -121,8 +121,8 @@ canvas {
   position: absolute;
   top: -3px;
   left: -3px;
-  width: 56px;
-  height: 56px;
+  width: 71px;
+  height: 71px;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s;
@@ -132,8 +132,8 @@ canvas {
   position: absolute;
   top: -3px;
   left: -3px;
-  width: 56px;
-  height: 56px;
+  width: 71px;
+  height: 71px;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s;
@@ -143,6 +143,7 @@ canvas {
   fill: none;
   stroke-width: 3;
   stroke-linecap: round;
+  stroke: #ffff00; /* Default yellow color */
 }
 
 .action-btn.on-cooldown .cooldown-ring {
@@ -156,7 +157,7 @@ canvas {
   stroke-linecap: round;
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
-  stroke-dasharray: 144; /* 2 * π * 23 (radius) */
+  stroke-dasharray: 188; /* 2 * π * 30 (radius) = ~188 */
   stroke-dashoffset: 0;
 }
 

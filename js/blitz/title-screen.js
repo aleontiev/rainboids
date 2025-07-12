@@ -12,6 +12,11 @@ export class TitleScreen {
 
   setupStars() {
     this.stars = [];
+    // Don't create stars if canvas has no dimensions
+    if (!this.canvas.width || !this.canvas.height) {
+      return;
+    }
+    
     // Create background stars matching the game's star system
     const starColors = [
       "#ffffff", // Pure white (most common)
@@ -82,10 +87,10 @@ export class TitleScreen {
     const dx = targetX - x;
     const dy = targetY - y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    
+
     // Generate size first, then calculate velocity based on size
     const size = 2 + Math.random() * 8; // Size range: 2-10 pixels
-    
+
     // Larger stars have much higher velocity, smaller stars have lower velocity
     // Size 2-4: speed 1-3, Size 4-6: speed 3-7, Size 6-8: speed 7-12, Size 8-10: speed 12-18
     const baseSpeed = Math.pow(size / 2, 1.5); // Exponential relationship for more dramatic effect
@@ -118,16 +123,15 @@ export class TitleScreen {
   }
 
   update() {
-    // Update twinkling background stars
     this.stars.forEach((star) => {
       star.twinkle += star.twinkleSpeed;
       star.rotation += star.rotationSpeed;
       star.pulsePhase += star.pulseSpeed; // Update pulsing effect
     });
 
-    // Spawn shooting stars occasionally - slightly reduced for more balanced effect
-    if (Math.random() < 0.2) {
-      // 1.5% chance per frame (between original and doubled)
+    // Spawn shooting stars occasionally - increased for better visibility
+    if (Math.random() < 0.15) {
+      // 15% chance per frame for better visibility
       this.spawnShootingStar();
     }
 
@@ -177,6 +181,11 @@ export class TitleScreen {
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     // Render background stars (like in game)
+    if (this.stars.length === 0) {
+      console.warn('No stars to render, trying to recreate them');
+      this.setupStars();
+    }
+    
     this.stars.forEach((star) => {
       this.ctx.save();
       this.ctx.translate(star.x, star.y);
@@ -276,7 +285,11 @@ export class TitleScreen {
   }
 
   resize(width, height) {
-    // Recreate stars when canvas is resized
+    // Update canvas dimensions and recreate stars when canvas is resized
+    if (width && height) {
+      this.canvas.width = width;
+      this.canvas.height = height;
+    }
     this.setupStars();
   }
 }
