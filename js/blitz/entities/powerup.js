@@ -9,10 +9,10 @@ export class Powerup {
     this.isPortrait = isPortrait;
     this.colors = {
       shield: "#4488ff", // Blue
-      mainWeapon: "#ff4444", // Red
-      sideWeapon: "#aa44ff", // Purple
-      secondShip: "#44ff44", // Green
-      bomb: "#aa44ff", // Cool purple
+      mainWeapon: "#44ff44", // green
+      sideWeapon: "#44ff44", // green
+      secondShip: "#aa44ff", // purple
+      bomb: "#ff4444", // red
       rainbowStar: "#ff0000", // Will be overridden with rainbow gradient
     };
   }

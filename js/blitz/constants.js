@@ -10,7 +10,7 @@ export const COLORS = {
     STAR_COLORS: ['#a6b3ff', '#c3a6ff', '#f3a6ff', '#ffa6f8', '#ffa6c7', '#ff528e', '#d98cff', '#ff8c00', '#ffffff', '#ffff88'],
     ENEMY_RANDOM_COLORS: [
         '#ffffff', // White
-        '#000000', // Black  
+          
         '#ff0000', // Red
         '#800080', // Purple
         '#ff8800', // Orange
@@ -23,7 +23,7 @@ export const COLORS = {
         circle: '#00ff00',   // Green
         dive: '#800080',     // Purple
         laser: '#ff8800',    // Orange
-        square: '#000000',   // Black
+        
         pulse: '#800080'     // Purple
     },
     POWERUP_COLORS: {
@@ -72,6 +72,6 @@ export const GAME_CONFIG = {
     MUSIC_VOLUME: 0.3
 };
 
-export const ENEMY_TYPES = ['straight', 'sine', 'zigzag', 'circle', 'dive', 'laser', 'square'];
+export const ENEMY_TYPES = ['straight', 'sine', 'zigzag', 'circle', 'dive', 'laser'];
 export const POWERUP_TYPES = ['shield', 'mainWeapon', 'sideWeapon', 'secondShip', 'bomb'];
 export const STAR_SHAPES = ['point', 'diamond', 'star4', 'star8', 'plus', 'cross'];

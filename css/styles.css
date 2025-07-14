@@ -102,7 +102,8 @@ canvas {
   transform: scale(1.1);
 }
 
-.action-btn:active, .action-btn.active {
+.action-btn:active,
+.action-btn.active {
   transform: scale(0.95);
   background-color: rgba(255, 255, 255, 0.4);
 }
@@ -161,7 +162,6 @@ canvas {
   stroke-dashoffset: 0;
 }
 
-
 #pause-icon {
   width: 20px;
   height: 20px;
@@ -195,7 +195,6 @@ canvas {
   body #pause-button {
     display: flex; /* Show on mobile */
   }
-
 }
 
 .ui-button {
@@ -227,7 +226,6 @@ canvas {
   right: 10px; /* Position next to pause button */
 }
 
-
 #pause-close-button {
   position: absolute;
   top: 20px;
@@ -239,8 +237,9 @@ canvas {
 }
 
 #pause-content {
-  background-color: rgba(0, 0, 0, 0.8);
+  background-color: rgba(0, 0, 0, 0.25);
   padding: 40px;
+  box-sizing: border-box;
   border-radius: 10px;
   text-align: center;
   position: fixed; /* For positioning the close button */
@@ -318,12 +317,14 @@ canvas {
   border: 2px solid #666;
   border-radius: 6px;
   color: white;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   font-size: 11px;
   font-weight: 600;
   padding: 8px;
   text-align: center;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3),
+    inset 0 1px 2px rgba(255, 255, 255, 0.1);
   min-width: 20px;
   min-height: 20px;
   display: flex;
@@ -347,7 +348,8 @@ canvas {
   color: white;
   font-size: 14px;
   text-align: left;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
 }
 
 .mouse-icon {
@@ -373,7 +375,7 @@ canvas {
   .desktop-controls {
     display: none;
   }
-  
+
   .mobile-controls {
     display: flex;
     flex-direction: column;
@@ -460,6 +462,7 @@ body {
   animation: rainbow-gentle 3s ease-in-out infinite;
 }
 .title-container {
+  background-color: rgba(0, 0, 0, 0.8);
 }
 
 .blitz-text {
@@ -675,7 +678,8 @@ body {
   text-align: center;
 }
 
-#final-score, #high-score {
+#final-score,
+#high-score {
   font-size: 18px;
   margin: 10px 0;
   color: #fff;
@@ -712,7 +716,17 @@ body {
 
 /* Rainbow title effects */
 #title-rainboids {
-  background: linear-gradient(90deg, #ff0000, #ff8800, #ffff00, #00ff00, #00ffff, #0088ff, #8800ff, #ff00ff);
+  background: linear-gradient(
+    90deg,
+    #ff0000,
+    #ff8800,
+    #ffff00,
+    #00ff00,
+    #00ffff,
+    #0088ff,
+    #8800ff,
+    #ff00ff
+  );
   background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -749,17 +763,33 @@ body {
 }
 
 @keyframes gentleRainbow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 @keyframes rapidRainbow {
-  0% { background-position: 0% 50%; }
-  25% { background-position: 100% 25%; }
-  50% { background-position: 200% 75%; }
-  75% { background-position: 300% 25%; }
-  100% { background-position: 400% 50%; }
+  0% {
+    background-position: 0% 50%;
+  }
+  25% {
+    background-position: 100% 25%;
+  }
+  50% {
+    background-position: 200% 75%;
+  }
+  75% {
+    background-position: 300% 25%;
+  }
+  100% {
+    background-position: 400% 50%;
+  }
 }
 
 #controls {
@@ -826,7 +856,12 @@ body {
   gap: 10px; /* Add some space between buttons */
   justify-content: center; /* Center the buttons horizontally */
   align-items: center;
-  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background for the bar */
+  background-color: rgba(
+    0,
+    0,
+    0,
+    0.5
+  ); /* Semi-transparent background for the bar */
   padding: 10px;
   border-radius: 10px;
 }
@@ -851,7 +886,17 @@ body {
   margin: auto;
   padding: 30px;
   border: 3px solid;
-  border-image: linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088) 1;
+  border-image: linear-gradient(
+      45deg,
+      #ff0000,
+      #ff8800,
+      #ffff00,
+      #00ff00,
+      #0088ff,
+      #8800ff,
+      #ff0088
+    )
+    1;
   border-radius: 10px;
   width: 80%;
   max-width: 700px;
@@ -953,10 +998,9 @@ body {
   text-decoration: underline;
 }
 
-
 /* Muted state overlay */
 .action-btn.muted::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -965,19 +1009,24 @@ body {
   height: 40px;
   border: 3px solid #ff4444;
   border-radius: 50%;
-  background: linear-gradient(45deg, transparent 40%, #ff4444 40%, #ff4444 60%, transparent 60%);
+  background: linear-gradient(
+    45deg,
+    transparent 40%,
+    #ff4444 40%,
+    #ff4444 60%,
+    transparent 60%
+  );
   pointer-events: none;
   z-index: 1;
 }
 
 @media (max-width: 768px) {
-  
   .action-btn {
     width: 50px;
     height: 50px;
     padding: 10px;
   }
-  
+
   .action-btn i {
     width: 20px;
     height: 20px;
@@ -1014,7 +1063,6 @@ body {
   height: 24px;
 }
 
-
 @media (max-width: 768px) and (orientation: portrait) {
   .title-container {
     white-space: pre;
@@ -1022,6 +1070,11 @@ body {
   }
   .rainbow-text {
     transform: scale(0.8);
+  }
+  #menu-action-buttons {
+    max-width: 400px;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 }
 
@@ -1145,12 +1198,12 @@ body {
     font-size: 10px;
     padding: 8px;
   }
-  
+
   .skill-icon {
     font-size: 8px;
     width: 12px;
   }
-  
+
   .skill-icon i {
     width: 10px;
     height: 10px;
@@ -1257,20 +1310,26 @@ body {
     bottom: 10px;
     padding: 15px;
   }
-  
+
   #boss-face {
     font-size: 40px;
   }
-  
+
   #boss-text {
     font-size: 12px;
   }
-  
+
   #level-cleared h1 {
     font-size: 24px;
   }
 }
 
 .custom-cursor {
-  cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjMDBmZjAwIj48cGF0aCBkPSJNMjAgMTd2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiIvPjxwYXRoIGQ9Ik0xMCAyMGg0Ii8+PHBhdGggZD0iTTEyIDExVjRhMiAyIDAgMCAwLTItMkg4YTIgMiAwIDAgMC0yIDJ2NyIvPjxwYXRoIGQ9Ik0xMiAxMVY0YTIgMiAwIDAgMSAyLTJoMmEyIDIgMCAwIDEgMiAydjciLz48cGF0aCBkPSJNMTggMTdoMmEyIDIgMCAwIDAgMi0ydi0yYTQgNCAwIDAg0C00LTRoLTQiLz48cGF0aCBkPSJNNiAxN0g0YTIgMiAwIDAgMS0yLTJ2LTJhNCA0IDAgMCAxIDQtNGg0Ii8+PC9zdmc+'), auto;
+  cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjMDBmZjAwIj48cGF0aCBkPSJNMjAgMTd2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiIvPjxwYXRoIGQ9Ik0xMCAyMGg0Ii8+PHBhdGggZD0iTTEyIDExVjRhMiAyIDAgMCAwLTItMkg4YTIgMiAwIDAgMC0yIDJ2NyIvPjxwYXRoIGQ9Ik0xMiAxMVY0YTIgMiAwIDAgMSAyLTJoMmEyIDIgMCAwIDEgMiAydjciLz48cGF0aCBkPSJNMTggMTdoMmEyIDIgMCAwIDAgMi0ydi0yYTQgNCAwIDAg0C00LTRoLTQiLz48cGF0aCBkPSJNNiAxN0g0YTIgMiAwIDAgMS0yLTJ2LTJhNCA0IDAgMCAxIDQtNGg0Ii8+PC9zdmc+"),
+    auto;
+}
+.icon-adjust {
+  top: 3px;
+  left: 2px;
+  position: relative;
 }
