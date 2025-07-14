@@ -1,0 +1,132 @@
+/* Modal dialog styles */
+
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 200;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.8);
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: #000;
+  margin: auto;
+  padding: 30px;
+  border: 3px solid;
+  border-image: linear-gradient(
+      45deg,
+      #ff0000,
+      #ff8800,
+      #ffff00,
+      #00ff00,
+      #0088ff,
+      #8800ff,
+      #ff0088
+    )
+    1;
+  border-radius: 10px;
+  width: 80%;
+  max-width: 700px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  background: linear-gradient(
+    45deg,
+    #ff0000,
+    #ff8800,
+    #ffff00,
+    #00ff00,
+    #0088ff,
+    #8800ff,
+    #ff0088
+  );
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-gentle 3s ease-in-out infinite;
+}
+
+.modal-content p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 15px;
+}
+
+.close-button {
+  color: #aaa;
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.close-button:hover,
+.close-button:focus {
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Credits Section within modal */
+.credits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.credit-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ccc;
+  font-size: 0.9em;
+}
+
+.ship-icon {
+  font-size: 1.2em;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
+.red-ship {
+  color: #ff4444;
+}
+
+.blue-ship {
+  color: #4488ff;
+}
+
+.credit-text {
+  display: flex;
+  gap: 5px;
+}
+
+.credit-role {
+  color: #aaa;
+  font-weight: bold;
+}
+
+.credit-item a {
+  color: #88ccff;
+  text-decoration: none;
+}
+
+.credit-item a:hover {
+  color: #aaddff;
+  text-decoration: underline;
+}

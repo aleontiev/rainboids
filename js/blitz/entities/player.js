@@ -727,29 +727,49 @@ export class Player {
 
     // Draw godmode golden shield
     if (this.godMode) {
-      // Golden shield effect
+      // Draw golden stroke around the player ship outline
       ctx.globalAlpha = 0.9 * shipOpacity;
       ctx.strokeStyle = "#ffcc00"; // Bright gold
       ctx.lineWidth = 4;
+      
+      // Draw stroke around the ship shape
       ctx.beginPath();
-      ctx.arc(0, 0, visualSize + 18, 0, Math.PI * 2);
+      ctx.moveTo(visualSize, 0); // Arrow tip
+      ctx.lineTo(-visualSize / 2, -visualSize / 2); // Top left
+      ctx.lineTo(-visualSize / 4, 0); // Middle left
+      ctx.lineTo(-visualSize / 2, visualSize / 2); // Bottom left
+      ctx.closePath();
       ctx.stroke();
 
-      // Inner golden glow
-      ctx.globalAlpha = 0.6 * shipOpacity;
+      // Additional golden shield layers
+      ctx.globalAlpha = 0.7 * shipOpacity;
       ctx.strokeStyle = "#ffdd44"; // Lighter gold
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
+      
+      // Draw larger outline for second layer
+      const extraSize = visualSize + 4;
       ctx.beginPath();
-      ctx.arc(0, 0, visualSize + 16, 0, Math.PI * 2);
+      ctx.moveTo(extraSize, 0);
+      ctx.lineTo(-extraSize / 2, -extraSize / 2);
+      ctx.lineTo(-extraSize / 4, 0);
+      ctx.lineTo(-extraSize / 2, extraSize / 2);
+      ctx.closePath();
       ctx.stroke();
 
-      // Subtle pulsing outer ring
+      // Subtle pulsing outer layer
       const pulseIntensity = 0.7 + 0.3 * Math.sin(Date.now() * 0.005);
-      ctx.globalAlpha = 0.4 * pulseIntensity * shipOpacity;
+      ctx.globalAlpha = 0.5 * pulseIntensity * shipOpacity;
       ctx.strokeStyle = "#ffaa00"; // Deeper gold
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 5;
+      
+      // Draw even larger outline for third layer
+      const outerSize = visualSize + 8;
       ctx.beginPath();
-      ctx.arc(0, 0, visualSize + 20, 0, Math.PI * 2);
+      ctx.moveTo(outerSize, 0);
+      ctx.lineTo(-outerSize / 2, -outerSize / 2);
+      ctx.lineTo(-outerSize / 4, 0);
+      ctx.lineTo(-outerSize / 2, outerSize / 2);
+      ctx.closePath();
       ctx.stroke();
     }
 

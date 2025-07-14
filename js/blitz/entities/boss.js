@@ -40,14 +40,14 @@ export class Boss extends BaseEnemy {
       laserCharging: false,
       laserChargeTime: 0,
       segments: [
-        { x: 0, y: 0, angle: Math.PI, length: 80 }, // Much larger first segment
-        { x: 0, y: 0, angle: 0, length: 60 }, // Much larger second segment
-        { x: 0, y: 0, angle: 0, length: 50 }  // Large weapon segment
+        { x: 0, y: 0, angle: Math.PI * 0.8, length: 60 }, // Angled upward-left
+        { x: 0, y: 0, angle: Math.PI * 0.9, length: 50 }, // Slight downward bend
+        { x: 0, y: 0, angle: Math.PI, length: 40 }  // Weapon segment pointing left
       ],
-      targetAngles: [Math.PI, 0, 0],
+      targetAngles: [Math.PI * 0.8, Math.PI * 0.9, Math.PI],
       animationTime: 0,
-      baseX: -this.size * 0.45, // Further out from body
-      baseY: -this.size * 0.1    // Slightly above center
+      baseX: -this.size * 0.5, // Left side of body
+      baseY: 0    // Center height
     };
     
     this.rightArm = {
@@ -59,14 +59,14 @@ export class Boss extends BaseEnemy {
       maxCooldown: 90, // 1.5 seconds
       burstCooldown: 0,
       segments: [
-        { x: 0, y: 0, angle: 0, length: 80 }, // Much larger first segment
-        { x: 0, y: 0, angle: 0, length: 60 }, // Much larger second segment
-        { x: 0, y: 0, angle: 0, length: 50 }  // Large weapon segment
+        { x: 0, y: 0, angle: Math.PI * 0.2, length: 60 }, // Angled upward-right
+        { x: 0, y: 0, angle: Math.PI * 0.1, length: 50 }, // Slight downward bend
+        { x: 0, y: 0, angle: 0, length: 40 }  // Weapon segment pointing right
       ],
-      targetAngles: [0, 0, 0],
+      targetAngles: [Math.PI * 0.2, Math.PI * 0.1, 0],
       animationTime: 0,
-      baseX: this.size * 0.45, // Further out from body
-      baseY: this.size * 0.1    // Slightly below center
+      baseX: this.size * 0.5, // Right side of body
+      baseY: 0    // Center height
     };
     
     // Initialize arm positions
@@ -188,15 +188,17 @@ export class Boss extends BaseEnemy {
     
     // Generate target angles for organic movement based on arm type
     if (arm.type === "laser") {
-      // Laser arm moves more deliberately, but aims toward player
-      arm.targetAngles[0] = angleToPlayer + Math.sin(arm.animationTime * 0.8) * 0.3;
-      arm.targetAngles[1] = Math.sin(arm.animationTime * 1.2) * 0.4;
-      arm.targetAngles[2] = Math.sin(arm.animationTime * 1.5) * 0.2;
+      // Left laser arm - point generally toward player with some variation
+      const baseAngle = angleToPlayer * 0.7 + Math.PI * 0.8 * 0.3; // Blend player angle with left direction
+      arm.targetAngles[0] = baseAngle + Math.sin(arm.animationTime * 0.8) * 0.2;
+      arm.targetAngles[1] = baseAngle - 0.3 + Math.sin(arm.animationTime * 1.2) * 0.3;
+      arm.targetAngles[2] = angleToPlayer + Math.sin(arm.animationTime * 1.5) * 0.1; // Weapon tracks player closely
     } else {
-      // Missile arm moves more aggressively, tracking player
-      arm.targetAngles[0] = angleToPlayer + Math.sin(arm.animationTime) * 0.4;
-      arm.targetAngles[1] = Math.sin(arm.animationTime * 1.5) * 0.3;
-      arm.targetAngles[2] = Math.sin(arm.animationTime * 1.8) * 0.2;
+      // Right missile arm - track player more aggressively  
+      const baseAngle = angleToPlayer * 0.7 + 0 * 0.3; // Blend player angle with right direction
+      arm.targetAngles[0] = baseAngle + Math.sin(arm.animationTime) * 0.2;
+      arm.targetAngles[1] = baseAngle + 0.3 + Math.sin(arm.animationTime * 1.5) * 0.3;
+      arm.targetAngles[2] = angleToPlayer + Math.sin(arm.animationTime * 1.8) * 0.1; // Weapon tracks player closely
     }
     
     // Smoothly interpolate current angles toward targets
@@ -286,9 +288,9 @@ export class Boss extends BaseEnemy {
       }
     }
 
-    // Check body (rectangle-ish) - keep body hit area the same
-    if (Math.abs(relativeX) < this.size * 0.4 && 
-        Math.abs(relativeY) < this.size * 0.6) {
+    // Check body (rectangle-ish) - smaller hit area to avoid interfering with arms
+    if (Math.abs(relativeX) < this.size * 0.3 && 
+        Math.abs(relativeY) < this.size * 0.5) {
       return 'body';
     }
 
@@ -317,7 +319,7 @@ export class Boss extends BaseEnemy {
       }
       return true;
     } else if (hitPart === 'body') {
-      // Can only damage body in final phase or if both arms destroyed
+      // Body is invulnerable until final phase - bullets pass through
       if (this.finalPhase || (this.leftArm.destroyed && this.rightArm.destroyed)) {
         if (this.shield > 0) {
           this.shield -= damage;
@@ -334,6 +336,53 @@ export class Boss extends BaseEnemy {
           this.isDefeated = true;
         }
         return true;
+      } else {
+        // Body is invulnerable, but check if bullet can hit arms behind it
+        // Check arms again with bullet coordinates
+        const relativeX = bulletX - this.x;
+        const relativeY = bulletY - this.y;
+        
+        // Check left arm collision again (allowing bullets to pass through body)
+        if (!this.leftArm.destroyed) {
+          for (let i = 0; i < this.leftArm.segments.length; i++) {
+            const segment = this.leftArm.segments[i];
+            const segmentX = segment.x;
+            const segmentY = segment.y;
+            const segmentRadius = 35 - i * 5;
+            
+            if (Math.abs(relativeX - segmentX) < segmentRadius && 
+                Math.abs(relativeY - segmentY) < segmentRadius) {
+              this.leftArm.health -= damage;
+              if (this.leftArm.health <= 0) {
+                this.leftArm.destroyed = true;
+                this.leftArm.health = 0;
+              }
+              return true;
+            }
+          }
+        }
+        
+        // Check right arm collision again (allowing bullets to pass through body)
+        if (!this.rightArm.destroyed) {
+          for (let i = 0; i < this.rightArm.segments.length; i++) {
+            const segment = this.rightArm.segments[i];
+            const segmentX = segment.x;
+            const segmentY = segment.y;
+            const segmentRadius = 35 - i * 5;
+            
+            if (Math.abs(relativeX - segmentX) < segmentRadius && 
+                Math.abs(relativeY - segmentY) < segmentRadius) {
+              this.rightArm.health -= damage;
+              if (this.rightArm.health <= 0) {
+                this.rightArm.destroyed = true;
+                this.rightArm.health = 0;
+              }
+              return true;
+            }
+          }
+        }
+        
+        return false; // Body hit but invulnerable, no arm hit
       }
     }
     

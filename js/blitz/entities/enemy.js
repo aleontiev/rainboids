@@ -7,7 +7,13 @@ import { SpreadingBullet } from "./spreading-bullet.js";
 
 // Base Enemy Class
 export class BaseEnemy {
-  constructor(x, y, isPortrait, speed = GAME_CONFIG.ENEMY_SPEED, isClone = false) {
+  constructor(
+    x,
+    y,
+    isPortrait,
+    speed = GAME_CONFIG.ENEMY_SPEED,
+    isClone = false
+  ) {
     this.x = x;
     this.y = y;
     this.size = GAME_CONFIG.ENEMY_SIZE;
@@ -19,36 +25,60 @@ export class BaseEnemy {
     this.initialX = x;
     this.initialY = y;
     this.isPortrait = isPortrait;
-    
+
     // Assign random color to each enemy
-    this.color = COLORS.ENEMY_RANDOM_COLORS[Math.floor(Math.random() * COLORS.ENEMY_RANDOM_COLORS.length)];
-    
+    this.color =
+      COLORS.ENEMY_RANDOM_COLORS[
+        Math.floor(Math.random() * COLORS.ENEMY_RANDOM_COLORS.length)
+      ];
+
     // Handle clone fade-in effect
     this.isClone = isClone;
     this.fadeInTimer = isClone ? 0 : 60; // Clones start invisible and fade in over 1 second
     this.opacity = isClone ? 0 : 1.0;
   }
 
-  update(playerX, playerY, bullets, lasers, slowdownFactor = 1.0, addEnemyCallback = null) {
+  update(
+    playerX,
+    playerY,
+    bullets,
+    lasers,
+    slowdownFactor = 1.0,
+    addEnemyCallback = null
+  ) {
     this.time += slowdownFactor;
-    
+
     // Handle fade-in for clones
     if (this.isClone && this.fadeInTimer < 60) {
       this.fadeInTimer += slowdownFactor;
       this.opacity = Math.min(1.0, this.fadeInTimer / 60);
     }
-    
+
     // Make enemies face the player
     this.angle = Math.atan2(playerY - this.y, playerX - this.x);
 
     // Call type-specific update logic
-    this.updateMovement(playerX, playerY, bullets, lasers, slowdownFactor, addEnemyCallback);
+    this.updateMovement(
+      playerX,
+      playerY,
+      bullets,
+      lasers,
+      slowdownFactor,
+      addEnemyCallback
+    );
 
     // Check if enemy is still on screen
     return this.isOnScreen();
   }
 
-  updateMovement(playerX, playerY, bullets, lasers, slowdownFactor, addEnemyCallback) {
+  updateMovement(
+    playerX,
+    playerY,
+    bullets,
+    lasers,
+    slowdownFactor,
+    addEnemyCallback
+  ) {
     // Base movement - move straight
     if (this.isPortrait) {
       this.y += this.speed * slowdownFactor;
@@ -77,16 +107,15 @@ export class BaseEnemy {
           this.x,
           this.y,
           angle,
-          10, // Increased size
+          8, // Decreased size
           this.color,
           this.isPortrait,
-          4, // Decreased speed
+          3, // Decreased speed
           false
         )
       );
     }
   }
-
 
   render(ctx) {
     ctx.save();
@@ -139,10 +168,12 @@ export class SineEnemy extends BaseEnemy {
   updateMovement(playerX, playerY, bullets, lasers, slowdownFactor) {
     if (this.isPortrait) {
       this.y += this.speed * slowdownFactor;
-      this.x = this.initialX + Math.sin(this.time * this.frequency) * this.amplitude;
+      this.x =
+        this.initialX + Math.sin(this.time * this.frequency) * this.amplitude;
     } else {
       this.x -= this.speed * slowdownFactor;
-      this.y = this.initialY + Math.sin(this.time * this.frequency) * this.amplitude;
+      this.y =
+        this.initialY + Math.sin(this.time * this.frequency) * this.amplitude;
     }
   }
 
@@ -164,10 +195,10 @@ export class SineEnemy extends BaseEnemy {
           topHalfX,
           topHalfY,
           angle,
-          7.5 * 1.25,
+          6,
           this.color,
           this.isPortrait,
-          6.4,
+          5,
           false
         )
       );
@@ -178,10 +209,10 @@ export class SineEnemy extends BaseEnemy {
           bottomHalfX,
           bottomHalfY,
           angle,
-          7.5 * 1.25,
+          6,
           this.color,
           this.isPortrait,
-          6.4,
+          5,
           false
         )
       );
@@ -237,7 +268,8 @@ export class ZigzagEnemy extends BaseEnemy {
 
   shoot(bullets, player) {
     this.shootCooldown++;
-    if (this.shootCooldown > 180) { // Shoot every 3 seconds
+    if (this.shootCooldown > 180) {
+      // Shoot every 3 seconds
       this.shootCooldown = 0;
       const angle = Math.atan2(player.y - this.y, player.x - this.x);
       bullets.push(
@@ -265,12 +297,19 @@ export class CircleEnemy extends BaseEnemy {
     this.radius = 40 + Math.random() * 30;
     this.angularSpeed = 0.04 + Math.random() * 0.02;
     this.cloneTimer = 0;
-    this.cloneInterval = 300; // 5 seconds at 60fps
+    this.cloneInterval = 150; // 2.5 seconds at 60fps
     this.clonesCreated = 0;
     this.maxClones = 3;
   }
 
-  updateMovement(playerX, playerY, bullets, lasers, slowdownFactor, addEnemyCallback) {
+  updateMovement(
+    playerX,
+    playerY,
+    bullets,
+    lasers,
+    slowdownFactor,
+    addEnemyCallback
+  ) {
     if (this.isPortrait) {
       this.y += this.speed * 0.5 * slowdownFactor;
       this.centerY += this.speed * 0.5 * slowdownFactor;
@@ -285,7 +324,12 @@ export class CircleEnemy extends BaseEnemy {
 
     // Handle cloning - only if under the clone limit and on-screen
     this.cloneTimer += slowdownFactor;
-    if (this.cloneTimer >= this.cloneInterval && addEnemyCallback && this.clonesCreated < this.maxClones && this.isOnScreen()) {
+    if (
+      this.cloneTimer >= this.cloneInterval &&
+      addEnemyCallback &&
+      this.clonesCreated < this.maxClones &&
+      this.isOnScreen()
+    ) {
       this.cloneTimer = 0; // Reset timer to clone again in 5 seconds
       this.clonesCreated++; // Increment clone counter
 
@@ -295,7 +339,13 @@ export class CircleEnemy extends BaseEnemy {
       const cloneX = this.x + Math.cos(offsetAngle) * offsetDistance;
       const cloneY = this.y + Math.sin(offsetAngle) * offsetDistance;
 
-      const clone = new CircleEnemy(cloneX, cloneY, this.isPortrait, this.speed, true);
+      const clone = new CircleEnemy(
+        cloneX,
+        cloneY,
+        this.isPortrait,
+        this.speed,
+        true
+      );
       clone.color = this.color; // Clone inherits parent's color
       addEnemyCallback(clone);
     }
@@ -304,7 +354,7 @@ export class CircleEnemy extends BaseEnemy {
   shoot(bullets, player) {
     // Circle enemies shoot much slower - once every 5 seconds
     this.shootCooldown++;
-    if (this.shootCooldown > 300) { // 5 seconds at 60fps
+    if (this.shootCooldown > 600) {
       this.shootCooldown = 0;
       const angle = Math.atan2(player.y - this.y, player.x - this.x);
 
@@ -313,10 +363,10 @@ export class CircleEnemy extends BaseEnemy {
           this.x,
           this.y,
           angle,
-          7.5,
+          6,
           this.color,
           this.isPortrait,
-          6.4,
+          5,
           false
         )
       );
@@ -376,13 +426,16 @@ export class DiveEnemy extends BaseEnemy {
       } else {
         this.x -= this.speed * slowdownFactor;
       }
-      
+
       this.lockTimer += slowdownFactor;
       if (this.lockTimer >= this.lockDuration) {
         this.phase = "dive";
         this.targetX = playerX;
         this.targetY = playerY;
-        this.diveAngle = Math.atan2(this.targetY - this.y, this.targetX - this.x);
+        this.diveAngle = Math.atan2(
+          this.targetY - this.y,
+          this.targetX - this.x
+        );
       }
     } else if (this.phase === "dive") {
       // Dive straight at the locked target location
@@ -439,7 +492,8 @@ export class LaserEnemy extends BaseEnemy {
     switch (this.laserState) {
       case "cooldown":
         this.laserCooldown += slowdownFactor;
-        if (this.laserCooldown > 60) { // 1 second cooldown
+        if (this.laserCooldown > 60) {
+          // 1 second cooldown
           this.laserState = "charging";
           this.laserChargeTime = 0;
         }
@@ -447,7 +501,8 @@ export class LaserEnemy extends BaseEnemy {
 
       case "charging":
         this.laserChargeTime += slowdownFactor;
-        if (this.laserChargeTime > 60) { // 1 second charge time
+        if (this.laserChargeTime > 60) {
+          // 1 second charge time
           this.laserState = "preview";
           this.laserChargeTime = 0;
           // Capture player's exact location at the start of preview
@@ -458,13 +513,17 @@ export class LaserEnemy extends BaseEnemy {
 
       case "preview":
         this.laserChargeTime += slowdownFactor;
-        if (this.laserChargeTime > 15) { // 0.25 seconds preview
+        if (this.laserChargeTime > 15) {
+          // 0.25 seconds preview
           this.laserState = "firing";
           this.laserChargeTime = 0;
           // Add 30px radius targeting inaccuracy to the captured target
           const offsetX = (Math.random() - 0.5) * 60; // -30 to +30px
           const offsetY = (Math.random() - 0.5) * 60; // -30 to +30px
-          this.laserAngle = Math.atan2(this.targetY + offsetY - this.y, this.targetX + offsetX - this.x);
+          this.laserAngle = Math.atan2(
+            this.targetY + offsetY - this.y,
+            this.targetX + offsetX - this.x
+          );
           // Create laser projectile
           lasers.push(
             new Laser(
@@ -480,7 +539,8 @@ export class LaserEnemy extends BaseEnemy {
 
       case "firing":
         this.laserChargeTime += slowdownFactor;
-        if (this.laserChargeTime > 60) { // 1 second firing duration
+        if (this.laserChargeTime > 60) {
+          // 1 second firing duration
           this.laserState = "cooldown";
           this.laserCooldown = 0;
         }
@@ -584,7 +644,7 @@ export class PulseEnemy extends BaseEnemy {
     // Create a ring of bullets shooting outward in all directions
     const numBullets = 12; // Number of bullets in the ring
     const bulletSpeed = 3;
-    const bulletSize = 8 * 1.25;
+    const bulletSize = 6;
     const bulletColor = this.color; // Use enemy's individual color
 
     for (let i = 0; i < numBullets; i++) {
@@ -678,11 +738,17 @@ export class SquareEnemy extends BaseEnemy {
     if (this.isPortrait) {
       this.y += this.speed * 0.7 * slowdownFactor;
       // Add dynamic side-to-side movement
-      this.x += Math.sin(this.moveTimer * 0.05 + this.movementPhase) * this.sideSpeed * slowdownFactor;
+      this.x +=
+        Math.sin(this.moveTimer * 0.05 + this.movementPhase) *
+        this.sideSpeed *
+        slowdownFactor;
     } else {
       this.x -= this.speed * 0.7 * slowdownFactor;
       // Add dynamic up-and-down movement
-      this.y += Math.sin(this.moveTimer * 0.05 + this.movementPhase) * this.sideSpeed * slowdownFactor;
+      this.y +=
+        Math.sin(this.moveTimer * 0.05 + this.movementPhase) *
+        this.sideSpeed *
+        slowdownFactor;
     }
 
     this.visualRotation += this.rotationSpeed * slowdownFactor;
@@ -698,7 +764,7 @@ export class SquareEnemy extends BaseEnemy {
   fireFromAllCorners(bullets) {
     // Shoot from all four corners simultaneously
     const bulletSpeed = 4;
-    const bulletSize = 7 * 1.25;
+    const bulletSize = 6;
     const bulletColor = this.color;
 
     // Define corner positions relative to ship center
@@ -796,14 +862,23 @@ export function createEnemy(type, x, y, isPortrait, speed, isClone = false) {
 
 // Legacy Enemy class for backward compatibility
 export class Enemy extends BaseEnemy {
-  constructor(x, y, type, isPortrait, speed = GAME_CONFIG.ENEMY_SPEED, isClone = false) {
+  constructor(
+    x,
+    y,
+    type,
+    isPortrait,
+    speed = GAME_CONFIG.ENEMY_SPEED,
+    isClone = false
+  ) {
     super(x, y, isPortrait, speed, isClone);
-    
+
     // Return the appropriate derived class instead
-    const enemyType = type || ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
+    const enemyType =
+      type || ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
     return createEnemy(enemyType, x, y, isPortrait, speed, isClone);
   }
 }
 
 // Re-export other classes for backward compatibility
 export { Asteroid } from "./asteroid.js";
+

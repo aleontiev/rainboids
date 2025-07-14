@@ -34,7 +34,7 @@ export class MiniBoss extends BaseEnemy {
     // Shield system
     this.godMode = true; // Start with god mode (invincible)
     this.godModeTimer = 0;
-    this.godModeDuration = 500; // 2.5 seconds at 60fps
+    this.godModeDuration = 1000; // 5 seconds at 60fps
     this.shield = 50; // 50 shield after god mode ends
     this.maxShield = 50;
 
@@ -206,7 +206,7 @@ export class MiniBoss extends BaseEnemy {
       y: this.y, // Fire from center of miniboss
       vx: Math.cos(angleToPlayer) * bulletSpeed, // Aim at player
       vy: Math.sin(angleToPlayer) * bulletSpeed, // Aim at player
-      size: 12, // Smaller projectiles
+      size: 8, // Smaller projectiles
       color: "#ff0000", // Red color
       type: "miniBossPrimary",
     };
@@ -230,7 +230,7 @@ export class MiniBoss extends BaseEnemy {
           y: this.y,
           vx: Math.cos(angle) * bulletSpeed,
           vy: Math.sin(angle) * bulletSpeed,
-          size: 10, // Smaller projectiles for spread
+          size: 7, // Smaller projectiles for spread
           color: "#ff0000", // Red color
           type: "miniBossSecondary",
         });
@@ -248,7 +248,7 @@ export class MiniBoss extends BaseEnemy {
           y: this.y + offsetY,
           vx: Math.cos(angleToPlayer) * bulletSpeed,
           vy: Math.sin(angleToPlayer) * bulletSpeed,
-          size: 12, // Smaller projectiles
+          size: 8, // Smaller projectiles
           color: "#0000ff", // Blue color for beta
           type: "miniBossSecondary",
         });
@@ -307,7 +307,7 @@ export class MiniBoss extends BaseEnemy {
           y: this.y,
           vx: Math.cos(angle) * bulletSpeed,
           vy: Math.sin(angle) * bulletSpeed,
-          size: 10, // Smaller projectiles
+          size: 7, // Smaller projectiles
           color: "#ffa500", // Orange color
           type: "miniBossCircular",
         });
@@ -328,7 +328,7 @@ export class MiniBoss extends BaseEnemy {
             y: y,
             vx: Math.cos(baseAngle) * bulletSpeed,
             vy: Math.sin(baseAngle) * bulletSpeed,
-            size: 8, // Smaller for cross pattern
+            size: 6, // Smaller for cross pattern
             color: "#0000ff", // Blue color for beta
             type: "miniBossCircular",
           });
@@ -357,7 +357,7 @@ export class MiniBoss extends BaseEnemy {
         y: this.y,
         vx: Math.cos(angle) * bulletSpeed,
         vy: Math.sin(angle) * bulletSpeed,
-        size: 10, // Smaller burst projectiles
+        size: 7, // Smaller burst projectiles
         color: "#ffa500", // Orange color for distinction
         type: "miniBossBurst",
       });

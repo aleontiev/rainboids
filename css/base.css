@@ -1,0 +1,47 @@
+/* Base styles and resets */
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  color: #fff;
+  overflow: hidden;
+  font-family: "Press Start 2P", "Courier New", monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  pointer-events: none;
+}
+
+body.game-ready {
+  pointer-events: all;
+}
+
+h2 {
+  margin-bottom: 0;
+}
+
+canvas {
+  display: block;
+  background-color: #000;
+  position: relative;
+  z-index: 1;
+}
+
+#gameCanvas {
+  display: block;
+  background: #000;
+}
+
+/* Custom cursor */
+.custom-cursor {
+  cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjMDBmZjAwIj48cGF0aCBkPSJNMjAgMTd2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiIvPjxwYXRoIGQ9Ik0xMCAyMGg0Ii8+PHBhdGggZD0iTTEyIDExVjRhMiAyIDAgMCAwLTItMkg4YTIgMiAwIDAgMC0yIDJ2NyIvPjxwYXRoIGQ9Ik0xMiAxMVY0YTIgMiAwIDAgMSAyLTJoMmEyIDIgMCAwIDEgMiAydjciLz48cGF0aCBkPSJNMTggMTdoMmEyIDIgMCAwIDAgMi0ydi0yYTQgNCAwIDAg4C00LTRoLTQiLz48cGF0aCBkPSJNNiAxN0g0YTIgMiAwIDAgMS0yLTJ2LTJhNCA0IDAgMCAxIDQtNGg0Ii8+PC9zdmc+"),
+    auto;
+}
+
+/* Icon positioning adjustments */
+.icon-adjust {
+  top: 0px;
+  left: 0px;
+  position: relative;
+}
