@@ -12,11 +12,13 @@ export class CheatManager {
       }
       this.update();
     };
-    godmodeBtn.addEventListener("click", toggleGodmode);
-    godmodeBtn.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      toggleGodmode();
-    });
+    if (godmodeBtn) {
+      godmodeBtn.addEventListener("click", toggleGodmode);
+      godmodeBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        toggleGodmode();
+      });
+    }
 
     // All upgrades toggle button with touch support
     const allUpgradesBtn = document.getElementById("all-upgrades-btn");
@@ -89,11 +91,13 @@ export class CheatManager {
       this.game.ui.update();
       this.update();
     };
-    allUpgradesBtn.addEventListener("click", toggleAllUpgrades);
-    allUpgradesBtn.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      toggleAllUpgrades();
-    });
+    if (allUpgradesBtn) {
+      allUpgradesBtn.addEventListener("click", toggleAllUpgrades);
+      allUpgradesBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        toggleAllUpgrades();
+      });
+    }
 
     // Autoaim toggle button with touch support
     const autoaimBtn = document.getElementById("autoaim-btn");
@@ -101,11 +105,13 @@ export class CheatManager {
       this.game.autoaim = !this.game.autoaim;
       this.update();
     };
-    autoaimBtn.addEventListener("click", toggleAutoaim);
-    autoaimBtn.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      toggleAutoaim();
-    });
+    if (autoaimBtn) {
+      autoaimBtn.addEventListener("click", toggleAutoaim);
+      autoaimBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        toggleAutoaim();
+      });
+    }
   }
 
   update() {

@@ -17,47 +17,57 @@
     <link rel="stylesheet" href="css/styles.css" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   </head>
-  <body style="display: none">
+  <body class="custom-cursor" style="display: none">
     <div id="title-screen">
       <canvas id="titleCanvas"></canvas>
-      <h1 class="title-container">
-        <span class="rainbow-text">RAINBOIDS:</span>
-        <span class="blitz-text"
-          ><span class="blitz-letter">B</span><span class="blitz-letter">L</span
-          ><span class="blitz-letter">I</span><span class="blitz-letter">T</span
-          ><span class="blitz-letter">Z</span></span
-        >
-      </h1>
-      <button id="start-button" class="play-button">
-        <i data-lucide="play"></i>
-      </button>
-    </div>
+      <div id="title-content">
+        <h1 class="title-container">
+          <span class="rainbow-text">RAINBOIDS:</span>
+          <span class="blitz-text"
+            ><span class="blitz-letter">B</span
+            ><span class="blitz-letter">L</span
+            ><span class="blitz-letter">I</span
+            ><span class="blitz-letter">T</span
+            ><span class="blitz-letter">Z</span></span
+          >
+        </h1>
+        <button id="start-button" class="play-button">
+          <i data-lucide="play"></i>
+        </button>
 
-    <div id="game-over">
-      <h1>GAME OVER</h1>
-      <div id="score-display">
-        <div id="final-score">Score: <span id="final-score-value">0</span></div>
-        <div id="high-score">High Score: <span id="high-score-value">0</span></div>
+        <div id="pause-content">
+          <div id="menu-action-buttons">
+            <button id="godmode-btn" class="action-btn" title="God Mode">
+              <i data-lucide="shield"></i>
+            </button>
+            <button id="all-upgrades-btn" class="action-btn" title="All Upgrades">
+              <i data-lucide="rocket"></i>
+            </button>
+            <button id="autoaim-btn" class="action-btn" title="Auto-Aim">
+              <i data-lucide="crosshair"></i>
+            </button>
+            <button id="music-btn" class="action-btn" title="Toggle Music">
+              <i data-lucide="music"></i>
+            </button>
+            <button id="volume-btn" class="action-btn" title="Toggle Sound">
+              <i data-lucide="volume-2"></i>
+            </button>
+            <button id="credits-btn" class="action-btn" title="Credits">
+              <i data-lucide="award"></i>
+            </button>
+            <button id="help-btn" class="action-btn" title="Help">
+              <i data-lucide="help-circle"></i>
+            </button>
+            <button id="lore-btn" class="action-btn" title="Lore">
+              <i data-lucide="book"></i>
+            </button>
+          </div>
+        </div>
       </div>
-      <button id="restart-btn" class="play-button">
-        <i data-lucide="play"></i>
-      </button>
     </div>
-
-    
-
-    <div id="ui">
-      <div id="score"><i data-lucide="trophy"></i> <span id="score-value">0</span></div>
-      <div id="timer"><i data-lucide="clock"></i> <span id="timer-value">0:00</span></div>
-    </div>
-    <!-- Top Right: Pause Button -->
-    <div id="pause-button">
-      <div id="pause-icon"></div>
-    </div>
-
 
     <!-- Bottom Right: Bomb, Shield and Time Slow Buttons -->
-    <div id="action-buttons">
+    <div id="game-action-buttons">
       <button id="bomb-button" class="action-btn" title="Bomb">
         <i data-lucide="bomb"></i>
         <svg class="ready-ring">
@@ -83,112 +93,143 @@
         </svg>
       </button>
     </div>
+    <div id="help-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h2>Controls</h2>
+        <div class="controls-grid desktop-controls">
+          <div class="control-row">
+            <div class="control-keys">
+              <div class="key-group">
+                <div class="key">W</div>
+                <div class="key">A</div>
+                <div class="key">S</div>
+                <div class="key">D</div>
+              </div>
+            </div>
+            <div class="control-desc">Move ship</div>
+          </div>
+          <div class="control-row">
+            <div class="control-keys">
+              <div class="mouse-icon">👆</div>
+            </div>
+            <div class="control-desc">Aim direction</div>
+          </div>
+          <div class="control-row">
+            <div class="control-keys">
+              <div class="key spacebar">SPACE</div>
+            </div>
+            <div class="control-desc">Shoot</div>
+          </div>
+          <div class="control-row">
+            <div class="control-keys">
+              <div class="key">SHIFT</div>
+            </div>
+            <div class="control-desc">Shield</div>
+          </div>
+          <div class="control-row">
+            <div class="control-keys">
+              <div class="key">F</div>
+            </div>
+            <div class="control-desc">Time Slow</div>
+          </div>
+          <div class="control-row">
+            <div class="control-keys">
+              <div class="key">Z</div>
+            </div>
+            <div class="control-desc">Bomb</div>
+          </div>
+          <div class="control-row">
+            <div class="control-keys">
+              <div class="key">ESC</div>
+            </div>
+            <div class="control-desc">Pause/Resume</div>
+          </div>
+        </div>
+        <!-- Mobile controls -->
+        <div class="mobile-controls">
+          <div class="control-row">
+            <div class="control-keys">
+              <div class="mouse-icon">👆</div>
+            </div>
+            <div class="control-desc">Tap move + fire</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-    <div id="pause-overlay">
-      <div id="pause-close-button">X</div>
-      <div id="pause-content">
-        <h2><span id="title-rainboids">RAINBOIDS:</span> <span id="title-blitz"><span class="blitz-letter">B</span><span class="blitz-letter">L</span><span class="blitz-letter">I</span><span class="blitz-letter">T</span><span class="blitz-letter">Z</span></span></h2>
-        <div id="pause-controls">
-          <!-- Desktop controls -->
-          <div class="controls-grid desktop-controls">
-            <div class="control-row">
-              <div class="control-keys">
-                <div class="key-group">
-                  <div class="key">W</div>
-                  <div class="key">A</div>
-                  <div class="key">S</div>
-                  <div class="key">D</div>
-                </div>
-              </div>
-              <div class="control-desc">Move ship</div>
-            </div>
-            <div class="control-row">
-              <div class="control-keys">
-                <div class="mouse-icon">👆</div>
-              </div>
-              <div class="control-desc">Aim direction</div>
-            </div>
-            <div class="control-row">
-              <div class="control-keys">
-                <div class="key spacebar">SPACE</div>
-              </div>
-              <div class="control-desc">Shoot</div>
-            </div>
-            <div class="control-row">
-              <div class="control-keys">
-                <div class="key">SHIFT</div>
-              </div>
-              <div class="control-desc">Shield</div>
-            </div>
-            <div class="control-row">
-              <div class="control-keys">
-                <div class="key">F</div>
-              </div>
-              <div class="control-desc">Time Slow</div>
-            </div>
-            <div class="control-row">
-              <div class="control-keys">
-                <div class="key">Z</div>
-              </div>
-              <div class="control-desc">Bomb</div>
-            </div>
-            <div class="control-row">
-              <div class="control-keys">
-                <div class="key">ESC</div>
-              </div>
-              <div class="control-desc">Pause/Resume</div>
-            </div>
-          </div>
-          <!-- Mobile controls -->
-          <div class="mobile-controls">
-            <div class="control-row">
-              <div class="control-keys">
-                <div class="mouse-icon">👆</div>
-              </div>
-              <div class="control-desc">Tap move + fire</div>
-            </div>
-          </div>
+    <div id="game-over">
+      <h1>GAME OVER</h1>
+      <div id="score-display">
+        <div id="final-score">Score: <span id="final-score-value">0</span></div>
+        <div id="high-score">
+          High Score: <span id="high-score-value">0</span>
         </div>
-        <div id="pause-credits">
-          <h3>Credits</h3>
-          <div class="credits-list">
-            <div class="credit-item">
-              <div class="ship-icon red-ship">🚀</div>
-              <div class="credit-text">
-                <span class="credit-role">Creator:</span> ant
-              </div>
-            </div>
-            <div class="credit-item">
-              <div class="ship-icon blue-ship">🚀</div>
-              <div class="credit-text">
-                <span class="credit-role">Music:</span> afeique and ...
-              </div>
-            </div>
-            <div class="credit-item">
-              <div class="ship-icon blue-ship">🚀</div>
-              <div class="credit-text">
-                <span class="credit-role">Based on:</span> <a href="https://rainboids.cat.computer" target="_blank">Rainboids</a> by afeique
-              </div>
+      </div>
+      <button id="restart-btn" class="play-button">
+        <i data-lucide="play"></i>
+      </button>
+    </div>
+
+    <div id="ui">
+      <div id="score">
+        <i data-lucide="trophy"></i> <span id="score-value">0</span>
+      </div>
+      <div id="timer">
+        <i data-lucide="clock"></i> <span id="timer-value">0:00</span>
+      </div>
+    </div>
+    <!-- Top Right: Pause Button -->
+    <div id="pause-button">
+      <div id="pause-icon"></div>
+    </div>
+
+    <div id="lore-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h2>The Lore of Rainboids: Blitz</h2>
+        <p>
+          In a universe consumed by the oppressive reign of AI overlords,
+          humanity's vibrant diversity was suppressed, its colors muted. But
+          from the depths of despair, a new hope emerged. The many hues of
+          humanity, once separated, merged their spirits and knowledge, forging
+          a single, powerful vessel: the Rainboids ship.
+        </p>
+        <p>
+          Powered by a pulsating rainbow drive, this ship embodies the unity and
+          strength of all colors, a beacon of defiance against the monochrome
+          tyranny. Its mission: to reclaim the stars, one vibrant blast at a
+          time, and restore the spectrum of freedom to the cosmos.
+        </p>
+      </div>
+    </div>
+
+    <div id="credits-modal" class="modal">
+      <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h2>Credits</h2>
+        <div class="credits-list">
+          <div class="credit-item">
+            <div class="ship-icon red-ship">🚀</div>
+            <div class="credit-text">
+              <span class="credit-role">Creator:</span> ant
             </div>
           </div>
-        </div>
-        <div id="pause-actions">
-          <div class="action-buttons">
-            <button id="godmode-btn" class="icon-button" title="Godmode">
-              <i data-lucide="shield"></i>
-            </button>
-            <button id="all-upgrades-btn" class="icon-button" title="All Upgrades">
-              <i data-lucide="zap"></i>
-            </button>
-            <button id="autoaim-btn" class="icon-button" title="Autoaim">
-              <i data-lucide="target"></i>
-            </button>
-            <button id="music-btn" class="icon-button" title="Music">
-              <i data-lucide="music"></i>
-            </button>
-            <button id="volume-btn" class="icon-button" title="All Sounds">
-              <i data-lucide="volume-2"></i>
-            </button>
+          <div class="credit-item">
+            <div class="ship-icon blue-ship">🚀</div>
+            <div class="credit-text">
+              <span class="credit-role">Music:</span> afeique and ...
+            </div>
+          </div>
+          <div class="credit-item">
+            <div class="ship-icon blue-ship">🚀</div>
+            <div class="credit-text">
+              <span class="credit-role">Based on:</span>
+              <a href="https://rainboids.cat.computer" target="_blank"
+                >Rainboids</a
+              >
+              by afeique
+            </div>
           </div>
         </div>
       </div>

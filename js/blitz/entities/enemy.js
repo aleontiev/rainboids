@@ -77,10 +77,10 @@ export class BaseEnemy {
           this.x,
           this.y,
           angle,
-          7.5 * 1.25, // Scaled up by 25%
+          10, // Increased size
           this.color,
           this.isPortrait,
-          6.4,
+          4, // Decreased speed
           false
         )
       );
@@ -283,9 +283,9 @@ export class CircleEnemy extends BaseEnemy {
     this.x = this.centerX + Math.cos(angle) * this.radius;
     this.y = this.centerY + Math.sin(angle) * this.radius;
 
-    // Handle cloning - only if under the clone limit
+    // Handle cloning - only if under the clone limit and on-screen
     this.cloneTimer += slowdownFactor;
-    if (this.cloneTimer >= this.cloneInterval && addEnemyCallback && this.clonesCreated < this.maxClones) {
+    if (this.cloneTimer >= this.cloneInterval && addEnemyCallback && this.clonesCreated < this.maxClones && this.isOnScreen()) {
       this.cloneTimer = 0; // Reset timer to clone again in 5 seconds
       this.clonesCreated++; // Increment clone counter
 

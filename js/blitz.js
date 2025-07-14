@@ -31,15 +31,24 @@ class BlitzGame {
       gameCanvas: document.getElementById("gameCanvas"),
       titleCanvas: document.getElementById("titleCanvas"),
       titleScreen: document.getElementById("title-screen"),
+      titleContent: document.getElementById("title-content"), // New: for title screen specific content
+      pauseContent: document.getElementById("pause-content"), // New: for pause screen specific content
       gameOver: document.getElementById("game-over"),
       restartBtn: document.getElementById("restart-btn"),
       timeSlowButton: document.getElementById("time-slow-button"),
       pauseButton: document.getElementById("pause-button"),
       shieldButton: document.getElementById("shield-button"),
       bombButton: document.getElementById("bomb-button"),
-      unpauseButton: document.getElementById("pause-close-button"),
-      pauseOverlay: document.getElementById("pause-overlay"),
       levelCleared: document.getElementById("level-cleared"),
+      loreModal: document.getElementById("lore-modal"),
+      creditsModal: document.getElementById("credits-modal"),
+      helpModal: document.getElementById("help-modal"),
+      loreBtn: document.getElementById("lore-btn"),
+      creditsBtn: document.getElementById("credits-btn"),
+      helpBtn: document.getElementById("help-btn"),
+      loreCloseBtn: document.querySelector("#lore-modal .close-button"),
+      creditsCloseBtn: document.querySelector("#credits-modal .close-button"),
+      helpCloseBtn: document.querySelector("#help-modal .close-button"),
     };
 
     this.canvas = this.elements.gameCanvas;
@@ -75,6 +84,7 @@ class BlitzGame {
     this.reset();
     document.body.classList.add("game-ready");
     document.body.style.display = "block";
+    this.lastTime = performance.now();
     this.loop();
   }
 
@@ -225,17 +235,17 @@ class BlitzGame {
     const pauseButton = this.elements.pauseButton;
     const shieldButton = this.elements.shieldButton;
     const bombButton = this.elements.bombButton;
-    const unpauseButton = this.elements.unpauseButton;
-
     const starter = () => {
       if (this.gameState === "TITLE") {
         this.startGame();
       } else if (this.gameState === "GAME_OVER") {
         this.restart();
+      } else if (this.gameState === "PAUSED") {
+        this.resumeGame();
       }
     };
 
-    this.addHandler(document, () => starter());
+    this.addHandler(document.getElementById('start-button'), () => starter());
     this.addHandler(restartBtn, () => starter());
 
     // Resize handler
@@ -279,10 +289,42 @@ class BlitzGame {
       }
     });
 
-    this.addHandler(unpauseButton, () => {
-      if (this.gameState === "PAUSED") {
-        // Only resume if already paused
-        this.resumeGame();
+    // New: Lore and Credits buttons
+    this.addHandler(this.elements.loreBtn, () => {
+      this.elements.loreModal.style.display = "flex";
+    });
+
+    this.addHandler(this.elements.creditsBtn, () => {
+      this.elements.creditsModal.style.display = "flex";
+    });
+
+    this.addHandler(this.elements.helpBtn, () => {
+      this.elements.helpModal.style.display = "flex";
+    });
+
+    // New: Close buttons for modals
+    this.addHandler(this.elements.loreCloseBtn, () => {
+      this.elements.loreModal.style.display = "none";
+    });
+
+    this.addHandler(this.elements.creditsCloseBtn, () => {
+      this.elements.creditsModal.style.display = "none";
+    });
+
+    this.addHandler(this.elements.helpCloseBtn, () => {
+      this.elements.helpModal.style.display = "none";
+    });
+
+    // Close modals on Escape key
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        if (this.elements.loreModal.style.display === "flex") {
+          this.elements.loreModal.style.display = "none";
+        } else if (this.elements.creditsModal.style.display === "flex") {
+          this.elements.creditsModal.style.display = "none";
+        } else if (this.elements.helpModal.style.display === "flex") {
+          this.elements.helpModal.style.display = "none";
+        }
       }
     });
 
@@ -305,11 +347,16 @@ class BlitzGame {
     this.gameState = "PLAYING";
     this.elements.titleScreen.style.display = "none";
     this.elements.gameOver.style.display = "none";
+    this.elements.titleContent.style.display = "none";
+    this.elements.pauseContent.style.display = "none";
+    document.body.style.cursor = "none";
+    document.body.classList.remove("custom-cursor");
 
     // Initialize and start audio only on first game start (after user interaction)
     if (this.firstGameStart) {
       this.firstGameStart = false;
       this.audio.ready();
+      this.audio.initBackgroundMusic(); // Initialize music only once
     }
 
     // Start background music when game starts
@@ -625,10 +672,11 @@ class BlitzGame {
     });
 
     // Update enemy bullets
+    const newEnemyBullets = [];
     this.enemyBullets = this.enemyBullets.filter((bullet) => {
       if (bullet instanceof SpreadingBullet) {
         return bullet.update(slowdownFactor, (newBullet) => {
-          this.enemyBullets.push(newBullet);
+          newEnemyBullets.push(newBullet);
         });
       } else {
         bullet.update(slowdownFactor);
@@ -643,7 +691,7 @@ class BlitzGame {
         );
       }
     });
-
+    this.enemyBullets.push(...newEnemyBullets);
     this.enemyLasers = this.enemyLasers.filter((laser) =>
       laser.update(slowdownFactor)
     );
@@ -1580,7 +1628,7 @@ class BlitzGame {
 
     this.background.render(this.ctx);
 
-    if (this.gameState === "TITLE") {
+    if (this.gameState === "TITLE" || this.gameState === "PAUSED") {
       this.titleScreen.render();
     }
 
@@ -1641,6 +1689,32 @@ class BlitzGame {
 
     // Draw target indicator for mouse position (desktop only) - always on top
     this.renderCrosshair();
+  }
+
+  loop() {
+    // Calculate deltaTime for smooth animations
+    const now = performance.now();
+    const deltaTime = now - this.lastTime;
+    this.lastTime = now;
+
+    // Update title screen animations if visible
+    if (this.gameState === "TITLE" || this.gameState === "PAUSED") {
+      this.titleScreen.update();
+    }
+
+    // Update game logic only when playing or during death animation
+    if (this.gameState === "PLAYING") {
+      const slowdownFactor = this.timeSlowActive ? 0.2 : 1.0;
+      this.update(deltaTime, slowdownFactor);
+    } else if (this.death.animationActive) {
+      this.update(deltaTime, 1.0); // Update even during death animation
+    }
+
+    // Render everything
+    this.render();
+
+    // Request next frame
+    requestAnimationFrame(() => this.loop());
   }
 
   renderCrosshair() {
@@ -1716,8 +1790,14 @@ class BlitzGame {
 
   pauseGame() {
     this.gameState = "PAUSED";
-    this.elements.pauseOverlay.style.display = "flex";
+    this.elements.titleScreen.style.display = "flex";
+    this.elements.titleContent.style.display = "flex";
+    this.elements.pauseContent.style.display = "flex";
     document.body.style.cursor = "default";
+    const startButton = document.getElementById("start-button");
+    if (startButton) {
+      startButton.style.display = "block";
+    }
 
     // Pause background music when game is paused
     this.audio.pauseBackgroundMusic();
@@ -1725,7 +1805,12 @@ class BlitzGame {
 
   resumeGame() {
     this.gameState = "PLAYING";
-    this.elements.pauseOverlay.style.display = "none";
+    this.elements.titleScreen.style.display = "none";
+    this.elements.pauseContent.style.display = "none";
+    const startButton = document.getElementById("start-button");
+    if (startButton) {
+      startButton.style.display = "none";
+    }
     document.body.style.cursor = "none";
 
     // Resume background music when game resumes
@@ -1980,7 +2065,7 @@ class BlitzGame {
     const deltaTime = currentTime - this.lastTime;
     this.lastTime = currentTime;
 
-    if (this.gameState === "TITLE") {
+    if (this.gameState === "TITLE" || this.gameState === 'PAUSED') {
       this.titleScreen.update();
     } else if (this.gameState === "PLAYING") {
       let gameSlowdownFactor = 1.0;

@@ -57,7 +57,7 @@ canvas {
 }
 
 /* Action Buttons */
-#action-buttons {
+#game-action-buttons {
   position: absolute;
   bottom: 10px;
   right: 10px;
@@ -102,7 +102,7 @@ canvas {
   transform: scale(1.1);
 }
 
-.action-btn:active {
+.action-btn:active, .action-btn.active {
   transform: scale(0.95);
   background-color: rgba(255, 255, 255, 0.4);
 }
@@ -243,30 +243,16 @@ canvas {
   padding: 40px;
   border-radius: 10px;
   text-align: center;
-  max-width: 80%;
-  max-height: 80%;
-  overflow-y: auto;
-  position: relative; /* For positioning the close button */
-}
-
-#pause-content h2 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  background: linear-gradient(
-    45deg,
-    #ff0000,
-    #ff8800,
-    #ffff00,
-    #00ff00,
-    #0088ff,
-    #8800ff,
-    #ff0088
-  );
-  background-size: 400% 400%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: rainbow-gentle 3s ease-in-out infinite;
+  position: fixed; /* For positioning the close button */
+  bottom: 20px;
+  left: 50%;
+  width: 400px;
+  margin-left: -200px;
+  display: none; /* Initially hidden for title screen */
+  flex-direction: column;
+  justify-content: flex-end; /* Align to bottom */
+  align-items: center;
+  z-index: 101; /* Ensure it's above the game canvas */
 }
 
 #pause-controls div {
@@ -806,44 +792,75 @@ body {
   }
 }
 
-/* New styles for pause overlay */
-#pause-overlay {
-  position: fixed;
+/* Styles for the merged title/pause screen */
+#title-screen {
+  position: absolute;
   top: 0;
   left: 0;
-  bottom: 0;
-  right: 0;
-  display: none; /* initially hidden */
+  width: 100%;
+  height: 100%;
+  background: transparent; /* Let the canvas below show through */
+  display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  color: #fff;
   z-index: 100;
-  border: 5px solid transparent;
-  background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)) padding-box,
-              linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088) border-box;
 }
 
-#pause-close-button {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  font-size: 2em;
-  color: white;
-  cursor: pointer;
-  z-index: 101; /* Ensure it's above the overlay */
+#title-content {
+  display: flex; /* Initially visible for title screen */
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  position: absolute; /* Change to absolute */
+  top: 0;
+  left: 0;
 }
 
-#pause-content {
-  background-color: rgba(0, 0, 0, 0.8);
-  padding: 40px;
+#menu-action-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 10px; /* Add some space between buttons */
+  justify-content: center; /* Center the buttons horizontally */
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background for the bar */
+  padding: 10px;
   border-radius: 10px;
-  text-align: center;
-  max-width: 80%;
-  max-height: 80%;
-  overflow-y: auto;
-  position: relative; /* For positioning the close button */
 }
 
-#pause-content h2 {
+/* Modals for Lore and Credits */
+.modal {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 200; /* Sit on top */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgba(0, 0, 0, 0.8); /* Black w/ opacity */
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: #000;
+  margin: auto;
+  padding: 30px;
+  border: 3px solid;
+  border-image: linear-gradient(45deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0088) 1;
+  border-radius: 10px;
+  width: 80%;
+  max-width: 700px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+}
+
+.modal-content h2 {
   margin-top: 0;
   margin-bottom: 20px;
   background: linear-gradient(
@@ -863,10 +880,140 @@ body {
   animation: rainbow-gentle 3s ease-in-out infinite;
 }
 
-#pause-controls div {
-  color: white; /* Ensure controls text is white */
-  margin-bottom: 10px;
+.modal-content p {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 15px;
 }
+
+.close-button {
+  color: #aaa;
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.close-button:hover,
+.close-button:focus {
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Credits Section within modal */
+.credits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.credit-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ccc;
+  font-size: 0.9em;
+}
+
+.ship-icon {
+  font-size: 1.2em;
+  filter: drop-shadow(0 0 3px currentColor);
+}
+
+.red-ship {
+  color: #ff4444;
+}
+
+.blue-ship {
+  color: #4488ff;
+}
+
+.credit-text {
+  display: flex;
+  gap: 5px;
+}
+
+.credit-role {
+  color: #aaa;
+  font-weight: bold;
+}
+
+.credit-item a {
+  color: #88ccff;
+  text-decoration: none;
+}
+
+.credit-item a:hover {
+  color: #aaddff;
+  text-decoration: underline;
+}
+
+
+/* Muted state overlay */
+.action-btn.muted::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border: 3px solid #ff4444;
+  border-radius: 50%;
+  background: linear-gradient(45deg, transparent 40%, #ff4444 40%, #ff4444 60%, transparent 60%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+@media (max-width: 768px) {
+  
+  .action-btn {
+    width: 50px;
+    height: 50px;
+    padding: 10px;
+  }
+  
+  .action-btn i {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 15px;
+  border-radius: 50px;
+  transition: color 0.2s, transform 0.1s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+}
+
+.action-btn:hover {
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.action-btn.active {
+  color: #00ff88;
+}
+
+.action-btn i {
+  width: 24px;
+  height: 24px;
+}
+
 
 @media (max-width: 768px) and (orientation: portrait) {
   .title-container {
@@ -876,19 +1023,6 @@ body {
   .rainbow-text {
     transform: scale(0.8);
   }
-}
-
-/* Credits Section */
-#pause-credits {
-  margin-top: 20px;
-  margin-bottom: 20px;
-  text-align: center;
-}
-
-#pause-credits h3 {
-  color: #fff;
-  margin-bottom: 15px;
-  font-size: 1.2em;
 }
 
 .credits-list {
@@ -937,87 +1071,6 @@ body {
 .credit-item a:hover {
   color: #aaddff;
   text-decoration: underline;
-}
-
-/* Action Buttons */
-#pause-actions {
-  margin-top: 20px;
-  display: flex;
-  justify-content: center;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 15px;
-  flex-wrap: wrap;
-  justify-content: center;
-  max-width: 400px;
-}
-
-@media (max-width: 768px) {
-  .action-buttons {
-    flex-wrap: nowrap;
-    gap: 10px;
-    justify-content: space-between;
-    max-width: 100%;
-  }
-  
-  .icon-button {
-    width: 50px;
-    height: 50px;
-    padding: 10px;
-  }
-  
-  .icon-button i {
-    width: 20px;
-    height: 20px;
-  }
-}
-
-.icon-button {
-  background: none;
-  border: none;
-  color: #888;
-  cursor: pointer;
-  padding: 15px;
-  border-radius: 8px;
-  transition: color 0.2s, transform 0.1s;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 60px;
-  height: 60px;
-}
-
-.icon-button:hover {
-  color: #fff;
-  transform: scale(1.1);
-}
-
-.icon-button.active {
-  color: #00ff88;
-}
-
-.icon-button i {
-  width: 24px;
-  height: 24px;
-}
-
-/* Muted state overlay */
-.icon-button.muted::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 40px;
-  height: 40px;
-  border: 3px solid #ff4444;
-  border-radius: 50%;
-  background: linear-gradient(45deg, transparent 40%, #ff4444 40%, #ff4444 60%, transparent 60%);
-  pointer-events: none;
-  z-index: 1;
 }
 
 /* Skill Level Indicator */
@@ -1216,4 +1269,8 @@ body {
   #level-cleared h1 {
     font-size: 24px;
   }
+}
+
+.custom-cursor {
+  cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSIjMDBmZjAwIj48cGF0aCBkPSJNMjAgMTd2LTJhNCA0IDAgMCAwLTQtNEg4YTQgNCAwIDAgMC00IDR2MiIvPjxwYXRoIGQ9Ik0xMCAyMGg0Ii8+PHBhdGggZD0iTTEyIDExVjRhMiAyIDAgMCAwLTItMkg4YTIgMiAwIDAgMC0yIDJ2NyIvPjxwYXRoIGQ9Ik0xMiAxMVY0YTIgMiAwIDAgMSAyLTJoMmEyIDIgMCAwIDEgMiAydjciLz48cGF0aCBkPSJNMTggMTdoMmEyIDIgMCAwIDAgMi0ydi0yYTQgNCAwIDAg0C00LTRoLTQiLz48cGF0aCBkPSJNNiAxN0g0YTIgMiAwIDAgMS0yLTJ2LTJhNCA0IDAgMCAxIDQtNGg0Ii8+PC9zdmc+'), auto;
 }

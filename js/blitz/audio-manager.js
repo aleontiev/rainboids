@@ -10,8 +10,7 @@ export class AudioManager {
     this.soundMuted = false;
     this.continuousLaserSound = null;
     this.laserSoundPlaying = false;
-    document.addEventListener("touchend", this.startBackgroundMusic.bind(this));
-    document.addEventListener("click", this.startBackgroundMusic.bind(this));
+    
   }
 
   setupControls() {
@@ -176,18 +175,18 @@ export class AudioManager {
     }
   }
 
-  startBackgroundMusic() {
-    // Create background music object now that user has interacted
+  initBackgroundMusic() {
     if (!this.backgroundMusic) {
       this.backgroundMusic = new Audio("bgm.mp3");
       this.backgroundMusic.loop = true;
       this.backgroundMusic.volume = 0.3;
-
       this.toggleBackgroundMusic(this.musicMuted);
     }
-    
+  }
+
+  startBackgroundMusic() {
     // Only play if not muted
-    if (!this.backgroundMusic.muted) {
+    if (this.backgroundMusic && !this.backgroundMusic.muted) {
       this.backgroundMusic
         .play()
         .catch((e) => console.log("Background: audio play failed:", e));

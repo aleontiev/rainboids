@@ -66,17 +66,15 @@ export class Bullet {
       ctx.arc(tipRadius, -baseWidth / 2, tipRadius, Math.PI, Math.PI * 1.5, false);
       ctx.closePath();
     } else {
-      // Enemy bullet: rounded tip (head) and less rounded end (tail)
-      const headRadius = this.size * 0.5; // Radius for the rounded head
-      const tailLength = this.size * 1.2; // Length of the less rounded tail
-      const tailWidth = this.size * 0.6; // Width of the tail
+      // Enemy bullet: rectangle with one rounded and one flat edge
+      const width = this.size * 2;
+      const height = this.size;
 
       ctx.beginPath();
-      // Rounded head
-      ctx.arc(0, 0, headRadius, -Math.PI / 2, Math.PI / 2, false);
-      // Tail lines
-      ctx.lineTo(tailLength, tailWidth / 2);
-      ctx.lineTo(tailLength, -tailWidth / 2);
+      ctx.moveTo(-width / 2, -height / 2);
+      ctx.lineTo(width / 2 - height / 2, -height / 2);
+      ctx.arc(width / 2 - height / 2, 0, height / 2, -Math.PI / 2, Math.PI / 2, false);
+      ctx.lineTo(-width / 2, height / 2);
       ctx.closePath();
     }
 
