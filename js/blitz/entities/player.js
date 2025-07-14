@@ -187,8 +187,8 @@ export class Player {
   calculateDodgeVector(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups = []) {
     let dodgeX = 0;
     let dodgeY = 0;
-    const avoidRadius = 100; // Reduced for more precise movement
-    const futureFrames = 60; // Increased prediction time for better accuracy
+    const avoidRadius = 200; // Reduced for more precise movement
+    const futureFrames = 90; // Increased prediction time for better accuracy
     
     if (!this.autoplayMovementTimer) this.autoplayMovementTimer = 0;
     this.autoplayMovementTimer += 1;
@@ -262,6 +262,8 @@ export class Player {
         asteroidThreatY += threat.y * threat.strength * 2.0;
       }
     }
+    const hasAsteroidThreat = !!asteroidThreatX || !!asteroidThreatY;
+
     
     // Boss threat (only if close)
     let bossThreatX = 0;
@@ -274,6 +276,7 @@ export class Player {
         bossThreatY = threat.y * 1.5;
       }
     }
+    const hasBossThreat = !!bossThreatX || !!bossThreatY;
     
     // Powerup collection - only if safe to do so
     let powerupMovementX = 0;
@@ -304,9 +307,12 @@ export class Player {
         }
       }
     }
+    const hasPowerupMovement = !!powerupMovementX || !!powerupMovementY;
     
     // Combine movement vectors with priority
-    if (hasUrgentThreats) {
+    const outOfBounds = this.isPortrait ? this.y < 200 : this.x > (window.innerWidth - 100);
+    if (outOfBounds) {
+    } else if (hasUrgentThreats) {
       // Priority 1: Immediate bullet/laser threats
       dodgeX = urgentThreatMovementX;
       dodgeY = urgentThreatMovementY;
@@ -318,16 +324,21 @@ export class Player {
       // Priority 3: Laser enemies about to fire
       dodgeX = laserEnemyThreatX;
       dodgeY = laserEnemyThreatY;
-    } else {
+    } else if (hasAsteroidThreat || hasBossThreat || hasPowerupMovement) {
       // Priority 4: Asteroids, boss, and powerup collection
       dodgeX = asteroidThreatX + bossThreatX + powerupMovementX;
       dodgeY = asteroidThreatY + bossThreatY + powerupMovementY;
+    } else {
+        // Priority 5: move towards center
+        const adjustment = 0.1;
+        dodgeX = (window.innerWidth / 2 - this.x) * adjustment;
+        dodgeY = (window.innerHeight / 2 - this.y) * adjustment;
     }
     
     // Apply movement only if significant enough to matter
     const dodgeLength = Math.sqrt(dodgeX * dodgeX + dodgeY * dodgeY);
-    if (dodgeLength > 0.1) { // Minimum threshold to avoid tiny movements
-      const movementMultiplier = hasUrgentThreats ? 1.0 : 0.7; // Full movement for urgent threats
+    if (dodgeLength > 0.05) { // Minimum threshold to avoid tiny movements
+      const movementMultiplier = hasUrgentThreats ? 1.0 : 1; // Full movement for urgent threats
       return {
         x: (dodgeX / dodgeLength) * movementMultiplier,
         y: (dodgeY / dodgeLength) * movementMultiplier
@@ -536,7 +547,7 @@ export class Player {
 
   // Check if a powerup is safe to collect
   isPowerupSafeToCollect(powerup, enemyBullets, enemyLasers) {
-    const safetyRadius = 80;
+    const safetyRadius = 40;
     
     // Check for bullets near the powerup
     for (const bullet of enemyBullets) {
