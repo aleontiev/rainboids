@@ -11,6 +11,8 @@ export class Laser {
     this.length = 100; // Length of laser beam for collision detection
     this.life = 60; // Longer life (1 second)
     this.colorIndex = 0;
+    this.penetrationCount = 0; // Track how many targets this laser has hit
+    this.maxPenetration = 3; // Maximum targets before laser is destroyed
     this.rainbowColors = [
       "#ff0000",
       "#ff8800",
@@ -31,7 +33,13 @@ export class Laser {
       this.colorIndex = Math.floor(Math.random() * this.rainbowColors.length);
     }
 
-    return this.life > 0;
+    return this.life > 0 && this.penetrationCount < this.maxPenetration;
+  }
+
+  // Called when laser hits a target
+  registerHit() {
+    this.penetrationCount++;
+    return this.penetrationCount >= this.maxPenetration; // Return true if laser should be destroyed
   }
 
   render(ctx) {

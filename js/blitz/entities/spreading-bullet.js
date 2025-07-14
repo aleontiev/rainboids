@@ -86,8 +86,6 @@ export class SpreadingBullet {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
     ctx.fillStyle = this.color;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1;
 
     // Draw a large missile shape
     const missileLength = this.size * 2.5;
@@ -100,6 +98,10 @@ export class SpreadingBullet {
     // Main body
     ctx.rect(-missileLength / 2, -missileWidth / 2, missileLength, missileWidth);
     ctx.fill();
+    
+    // Add white stroke for enemy bullets
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1;
     ctx.stroke();
 
     // Pointed tip

@@ -37,6 +37,7 @@ export class MiniBoss extends BaseEnemy {
     this.godModeDuration = 1000; // 5 seconds at 60fps
     this.shield = 50; // 50 shield after god mode ends
     this.maxShield = 50;
+    this.invulnerable = false; // For consistency with base enemy class
 
     // Visual effects
     this.hitFlash = 0;
@@ -52,6 +53,11 @@ export class MiniBoss extends BaseEnemy {
     this.deathExplosionTimer = 0;
     this.deathExplosionInterval = 3; // Explosions every 3 frames
     this.finalExplosionTriggered = false;
+  }
+
+  // Check if this miniboss can be targeted by auto-aim
+  isVulnerableToAutoAim() {
+    return !this.godMode && !this.dying && !this.invulnerable;
   }
 
   update(playerX, playerY, slowdownFactor = 1.0) {
@@ -249,7 +255,7 @@ export class MiniBoss extends BaseEnemy {
           vx: Math.cos(angleToPlayer) * bulletSpeed,
           vy: Math.sin(angleToPlayer) * bulletSpeed,
           size: 8, // Smaller projectiles
-          color: "#0000ff", // Blue color for beta
+          color: "#ffff00", // Yellow color for beta
           type: "miniBossSecondary",
         });
       }
@@ -329,7 +335,7 @@ export class MiniBoss extends BaseEnemy {
             vx: Math.cos(baseAngle) * bulletSpeed,
             vy: Math.sin(baseAngle) * bulletSpeed,
             size: 6, // Smaller for cross pattern
-            color: "#0000ff", // Blue color for beta
+            color: "#ffff00", // Yellow color for beta
             type: "miniBossCircular",
           });
         }
@@ -401,14 +407,28 @@ export class MiniBoss extends BaseEnemy {
     // Draw shield bar and health bar
     this.drawShieldAndHealthBar(ctx);
 
-    // God mode effect
+    // God mode effect - gold stroke over the miniboss itself
     if (this.godMode) {
-      ctx.strokeStyle = "#00ffff";
+      ctx.strokeStyle = "#ffcc00"; // Gold stroke
       ctx.lineWidth = 4;
-      ctx.globalAlpha = 0.7 + 0.3 * Math.sin(this.frameCount * 0.2);
-      ctx.beginPath();
-      ctx.arc(0, 0, this.size + 15, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.globalAlpha = 0.8 + 0.2 * Math.sin(this.frameCount * 0.3);
+      
+      // Draw stroke around the actual ship shape based on type
+      if (this.type === "alpha") {
+        // Alpha ship outline
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.8, -this.size * 0.3, this.size * 1.6, this.size * 0.6);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.2, -this.size * 0.5, this.size * 0.6, this.size * 1.0);
+        ctx.stroke();
+      } else {
+        // Beta ship outline
+        ctx.beginPath();
+        ctx.rect(-this.size * 0.9, -this.size * 0.25, this.size * 1.8, this.size * 0.5);
+        ctx.stroke();
+      }
+      
       ctx.globalAlpha = 1;
     }
 
@@ -486,7 +506,7 @@ export class MiniBoss extends BaseEnemy {
 
   drawBetaShip(ctx) {
     // Beta mini-boss - Carrier design
-    ctx.fillStyle = "#4444ff";
+    ctx.fillStyle = "#ffff44";
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 3;
 
@@ -502,7 +522,7 @@ export class MiniBoss extends BaseEnemy {
     ctx.stroke();
 
     // Flight deck
-    ctx.fillStyle = "#6666ff";
+    ctx.fillStyle = "#ffff66";
     ctx.beginPath();
     ctx.rect(
       -this.size * 0.7,

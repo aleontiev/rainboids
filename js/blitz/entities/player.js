@@ -32,6 +32,575 @@ export class Player {
     this.vy = 0;
     this.prevX = x;
     this.prevY = y;
+    
+    // Autoplay movement timer
+    this.autoplayMovementTimer = 0;
+    
+    // Autoplay ability timers
+    this.autoplayShieldTimer = 0;
+    this.autoplaySlowTimer = 0;
+    this.autoplayBombTimer = 0;
+  }
+
+  // Handle strategic ability usage for autoplay
+  handleAutoplayAbilities(enemies, enemyBullets, enemyLasers, asteroids, boss, keys, powerups = []) {
+    this.autoplayShieldTimer++;
+    this.autoplaySlowTimer++;
+    this.autoplayBombTimer++;
+    
+    // Calculate immediate threat level
+    const threatLevel = this.calculateThreatLevel(enemies, enemyBullets, enemyLasers, asteroids, boss);
+    
+    // Check if there's a valuable powerup nearby that we might want to shield for
+    let nearbyValuablePowerup = false;
+    if (powerups && powerups.length > 0) {
+      for (const powerup of powerups) {
+        const distance = Math.sqrt((powerup.x - this.x) ** 2 + (powerup.y - this.y) ** 2);
+        if (distance < 150 && (powerup.type === 'bomb' || powerup.type === 'rainbowStar' || powerup.type === 'shield')) {
+          nearbyValuablePowerup = true;
+          break;
+        }
+      }
+    }
+    
+    // Shield usage - activate when in immediate danger, going for powerups, or shield is available
+    const shouldUseShield = (
+      (threatLevel >= 0.7 || // High threat level
+       (nearbyValuablePowerup && threatLevel >= 0.4)) && // Moderate threat but valuable powerup nearby
+      !this.isShielding && // Not already shielding
+      this.shieldCooldown <= 0 && // Shield is available
+      this.autoplayShieldTimer > 60 // Minimum 1 second between shield considerations
+    );
+    
+    if (shouldUseShield) {
+      keys.shield = true; // Trigger shield activation
+      this.autoplayShieldTimer = 0; // Reset timer
+    }
+    
+    // Time slow usage - activate when overwhelmed or facing boss
+    const shouldUseTimeSlow = (
+      (threatLevel >= 0.8 || // Very high threat level
+       (boss && !boss.isDefeated) || // Boss fight
+       enemyBullets.length > 15 || // Many bullets on screen
+       this.autoplaySlowTimer > 600) && // Or every 10 seconds as strategic usage
+      this.autoplaySlowTimer > 180 // Minimum 3 seconds between slow considerations
+    );
+    
+    if (shouldUseTimeSlow) {
+      keys.f = true; // Trigger time slow
+      this.autoplaySlowTimer = 0; // Reset timer
+    }
+    
+    // Bomb usage - activate in extreme situations with cooldown
+    const shouldUseBomb = (
+      (threatLevel >= 0.9 || // Extreme threat level
+       (enemyBullets.length > 25) || // Screen full of bullets
+       (boss && !boss.isDefeated && boss.finalPhase && threatLevel >= 0.6) || // Boss final phase
+       (enemies.length > 10 && threatLevel >= 0.7)) && // Many enemies with high threat
+      this.autoplayBombTimer > 300 // Minimum 5 seconds between bomb considerations
+    );
+    
+    if (shouldUseBomb) {
+      keys.z = true; // Trigger bomb (game will check if bombs are available)
+      this.autoplayBombTimer = 0; // Reset timer
+    }
+  }
+
+  // Calculate overall threat level (0.0 = safe, 1.0 = extreme danger)
+  calculateThreatLevel(enemies, enemyBullets, enemyLasers, asteroids, boss) {
+    let threatScore = 0;
+    const dangerRadius = 150; // Radius to consider threats
+    
+    // Count nearby enemy bullets (highest threat)
+    let nearbyBullets = 0;
+    for (const bullet of enemyBullets) {
+      const distance = Math.sqrt((bullet.x - this.x) ** 2 + (bullet.y - this.y) ** 2);
+      if (distance < dangerRadius) {
+        // Closer bullets are more dangerous
+        const proximityFactor = Math.max(0, (dangerRadius - distance) / dangerRadius);
+        nearbyBullets += proximityFactor;
+      }
+    }
+    threatScore += Math.min(nearbyBullets * 0.15, 0.6); // Cap bullet threat at 0.6
+    
+    // Count nearby enemy lasers
+    let nearbyLasers = 0;
+    for (const laser of enemyLasers) {
+      const distance = Math.sqrt((laser.x - this.x) ** 2 + (laser.y - this.y) ** 2);
+      if (distance < dangerRadius) {
+        nearbyLasers++;
+      }
+    }
+    threatScore += Math.min(nearbyLasers * 0.2, 0.4); // Cap laser threat at 0.4
+    
+    // Count charging laser enemies (special threat)
+    let chargingLasers = 0;
+    for (const enemy of enemies) {
+      if (enemy.type === 'laser' && (enemy.laserState === 'charging' || enemy.laserState === 'preview')) {
+        const distance = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
+        if (distance < dangerRadius * 1.5) {
+          chargingLasers++;
+        }
+      }
+    }
+    threatScore += Math.min(chargingLasers * 0.25, 0.5); // Cap charging laser threat at 0.5
+    
+    // Count nearby dangerous enemies
+    let nearbyEnemies = 0;
+    for (const enemy of enemies) {
+      const distance = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
+      if (distance < dangerRadius * 0.8) {
+        nearbyEnemies++;
+      }
+    }
+    threatScore += Math.min(nearbyEnemies * 0.05, 0.3); // Cap enemy threat at 0.3
+    
+    // Count nearby asteroids
+    let nearbyAsteroids = 0;
+    for (const asteroid of asteroids) {
+      const distance = Math.sqrt((asteroid.x - this.x) ** 2 + (asteroid.y - this.y) ** 2);
+      if (distance < dangerRadius * 0.6) {
+        nearbyAsteroids++;
+      }
+    }
+    threatScore += Math.min(nearbyAsteroids * 0.03, 0.2); // Cap asteroid threat at 0.2
+    
+    // Boss presence increases base threat
+    if (boss && !boss.isDefeated) {
+      threatScore += 0.2; // Base boss threat
+      
+      // Additional threat based on boss proximity and phase
+      const bossDistance = Math.sqrt((boss.x - this.x) ** 2 + (boss.y - this.y) ** 2);
+      if (bossDistance < dangerRadius * 1.2) {
+        threatScore += 0.1;
+      }
+      
+      if (boss.finalPhase) {
+        threatScore += 0.1; // Final phase is more dangerous
+      }
+    }
+    
+    return Math.min(threatScore, 1.0); // Cap at 1.0
+  }
+
+  // Precise movement calculation for autoplay - only move when necessary
+  calculateDodgeVector(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups = []) {
+    let dodgeX = 0;
+    let dodgeY = 0;
+    const avoidRadius = 100; // Reduced for more precise movement
+    const futureFrames = 60; // Increased prediction time for better accuracy
+    
+    if (!this.autoplayMovementTimer) this.autoplayMovementTimer = 0;
+    this.autoplayMovementTimer += 1;
+    
+    // Calculate immediate bullet threats with precise prediction
+    let urgentThreatMovementX = 0;
+    let urgentThreatMovementY = 0;
+    let hasUrgentThreats = false;
+    
+    // Analyze bullet threats with precise collision prediction
+    for (const bullet of enemyBullets) {
+      const threatInfo = this.calculatePreciseThreatVector(bullet, avoidRadius, futureFrames);
+      if (threatInfo.isUrgent) {
+        hasUrgentThreats = true;
+        urgentThreatMovementX += threatInfo.x * threatInfo.strength * 4.0;
+        urgentThreatMovementY += threatInfo.y * threatInfo.strength * 4.0;
+      }
+    }
+    
+    // Analyze laser threats
+    for (const laser of enemyLasers) {
+      const threatInfo = this.calculatePreciseThreatVector(laser, avoidRadius * 1.5, futureFrames);
+      if (threatInfo.isUrgent) {
+        hasUrgentThreats = true;
+        urgentThreatMovementX += threatInfo.x * threatInfo.strength * 3.0;
+        urgentThreatMovementY += threatInfo.y * threatInfo.strength * 3.0;
+      }
+    }
+    
+    // Check for laser enemies about to fire (critical threat)
+    let laserEnemyThreatX = 0;
+    let laserEnemyThreatY = 0;
+    let hasLaserEnemyThreat = false;
+    
+    // Check for moving enemies with collision trajectories
+    let movingEnemyThreatX = 0;
+    let movingEnemyThreatY = 0;
+    let hasMovingEnemyThreat = false;
+    
+    for (const enemy of enemies) {
+      if (enemy.type === 'laser') {
+        const distance = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
+        
+        // High priority for charging or preview state laser enemies
+        if (enemy.laserState === 'charging' || enemy.laserState === 'preview') {
+          if (distance < 400) { // Extended range for laser enemy threats
+            hasLaserEnemyThreat = true;
+            const threat = this.calculateOptimalEscapeVector(enemy, distance);
+            laserEnemyThreatX += threat.x * 3.0;
+            laserEnemyThreatY += threat.y * 3.0;
+          }
+        }
+      }
+      
+      // Check all enemies for collision trajectories (dive enemies, moving enemies, etc.)
+      const threatInfo = this.calculatePreciseThreatVector(enemy, avoidRadius * 1.2, futureFrames);
+      if (threatInfo.isUrgent && threatInfo.strength > 0.3) {
+        hasMovingEnemyThreat = true;
+        movingEnemyThreatX += threatInfo.x * threatInfo.strength * 2.5;
+        movingEnemyThreatY += threatInfo.y * threatInfo.strength * 2.5;
+      }
+    }
+    
+    // Check asteroids for collision avoidance (only if close)
+    let asteroidThreatX = 0;
+    let asteroidThreatY = 0;
+    for (const asteroid of asteroids) {
+      const threat = this.calculatePreciseThreatVector(asteroid, avoidRadius * 0.7, futureFrames);
+      if (threat.isUrgent) {
+        asteroidThreatX += threat.x * threat.strength * 2.0;
+        asteroidThreatY += threat.y * threat.strength * 2.0;
+      }
+    }
+    
+    // Boss threat (only if close)
+    let bossThreatX = 0;
+    let bossThreatY = 0;
+    if (boss && !boss.isDefeated) {
+      const distance = Math.sqrt((boss.x - this.x) ** 2 + (boss.y - this.y) ** 2);
+      if (distance < 200) {
+        const threat = this.calculateOptimalEscapeVector(boss, distance);
+        bossThreatX = threat.x * 1.5;
+        bossThreatY = threat.y * 1.5;
+      }
+    }
+    
+    // Powerup collection - only if safe to do so
+    let powerupMovementX = 0;
+    let powerupMovementY = 0;
+    
+    // Only pursue powerups if there are no urgent threats
+    if (!hasUrgentThreats && !hasLaserEnemyThreat && powerups && powerups.length > 0) {
+      let closestPowerup = null;
+      let closestDistance = Infinity;
+      
+      for (const powerup of powerups) {
+        const distance = Math.sqrt((powerup.x - this.x) ** 2 + (powerup.y - this.y) ** 2);
+        if (distance < closestDistance && distance < 250) { // Reduced range for safer collection
+          closestDistance = distance;
+          closestPowerup = powerup;
+        }
+      }
+      
+      if (closestPowerup && this.isPowerupSafeToCollect(closestPowerup, enemyBullets, enemyLasers)) {
+        const powerupDx = closestPowerup.x - this.x;
+        const powerupDy = closestPowerup.y - this.y;
+        const powerupDistance = Math.sqrt(powerupDx * powerupDx + powerupDy * powerupDy);
+        
+        if (powerupDistance > 0) {
+          const attractionStrength = Math.min(0.6, (250 - powerupDistance) / 250);
+          powerupMovementX = (powerupDx / powerupDistance) * attractionStrength;
+          powerupMovementY = (powerupDy / powerupDistance) * attractionStrength;
+        }
+      }
+    }
+    
+    // Combine movement vectors with priority
+    if (hasUrgentThreats) {
+      // Priority 1: Immediate bullet/laser threats
+      dodgeX = urgentThreatMovementX;
+      dodgeY = urgentThreatMovementY;
+    } else if (hasMovingEnemyThreat) {
+      // Priority 2: Moving enemies on collision course (dive enemies, etc.)
+      dodgeX = movingEnemyThreatX;
+      dodgeY = movingEnemyThreatY;
+    } else if (hasLaserEnemyThreat) {
+      // Priority 3: Laser enemies about to fire
+      dodgeX = laserEnemyThreatX;
+      dodgeY = laserEnemyThreatY;
+    } else {
+      // Priority 4: Asteroids, boss, and powerup collection
+      dodgeX = asteroidThreatX + bossThreatX + powerupMovementX;
+      dodgeY = asteroidThreatY + bossThreatY + powerupMovementY;
+    }
+    
+    // Apply movement only if significant enough to matter
+    const dodgeLength = Math.sqrt(dodgeX * dodgeX + dodgeY * dodgeY);
+    if (dodgeLength > 0.1) { // Minimum threshold to avoid tiny movements
+      const movementMultiplier = hasUrgentThreats ? 1.0 : 0.7; // Full movement for urgent threats
+      return {
+        x: (dodgeX / dodgeLength) * movementMultiplier,
+        y: (dodgeY / dodgeLength) * movementMultiplier
+      };
+    }
+    
+    // Stay perfectly still when no threats require movement
+    return { x: 0, y: 0 };
+  }
+
+  // Calculate precise threat with collision trajectory analysis
+  calculatePreciseThreatVector(entity, avoidRadius, futureFrames) {
+    // Get entity velocity vector
+    let entityVx = 0;
+    let entityVy = 0;
+    
+    if (entity.vx !== undefined && entity.vy !== undefined) {
+      entityVx = entity.vx;
+      entityVy = entity.vy;
+    } else if (entity.speed !== undefined && entity.angle !== undefined) {
+      entityVx = Math.cos(entity.angle) * entity.speed;
+      entityVy = Math.sin(entity.angle) * entity.speed;
+    }
+    
+    // Check if entity is actually moving towards player using trajectory analysis
+    const collisionInfo = this.calculateCollisionTrajectory(
+      entity.x, entity.y, entityVx, entityVy,
+      this.x, this.y, avoidRadius, futureFrames
+    );
+    
+    if (!collisionInfo.willCollide) {
+      return { x: 0, y: 0, strength: 0, isUrgent: false };
+    }
+    
+    // Calculate urgency based on time to collision
+    const isUrgent = collisionInfo.timeToCollision < futureFrames * 0.6; // Urgent if collision within 60% of prediction time
+    const strength = Math.max(0, 1.0 - (collisionInfo.timeToCollision / futureFrames));
+    
+    // Calculate optimal dodge direction based on trajectory
+    const dodgeVector = this.calculateTrajectoryDodgeVector(
+      entity.x, entity.y, entityVx, entityVy,
+      collisionInfo.timeToCollision
+    );
+    
+    return {
+      x: dodgeVector.x,
+      y: dodgeVector.y,
+      strength: strength,
+      isUrgent: isUrgent
+    };
+  }
+
+  // Calculate if and when a moving entity will collide with player
+  calculateCollisionTrajectory(entityX, entityY, entityVx, entityVy, playerX, playerY, safeRadius, maxFrames) {
+    // If entity isn't moving, use simple distance check
+    if (Math.abs(entityVx) < 0.1 && Math.abs(entityVy) < 0.1) {
+      const distance = Math.sqrt((entityX - playerX) ** 2 + (entityY - playerY) ** 2);
+      return {
+        willCollide: distance < safeRadius,
+        timeToCollision: distance < safeRadius ? 0 : Infinity,
+        closestDistance: distance
+      };
+    }
+    
+    // Calculate relative position and velocity
+    const relativeX = entityX - playerX;
+    const relativeY = entityY - playerY;
+    const relativeVx = entityVx; // Assuming player is stationary for prediction
+    const relativeVy = entityVy;
+    
+    // Find closest approach using quadratic formula
+    // Distance² = (relativeX + relativeVx * t)² + (relativeY + relativeVy * t)²
+    // Minimize by taking derivative and setting to 0
+    
+    const a = relativeVx * relativeVx + relativeVy * relativeVy;
+    const b = 2 * (relativeX * relativeVx + relativeY * relativeVy);
+    const c = relativeX * relativeX + relativeY * relativeY;
+    
+    let timeToClosest = 0;
+    if (Math.abs(a) > 0.001) {
+      timeToClosest = -b / (2 * a);
+      timeToClosest = Math.max(0, Math.min(maxFrames, timeToClosest)); // Clamp to valid range
+    }
+    
+    // Calculate position at closest approach
+    const closestX = entityX + entityVx * timeToClosest;
+    const closestY = entityY + entityVy * timeToClosest;
+    const closestDistance = Math.sqrt((closestX - playerX) ** 2 + (closestY - playerY) ** 2);
+    
+    // Check if trajectory will result in collision
+    const willCollide = closestDistance < safeRadius && timeToClosest < maxFrames;
+    
+    return {
+      willCollide: willCollide,
+      timeToCollision: willCollide ? timeToClosest : Infinity,
+      closestDistance: closestDistance,
+      closestX: closestX,
+      closestY: closestY
+    };
+  }
+
+  // Calculate optimal dodge direction based on entity trajectory
+  calculateTrajectoryDodgeVector(entityX, entityY, entityVx, entityVy, timeToCollision) {
+    // Predict where the entity will be at collision time
+    const collisionX = entityX + entityVx * timeToCollision;
+    const collisionY = entityY + entityVy * timeToCollision;
+    
+    // Calculate perpendicular vector to entity's motion
+    const entitySpeed = Math.sqrt(entityVx * entityVx + entityVy * entityVy);
+    if (entitySpeed > 0) {
+      // Two perpendicular directions to entity motion
+      const perpX1 = -entityVy / entitySpeed;
+      const perpY1 = entityVx / entitySpeed;
+      const perpX2 = entityVy / entitySpeed;
+      const perpY2 = -entityVx / entitySpeed;
+      
+      // Choose the perpendicular direction that moves away from entity's current position
+      const toEntityX = entityX - this.x;
+      const toEntityY = entityY - this.y;
+      
+      const dot1 = perpX1 * toEntityX + perpY1 * toEntityY;
+      const dot2 = perpX2 * toEntityX + perpY2 * toEntityY;
+      
+      // Choose direction that moves away from entity
+      if (dot1 < dot2) {
+        return { x: perpX1, y: perpY1 };
+      } else {
+        return { x: perpX2, y: perpY2 };
+      }
+    }
+    
+    // Fallback: move away from entity's current position
+    const toPlayerX = this.x - entityX;
+    const toPlayerY = this.y - entityY;
+    const distance = Math.sqrt(toPlayerX * toPlayerX + toPlayerY * toPlayerY);
+    
+    if (distance > 0) {
+      return { x: toPlayerX / distance, y: toPlayerY / distance };
+    }
+    
+    // Last fallback: random safe direction
+    const safeAngle = this.findSafestDirection();
+    return { x: Math.cos(safeAngle), y: Math.sin(safeAngle) };
+  }
+
+  // Calculate the safest direction to move away from a threat
+  calculateOptimalEscapeVector(entity, distance) {
+    if (distance === 0) {
+      // If exactly on top, choose a random safe direction
+      const safeAngle = this.findSafestDirection();
+      return {
+        x: Math.cos(safeAngle),
+        y: Math.sin(safeAngle)
+      };
+    }
+    
+    // Basic avoidance vector (away from threat)
+    const basicAvoidX = (this.x - entity.x) / distance;
+    const basicAvoidY = (this.y - entity.y) / distance;
+    
+    // Check if this direction would take us off-screen or into other dangers
+    const testX = this.x + basicAvoidX * 50;
+    const testY = this.y + basicAvoidY * 50;
+    
+    // Keep on screen
+    if (testX < 50 || testX > window.innerWidth - 50 || 
+        testY < 50 || testY > window.innerHeight - 50) {
+      // Find alternative safe direction
+      const safeAngle = this.findSafestDirection();
+      return {
+        x: Math.cos(safeAngle),
+        y: Math.sin(safeAngle)
+      };
+    }
+    
+    return {
+      x: basicAvoidX,
+      y: basicAvoidY
+    };
+  }
+
+  // Find the safest direction to move (away from most threats)
+  findSafestDirection() {
+    const testAngles = [0, Math.PI/4, Math.PI/2, 3*Math.PI/4, Math.PI, 5*Math.PI/4, 3*Math.PI/2, 7*Math.PI/4];
+    let safestAngle = 0;
+    let lowestThreat = Infinity;
+    
+    for (const angle of testAngles) {
+      const testX = this.x + Math.cos(angle) * 60;
+      const testY = this.y + Math.sin(angle) * 60;
+      
+      // Check if this position is safe and on-screen
+      if (testX >= 50 && testX <= window.innerWidth - 50 && 
+          testY >= 50 && testY <= window.innerHeight - 50) {
+        
+        // This direction is valid, prefer it over going off-screen
+        if (lowestThreat === Infinity) {
+          safestAngle = angle;
+          lowestThreat = 0;
+        }
+      }
+    }
+    
+    return safestAngle;
+  }
+
+  // Check if a powerup is safe to collect
+  isPowerupSafeToCollect(powerup, enemyBullets, enemyLasers) {
+    const safetyRadius = 80;
+    
+    // Check for bullets near the powerup
+    for (const bullet of enemyBullets) {
+      const distance = Math.sqrt((bullet.x - powerup.x) ** 2 + (bullet.y - powerup.y) ** 2);
+      if (distance < safetyRadius) {
+        return false;
+      }
+    }
+    
+    // Check for lasers near the powerup
+    for (const laser of enemyLasers) {
+      const distance = Math.sqrt((laser.x - powerup.x) ** 2 + (laser.y - powerup.y) ** 2);
+      if (distance < safetyRadius) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  // Calculate threat from a single entity
+  calculateThreatVector(entity, avoidRadius, futureFrames) {
+    // Predict entity position
+    let futureX = entity.x;
+    let futureY = entity.y;
+    
+    if (entity.vx !== undefined && entity.vy !== undefined) {
+      // Entity has velocity, predict future position
+      futureX += entity.vx * futureFrames;
+      futureY += entity.vy * futureFrames;
+    } else if (entity.speed !== undefined && entity.angle !== undefined) {
+      // Entity has speed and angle
+      futureX += Math.cos(entity.angle) * entity.speed * futureFrames;
+      futureY += Math.sin(entity.angle) * entity.speed * futureFrames;
+    }
+    
+    // Calculate distance to predicted position
+    const dx = futureX - this.x;
+    const dy = futureY - this.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance > avoidRadius) {
+      return { x: 0, y: 0, strength: 0 }; // Not a threat
+    }
+    
+    // Calculate avoidance strength (stronger when closer)
+    const strength = Math.max(0, (avoidRadius - distance) / avoidRadius);
+    
+    // Return normalized avoidance vector (away from threat)
+    if (distance > 0) {
+      return {
+        x: -dx / distance, // Move away from threat
+        y: -dy / distance,
+        strength: strength
+      };
+    }
+    
+    // If exactly on top, move in random direction
+    const randomAngle = Math.random() * Math.PI * 2;
+    return {
+      x: Math.cos(randomAngle),
+      y: Math.sin(randomAngle),
+      strength: 1.0
+    };
   }
 
   update(
@@ -42,7 +611,11 @@ export class Player {
     autoaimEnabled = true,
     mainWeaponLevel = 1,
     timeSlowActive = false,
-    boss = null
+    boss = null,
+    autoplayEnabled = false,
+    enemyBullets = [],
+    enemyLasers = [],
+    powerups = []
   ) {
     // Store time slow state for rendering
     this.timeSlowActive = timeSlowActive;
@@ -77,8 +650,13 @@ export class Player {
       currentSpeed *= 0.5; // 50% speed during time slow
     }
 
-    // Handle movement - prioritize touch for mobile, keyboard for desktop
-    if (keys.target) {
+    // Handle movement - autoplay overrides manual input
+    if (autoplayEnabled) {
+      // Autoplay: automatically dodge threats and collect powerups
+      const dodgeVector = this.calculateDodgeVector(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups);
+      this.x += dodgeVector.x * currentSpeed;
+      this.y += dodgeVector.y * currentSpeed;
+    } else if (keys.target) {
       // Touch controls - move toward target
       const dx = keys.target.x - this.x;
       const dy = keys.target.y - this.y;
@@ -105,20 +683,26 @@ export class Player {
     this.prevX = this.x;
     this.prevY = this.y;
 
-    // Handle aiming - use mouse position for desktop, default angle for mobile
-    if (keys.mousePosition) {
-      // Desktop: aim toward mouse cursor (or last known position if off-screen)
+    // Autoplay strategic ability usage
+    if (autoplayEnabled) {
+      this.handleAutoplayAbilities(enemies, enemyBullets, enemyLasers, asteroids, boss, keys, powerups);
+    }
+
+    // Handle aiming - autoaim/autoplay overrides mouse input
+    if (!autoaimEnabled && !autoplayEnabled && keys.mousePosition) {
+      // Desktop: aim toward mouse cursor only if autoaim/autoplay is disabled
       const dx = keys.mousePosition.x - this.x;
       const dy = keys.mousePosition.y - this.y;
       this.angle = Math.atan2(dy, dx);
-    } else {
-      // Mobile: use default orientation
+    } else if (!autoaimEnabled && !autoplayEnabled) {
+      // Mobile: use default orientation when not using autoaim/autoplay
       if (isPortrait) {
         this.angle = -Math.PI / 2; // Face up
       } else {
         this.angle = 0; // Face right
       }
     }
+    // If autoaim or autoplay is enabled, angle will be set by the autoaim logic below
 
     // Helper function to check if target is within viewport
     const isTargetInViewport = (target) => {
@@ -197,51 +781,18 @@ export class Player {
     // Enhanced predictive aim with priority system
     // Only use autoaim if no mouse position (mobile) or if autoaim is explicitly enabled
     
-    // Build complete target list including boss arms
-    const allTargets = [...enemies, ...asteroids];
+    // Build complete target list, filter out invulnerable targets using standard method
+    const allTargets = [...enemies, ...asteroids].filter(target => 
+      target.isVulnerableToAutoAim && target.isVulnerableToAutoAim()
+    );
     
-    // Add boss arms as individual targets if boss exists
-    if (boss && !boss.isDefeated) {
-      if (!boss.leftArm.destroyed) {
-        // Get center position of left arm (middle segment for better targeting)
-        const leftArmCenter = boss.leftArm.segments[1] || boss.leftArm.segments[0];
-        const leftArmWorldX = boss.x + leftArmCenter.x;
-        const leftArmWorldY = boss.y + leftArmCenter.y;
-        
-        allTargets.push({
-          x: leftArmWorldX,
-          y: leftArmWorldY,
-          type: "bossArm",
-          armType: "laser",
-          health: boss.leftArm.health,
-          size: 40, // Much larger target size
-          boss: boss,
-          arm: "left"
-        });
-      }
-      
-      if (!boss.rightArm.destroyed) {
-        // Get center position of right arm (middle segment for better targeting)
-        const rightArmCenter = boss.rightArm.segments[1] || boss.rightArm.segments[0];
-        const rightArmWorldX = boss.x + rightArmCenter.x;
-        const rightArmWorldY = boss.y + rightArmCenter.y;
-        
-        allTargets.push({
-          x: rightArmWorldX,
-          y: rightArmWorldY,
-          type: "bossArm",
-          armType: "missiles",
-          health: boss.rightArm.health,
-          size: 40, // Much larger target size
-          boss: boss,
-          arm: "right"
-        });
-      }
+    // Add boss targetable parts if boss exists
+    if (boss && !boss.isDefeated && boss.getTargetableParts) {
+      allTargets.push(...boss.getTargetableParts());
     }
     
     if (
-      (autoaimEnabled || !keys.mousePosition) &&
-      keys.fire &&
+      (autoaimEnabled || autoplayEnabled || !keys.mousePosition) &&
       allTargets.length > 0
     ) {
       let target = null;

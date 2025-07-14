@@ -112,6 +112,24 @@ export class CheatManager {
         toggleAutoaim();
       });
     }
+
+    // Autoplay toggle button with touch support
+    const autoplayBtn = document.getElementById("autoplay-btn");
+    const toggleAutoplay = () => {
+      this.game.autoplay = !this.game.autoplay;
+      if (this.game.autoplay) {
+        this.game.autoaim = true; // Enable autoaim when autoplay is on
+        this.game.cheatsUsed = true; // Mark cheats as used
+      }
+      this.update();
+    };
+    if (autoplayBtn) {
+      autoplayBtn.addEventListener("click", toggleAutoplay);
+      autoplayBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        toggleAutoplay();
+      });
+    }
   }
 
   update() {
@@ -134,6 +152,23 @@ export class CheatManager {
     const autoaimBtn = document.getElementById("autoaim-btn");
     if (autoaimBtn) {
       autoaimBtn.classList.toggle("active", this.game.autoaim);
+    }
+
+    // Autoplay button
+    const autoplayBtn = document.getElementById("autoplay-btn");
+    if (autoplayBtn) {
+      autoplayBtn.classList.toggle("active", this.game.autoplay);
+    }
+
+    // Hide cursor when autoaim or autoplay is enabled (only during gameplay)
+    if (this.game.gameState === "PLAYING") {
+      if (this.game.autoaim || this.game.autoplay) {
+        document.body.style.cursor = "none";
+        document.body.classList.remove("custom-cursor");
+      } else {
+        document.body.style.cursor = "none"; // Game already hides cursor during play
+        document.body.classList.remove("custom-cursor");
+      }
     }
   }
 }

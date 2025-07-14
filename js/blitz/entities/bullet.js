@@ -44,8 +44,6 @@ export class Bullet {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
     ctx.fillStyle = this.color;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1;
 
     if (this.isPlayerBullet) {
       // Player bullet: triangle with rounded tips (more pointy)
@@ -79,7 +77,14 @@ export class Bullet {
     }
 
     ctx.fill();
-    ctx.stroke();
+    
+    // Add white stroke for enemy bullets
+    if (!this.isPlayerBullet) {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    
     ctx.restore();
   }
 }

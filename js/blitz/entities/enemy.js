@@ -36,6 +36,15 @@ export class BaseEnemy {
     this.isClone = isClone;
     this.fadeInTimer = isClone ? 0 : 60; // Clones start invisible and fade in over 1 second
     this.opacity = isClone ? 0 : 1.0;
+    
+    // Vulnerability properties (used for auto-aim filtering)
+    this.godMode = false;
+    this.invulnerable = false;
+  }
+
+  // Check if this enemy can be targeted by auto-aim
+  isVulnerableToAutoAim() {
+    return !this.godMode && !this.invulnerable;
   }
 
   update(
@@ -134,8 +143,6 @@ export class BaseEnemy {
   renderShape(ctx) {
     // Base shape - simple triangle
     ctx.fillStyle = this.color;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
 
     ctx.beginPath();
     ctx.moveTo(this.size, 0); // Tip pointing forward
@@ -144,7 +151,6 @@ export class BaseEnemy {
     ctx.lineTo(-this.size * 0.5, this.size * 0.5); // Bottom left
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
   }
 }
 
@@ -289,7 +295,7 @@ export class ZigzagEnemy extends BaseEnemy {
 
 // Circle Enemy
 export class CircleEnemy extends BaseEnemy {
-  constructor(x, y, isPortrait, speed, isClone) {
+  constructor(x, y, isPortrait, speed, isClone, generation = 0) {
     super(x, y, isPortrait, speed, isClone);
     this.type = "circle";
     this.centerX = x;
@@ -299,7 +305,8 @@ export class CircleEnemy extends BaseEnemy {
     this.cloneTimer = 0;
     this.cloneInterval = 150; // 2.5 seconds at 60fps
     this.clonesCreated = 0;
-    this.maxClones = 3;
+    this.generation = generation; // Track clone generation
+    this.maxClones = Math.max(0, 3 - generation); // Original: 3, 1st gen: 2, 2nd gen: 1, 3rd gen: 0
   }
 
   updateMovement(
@@ -344,7 +351,8 @@ export class CircleEnemy extends BaseEnemy {
         cloneY,
         this.isPortrait,
         this.speed,
-        true
+        true,
+        this.generation + 1 // Pass next generation
       );
       clone.color = this.color; // Clone inherits parent's color
       addEnemyCallback(clone);

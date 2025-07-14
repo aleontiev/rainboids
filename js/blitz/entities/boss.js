@@ -29,7 +29,7 @@ export class Boss extends BaseEnemy {
     this.mouthState = 0; // 0 = closed, 1 = open
     this.mouthTimer = 0;
 
-    // Boss arms system with articulation - much larger arms
+    // Boss has 3 distinct parts: left arm, body, right arm
     this.leftArm = {
       health: 500,
       maxHealth: 500,
@@ -39,34 +39,36 @@ export class Boss extends BaseEnemy {
       maxCooldown: 120, // 2 seconds
       laserCharging: false,
       laserChargeTime: 0,
-      segments: [
-        { x: 0, y: 0, angle: Math.PI * 0.8, length: 60 }, // Angled upward-left
-        { x: 0, y: 0, angle: Math.PI * 0.9, length: 50 }, // Slight downward bend
-        { x: 0, y: 0, angle: Math.PI, length: 40 }  // Weapon segment pointing left
-      ],
-      targetAngles: [Math.PI * 0.8, Math.PI * 0.9, Math.PI],
-      animationTime: 0,
-      baseX: -this.size * 0.5, // Left side of body
-      baseY: 0    // Center height
+      shoulderAngle: 0, // Angle of shoulder joint
+      coreAngle: 0,     // Angle of weapon core
+      x: 0,             // Calculated position
+      y: 0,
+      shoulderRadius: 25,
+      coreWidth: 40,
+      coreHeight: 20,
+      coreLength: 60,
+      invulnerable: false,
+      isVulnerableToAutoAim: function() { return !this.destroyed && !this.invulnerable; }
     };
     
     this.rightArm = {
       health: 500,
       maxHealth: 500,
       destroyed: false,
-      type: "missiles",
+      type: "missiles", 
       cooldown: 0,
       maxCooldown: 90, // 1.5 seconds
       burstCooldown: 0,
-      segments: [
-        { x: 0, y: 0, angle: Math.PI * 0.2, length: 60 }, // Angled upward-right
-        { x: 0, y: 0, angle: Math.PI * 0.1, length: 50 }, // Slight downward bend
-        { x: 0, y: 0, angle: 0, length: 40 }  // Weapon segment pointing right
-      ],
-      targetAngles: [Math.PI * 0.2, Math.PI * 0.1, 0],
-      animationTime: 0,
-      baseX: this.size * 0.5, // Right side of body
-      baseY: 0    // Center height
+      shoulderAngle: 0, // Angle of shoulder joint
+      coreAngle: 0,     // Angle of weapon core
+      x: 0,             // Calculated position
+      y: 0,
+      shoulderRadius: 25,
+      coreWidth: 45,
+      coreHeight: 25,
+      coreLength: 70,
+      invulnerable: false,
+      isVulnerableToAutoAim: function() { return !this.destroyed && !this.invulnerable; }
     };
     
     // Initialize arm positions
@@ -83,11 +85,65 @@ export class Boss extends BaseEnemy {
 
     // Visual effects
     this.hitFlash = 0;
+    this.bodyAngle = 0; // Initialize body angle
+    this.invulnerable = false; // For consistency with base enemy class
 
     // Death sequence
     this.isDefeated = false;
     this.deathTimer = 0;
     this.explosionTimer = 0;
+  }
+
+  // Check if this boss can be targeted by auto-aim
+  isVulnerableToAutoAim() {
+    // Boss body is only vulnerable in final phase
+    return this.finalPhase && !this.invulnerable;
+  }
+
+  // Get all targetable parts for auto-aim
+  getTargetableParts() {
+    const targets = [];
+    
+    // Add arms if they're vulnerable
+    if (!this.leftArm.destroyed && this.leftArm.isVulnerableToAutoAim && this.leftArm.isVulnerableToAutoAim()) {
+      targets.push({
+        x: this.leftArm.x || (this.x + this.leftArm.baseX),
+        y: this.leftArm.y || (this.y + this.leftArm.baseY),
+        type: "bossArm",
+        armType: "laser",
+        health: this.leftArm.health,
+        size: 50,
+        boss: this,
+        arm: "left"
+      });
+    }
+    
+    if (!this.rightArm.destroyed && this.rightArm.isVulnerableToAutoAim && this.rightArm.isVulnerableToAutoAim()) {
+      targets.push({
+        x: this.rightArm.x || (this.x + this.rightArm.baseX),
+        y: this.rightArm.y || (this.y + this.rightArm.baseY),
+        type: "bossArm",
+        armType: "missiles",
+        health: this.rightArm.health,
+        size: 50,
+        boss: this,
+        arm: "right"
+      });
+    }
+    
+    // Add body if vulnerable
+    if (this.isVulnerableToAutoAim()) {
+      targets.push({
+        x: this.x,
+        y: this.y,
+        type: "bossBody",
+        health: this.health,
+        size: this.size,
+        boss: this
+      });
+    }
+    
+    return targets;
   }
 
   update(playerX, playerY) {
@@ -179,47 +235,44 @@ export class Boss extends BaseEnemy {
   updateArm(arm, playerX, playerY) {
     if (arm.destroyed) return;
     
-    arm.animationTime += 0.03;
+    // Calculate angle to player for targeting
+    const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x);
     
-    // Calculate angle to player for weapon targeting
-    const armWorldX = this.x + arm.baseX;
-    const armWorldY = this.y + arm.baseY;
-    const angleToPlayer = Math.atan2(playerY - armWorldY, playerX - armWorldX);
+    // Update body angle to face player
+    this.bodyAngle = angleToPlayer;
     
-    // Generate target angles for organic movement based on arm type
+    // Position arms based on body orientation and portrait/landscape mode
+    const armDistance = this.size * 0.8;
+    
     if (arm.type === "laser") {
-      // Left laser arm - point generally toward player with some variation
-      const baseAngle = angleToPlayer * 0.7 + Math.PI * 0.8 * 0.3; // Blend player angle with left direction
-      arm.targetAngles[0] = baseAngle + Math.sin(arm.animationTime * 0.8) * 0.2;
-      arm.targetAngles[1] = baseAngle - 0.3 + Math.sin(arm.animationTime * 1.2) * 0.3;
-      arm.targetAngles[2] = angleToPlayer + Math.sin(arm.animationTime * 1.5) * 0.1; // Weapon tracks player closely
+      // Left arm positioning
+      if (this.isPortrait) {
+        // In portrait: left arm appears to the left
+        arm.x = this.x + Math.cos(this.bodyAngle - Math.PI/2) * armDistance;
+        arm.y = this.y + Math.sin(this.bodyAngle - Math.PI/2) * armDistance;
+      } else {
+        // In landscape: left arm appears above
+        arm.x = this.x + Math.cos(this.bodyAngle - Math.PI/3) * armDistance;
+        arm.y = this.y + Math.sin(this.bodyAngle - Math.PI/3) * armDistance;
+      }
     } else {
-      // Right missile arm - track player more aggressively  
-      const baseAngle = angleToPlayer * 0.7 + 0 * 0.3; // Blend player angle with right direction
-      arm.targetAngles[0] = baseAngle + Math.sin(arm.animationTime) * 0.2;
-      arm.targetAngles[1] = baseAngle + 0.3 + Math.sin(arm.animationTime * 1.5) * 0.3;
-      arm.targetAngles[2] = angleToPlayer + Math.sin(arm.animationTime * 1.8) * 0.1; // Weapon tracks player closely
+      // Right arm positioning
+      if (this.isPortrait) {
+        // In portrait: right arm appears to the right
+        arm.x = this.x + Math.cos(this.bodyAngle + Math.PI/2) * armDistance;
+        arm.y = this.y + Math.sin(this.bodyAngle + Math.PI/2) * armDistance;
+      } else {
+        // In landscape: right arm appears below
+        arm.x = this.x + Math.cos(this.bodyAngle + Math.PI/3) * armDistance;
+        arm.y = this.y + Math.sin(this.bodyAngle + Math.PI/3) * armDistance;
+      }
     }
     
-    // Smoothly interpolate current angles toward targets
-    for (let i = 0; i < arm.segments.length; i++) {
-      const diff = arm.targetAngles[i] - arm.segments[i].angle;
-      arm.segments[i].angle += diff * 0.08; // Slightly slower for larger arms
-    }
+    // Shoulder joint aims somewhat toward player
+    arm.shoulderAngle = angleToPlayer + (Math.random() - 0.5) * 0.3;
     
-    // Calculate segment positions
-    let currentX = arm.baseX;
-    let currentY = arm.baseY;
-    
-    for (let i = 0; i < arm.segments.length; i++) {
-      const segment = arm.segments[i];
-      segment.x = currentX;
-      segment.y = currentY;
-      
-      // Calculate next position
-      currentX += Math.cos(segment.angle) * segment.length;
-      currentY += Math.sin(segment.angle) * segment.length;
-    }
+    // Weapon core aims directly at player with slight tracking variation
+    arm.coreAngle = angleToPlayer + Math.sin(this.frameCount * 0.05) * 0.1;
     
     // Update laser charging for laser arm
     if (arm.type === "laser") {
@@ -235,65 +288,30 @@ export class Boss extends BaseEnemy {
 
   // Get which part was hit (returns 'leftArm', 'rightArm', or 'body')
   getHitPart(bulletX, bulletY) {
-    const relativeX = bulletX - this.x;
-    const relativeY = bulletY - this.y;
-    
-    // Check left arm (articulated segments) - much larger hit areas
+    // Check left arm
     if (!this.leftArm.destroyed) {
-      for (let i = 0; i < this.leftArm.segments.length; i++) {
-        const segment = this.leftArm.segments[i];
-        const segmentX = segment.x;
-        const segmentY = segment.y;
-        const segmentRadius = 35 - i * 5; // Much larger hit areas, tapering
-        
-        if (Math.abs(relativeX - segmentX) < segmentRadius && 
-            Math.abs(relativeY - segmentY) < segmentRadius) {
-          return 'leftArm';
-        }
-      }
-      
-      // Check weapon area for left arm
-      const lastSegment = this.leftArm.segments[this.leftArm.segments.length - 1];
-      const weaponX = lastSegment.x + Math.cos(lastSegment.angle) * lastSegment.length;
-      const weaponY = lastSegment.y + Math.sin(lastSegment.angle) * lastSegment.length;
-      
-      if (Math.abs(relativeX - weaponX) < 50 && 
-          Math.abs(relativeY - weaponY) < 30) {
+      const distToLeftArm = Math.sqrt((bulletX - this.leftArm.x) ** 2 + (bulletY - this.leftArm.y) ** 2);
+      if (distToLeftArm < 50) { // Generous hit area for arms
         return 'leftArm';
       }
     }
-
-    // Check right arm (articulated segments) - much larger hit areas
+    
+    // Check right arm
     if (!this.rightArm.destroyed) {
-      for (let i = 0; i < this.rightArm.segments.length; i++) {
-        const segment = this.rightArm.segments[i];
-        const segmentX = segment.x;
-        const segmentY = segment.y;
-        const segmentRadius = 35 - i * 5; // Much larger hit areas, tapering
-        
-        if (Math.abs(relativeX - segmentX) < segmentRadius && 
-            Math.abs(relativeY - segmentY) < segmentRadius) {
-          return 'rightArm';
-        }
-      }
-      
-      // Check weapon area for right arm
-      const lastSegment = this.rightArm.segments[this.rightArm.segments.length - 1];
-      const weaponX = lastSegment.x + Math.cos(lastSegment.angle) * lastSegment.length;
-      const weaponY = lastSegment.y + Math.sin(lastSegment.angle) * lastSegment.length;
-      
-      if (Math.abs(relativeX - weaponX) < 50 && 
-          Math.abs(relativeY - weaponY) < 40) {
+      const distToRightArm = Math.sqrt((bulletX - this.rightArm.x) ** 2 + (bulletY - this.rightArm.y) ** 2);
+      if (distToRightArm < 50) { // Generous hit area for arms
         return 'rightArm';
       }
     }
-
-    // Check body (rectangle-ish) - smaller hit area to avoid interfering with arms
-    if (Math.abs(relativeX) < this.size * 0.3 && 
-        Math.abs(relativeY) < this.size * 0.5) {
-      return 'body';
+    
+    // Check body (only vulnerable in final phase)
+    if (this.finalPhase) {
+      const distToBody = Math.sqrt((bulletX - this.x) ** 2 + (bulletY - this.y) ** 2);
+      if (distToBody < this.size * 0.6) {
+        return 'body';
+      }
     }
-
+    
     return null;
   }
 
@@ -337,52 +355,8 @@ export class Boss extends BaseEnemy {
         }
         return true;
       } else {
-        // Body is invulnerable, but check if bullet can hit arms behind it
-        // Check arms again with bullet coordinates
-        const relativeX = bulletX - this.x;
-        const relativeY = bulletY - this.y;
-        
-        // Check left arm collision again (allowing bullets to pass through body)
-        if (!this.leftArm.destroyed) {
-          for (let i = 0; i < this.leftArm.segments.length; i++) {
-            const segment = this.leftArm.segments[i];
-            const segmentX = segment.x;
-            const segmentY = segment.y;
-            const segmentRadius = 35 - i * 5;
-            
-            if (Math.abs(relativeX - segmentX) < segmentRadius && 
-                Math.abs(relativeY - segmentY) < segmentRadius) {
-              this.leftArm.health -= damage;
-              if (this.leftArm.health <= 0) {
-                this.leftArm.destroyed = true;
-                this.leftArm.health = 0;
-              }
-              return true;
-            }
-          }
-        }
-        
-        // Check right arm collision again (allowing bullets to pass through body)
-        if (!this.rightArm.destroyed) {
-          for (let i = 0; i < this.rightArm.segments.length; i++) {
-            const segment = this.rightArm.segments[i];
-            const segmentX = segment.x;
-            const segmentY = segment.y;
-            const segmentRadius = 35 - i * 5;
-            
-            if (Math.abs(relativeX - segmentX) < segmentRadius && 
-                Math.abs(relativeY - segmentY) < segmentRadius) {
-              this.rightArm.health -= damage;
-              if (this.rightArm.health <= 0) {
-                this.rightArm.destroyed = true;
-                this.rightArm.health = 0;
-              }
-              return true;
-            }
-          }
-        }
-        
-        return false; // Body hit but invulnerable, no arm hit
+        // Body is invulnerable during phases 1 and 2
+        return false;
       }
     }
     
@@ -395,10 +369,9 @@ export class Boss extends BaseEnemy {
     
     const projectiles = [];
     
-    // Get firing position from end of arm
-    const lastSegment = this.leftArm.segments[this.leftArm.segments.length - 1];
-    const armX = this.x + lastSegment.x;
-    const armY = this.y + lastSegment.y;
+    // Get firing position from arm position
+    const armX = this.leftArm.x;
+    const armY = this.leftArm.y;
     
     // Main laser (like laser enemy)
     if (Math.random() < 0.3) { // 30% chance for main laser
@@ -455,10 +428,9 @@ export class Boss extends BaseEnemy {
     
     const projectiles = [];
     
-    // Get firing position from end of arm
-    const lastSegment = this.rightArm.segments[this.rightArm.segments.length - 1];
-    const armX = this.x + lastSegment.x;
-    const armY = this.y + lastSegment.y;
+    // Get firing position from arm position
+    const armX = this.rightArm.x;
+    const armY = this.rightArm.y;
     const angleToPlayer = Math.atan2(playerY - armY, playerX - armX);
     
     // Alternate between different attack patterns
@@ -522,19 +494,54 @@ export class Boss extends BaseEnemy {
     const bullets = [];
     const enemies = [];
     
-    // Colorful bullet spray
-    for (let i = 0; i < 12; i++) {
-      const angle = (i / 12) * Math.PI * 2 + this.frameCount * 0.05;
-      const colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff"];
-      bullets.push({
-        x: this.x,
-        y: this.y,
-        vx: Math.cos(angle) * 4,
-        vy: Math.sin(angle) * 4,
-        size: 6,
-        color: colors[i % colors.length],
-        type: "boss"
-      });
+    // Initialize pulse pattern if not already done
+    if (this.pulsePattern === undefined) {
+      this.pulsePattern = {
+        waveCount: 0,
+        maxWaves: 18 + Math.floor(Math.random() * 6), // 18-23 waves (randomized)
+        inBreak: false,
+        breakTimer: 0,
+        breakDuration: 60 + Math.floor(Math.random() * 30), // 1-1.5 second break (randomized)
+        spiralOffset: Math.random() * Math.PI * 2 // Random starting spiral rotation
+      };
+    }
+    
+    // Handle pulsing pattern
+    if (!this.pulsePattern.inBreak) {
+      // Fire rainbow spiral if still in active phase
+      if (this.frameCount % 3 === 0) { // Fire every 3 frames for spacing
+        for (let i = 0; i < 10; i++) { // Reduced from 12 to 10 for more spacing
+          const angle = (i / 10) * Math.PI * 2 + this.frameCount * 0.04 + this.pulsePattern.spiralOffset;
+          const colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff", "#ffa500", "#ff69b4"];
+          bullets.push({
+            x: this.x,
+            y: this.y,
+            vx: Math.cos(angle) * 3.5, // Slightly slower
+            vy: Math.sin(angle) * 3.5,
+            size: 6,
+            color: colors[i % colors.length],
+            type: "boss"
+          });
+        }
+        this.pulsePattern.waveCount++;
+      }
+      
+      // Check if we've reached max waves
+      if (this.pulsePattern.waveCount >= this.pulsePattern.maxWaves) {
+        this.pulsePattern.inBreak = true;
+        this.pulsePattern.breakTimer = 0;
+        this.pulsePattern.waveCount = 0;
+        // Randomize next cycle
+        this.pulsePattern.maxWaves = 18 + Math.floor(Math.random() * 6);
+        this.pulsePattern.breakDuration = 60 + Math.floor(Math.random() * 30);
+        this.pulsePattern.spiralOffset = Math.random() * Math.PI * 2;
+      }
+    } else {
+      // In break period
+      this.pulsePattern.breakTimer++;
+      if (this.pulsePattern.breakTimer >= this.pulsePattern.breakDuration) {
+        this.pulsePattern.inBreak = false;
+      }
     }
     
     // Spawn enemies
@@ -561,34 +568,50 @@ export class Boss extends BaseEnemy {
 
   render(ctx) {
     ctx.save();
-    ctx.translate(this.x, this.y);
-
+    
     // Apply hit flash
     if (this.hitFlash > 0) {
       ctx.globalAlpha = 0.5;
     }
 
-    // Draw main rectangle-ish body
-    ctx.fillStyle = "#444444";
+    // Draw left arm
+    if (!this.leftArm.destroyed) {
+      this.drawNewArm(ctx, this.leftArm, "#ff8800");
+    }
+
+    // Draw right arm  
+    if (!this.rightArm.destroyed) {
+      this.drawNewArm(ctx, this.rightArm, "#ff0000");
+    }
+
+    // Draw main body angled toward player
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.bodyAngle || 0);
+    
+    // Body color changes when vulnerable
+    ctx.fillStyle = this.finalPhase ? "#ff4444" : "#444444";
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 3;
     
     // Main body (rectangle with rounded corners)
-    const bodyWidth = this.size * 0.8;
-    const bodyHeight = this.size * 1.2;
+    const bodyWidth = this.size * 0.6;
+    const bodyHeight = this.size * 0.8;
     this.drawRoundedRect(ctx, -bodyWidth/2, -bodyHeight/2, bodyWidth, bodyHeight, 15);
     ctx.fill();
     ctx.stroke();
-
-    // Draw articulated left arm
-    if (!this.leftArm.destroyed) {
-      this.drawArticulatedArm(ctx, this.leftArm, "#ff8800");
+    
+    // Gold shield indicator for invulnerable body (phases 1 and 2)
+    if (!this.finalPhase) {
+      ctx.strokeStyle = "#ffcc00"; // Gold stroke
+      ctx.lineWidth = 4;
+      ctx.globalAlpha = 0.8 + Math.sin(this.frameCount * 0.05) * 0.2;
+      this.drawRoundedRect(ctx, -bodyWidth/2 - 3, -bodyHeight/2 - 3, bodyWidth + 6, bodyHeight + 6, 18);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
-
-    // Draw articulated right arm
-    if (!this.rightArm.destroyed) {
-      this.drawArticulatedArm(ctx, this.rightArm, "#ff0000");
-    }
+    
+    ctx.restore();
 
     // Draw moving robot head (rounded rectangle)
     const headWidth = this.size * 0.5;
@@ -707,198 +730,7 @@ export class Boss extends BaseEnemy {
     ctx.closePath();
   }
 
-  drawArticulatedArm(ctx, arm, color) {
-    ctx.save();
-    
-    // Draw connection joint to body first
-    ctx.save();
-    ctx.translate(arm.baseX, arm.baseY);
-    
-    // Large connection joint to body
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 3;
-    ctx.fillStyle = "#666666";
-    ctx.beginPath();
-    ctx.arc(0, 0, 18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    
-    // Connection bolts
-    ctx.fillStyle = "#333333";
-    for (let i = 0; i < 6; i++) {
-      const angle = (i / 6) * Math.PI * 2;
-      const boltX = Math.cos(angle) * 12;
-      const boltY = Math.sin(angle) * 12;
-      ctx.beginPath();
-      ctx.arc(boltX, boltY, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    
-    ctx.restore();
-    
-    // Draw segments and joints
-    for (let i = 0; i < arm.segments.length; i++) {
-      const segment = arm.segments[i];
-      
-      // Draw joint at segment start
-      ctx.save();
-      ctx.translate(segment.x, segment.y);
-      
-      // Much larger round joint
-      const jointSize = 16 - i * 2; // Taper joints
-      ctx.beginPath();
-      ctx.arc(0, 0, jointSize, 0, Math.PI * 2);
-      ctx.fillStyle = "#888888";
-      ctx.fill();
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      
-      // Joint details
-      ctx.fillStyle = "#444444";
-      ctx.beginPath();
-      ctx.arc(0, 0, jointSize * 0.6, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Draw segment cylinder - much larger
-      ctx.rotate(segment.angle);
-      const segmentWidth = segment.length;
-      const segmentHeight = 28 - i * 4; // Much larger segments, tapering
-      
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.rect(0, -segmentHeight/2, segmentWidth, segmentHeight);
-      ctx.fill();
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      
-      // Add segment details - more prominent
-      ctx.strokeStyle = "#cccccc";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(segmentWidth * 0.2, -segmentHeight/2 + 4);
-      ctx.lineTo(segmentWidth * 0.2, segmentHeight/2 - 4);
-      ctx.moveTo(segmentWidth * 0.5, -segmentHeight/2 + 4);
-      ctx.lineTo(segmentWidth * 0.5, segmentHeight/2 - 4);
-      ctx.moveTo(segmentWidth * 0.8, -segmentHeight/2 + 4);
-      ctx.lineTo(segmentWidth * 0.8, segmentHeight/2 - 4);
-      ctx.stroke();
-      
-      // Add hydraulic details
-      ctx.strokeStyle = "#999999";
-      ctx.lineWidth = 1;
-      for (let j = 0; j < 3; j++) {
-        const detailY = (j - 1) * (segmentHeight / 4);
-        ctx.beginPath();
-        ctx.moveTo(segmentWidth * 0.1, detailY);
-        ctx.lineTo(segmentWidth * 0.9, detailY);
-        ctx.stroke();
-      }
-      
-      ctx.restore();
-    }
-    
-    // Draw much larger weapon at end of arm
-    const lastSegment = arm.segments[arm.segments.length - 1];
-    const weaponX = lastSegment.x + Math.cos(lastSegment.angle) * lastSegment.length;
-    const weaponY = lastSegment.y + Math.sin(lastSegment.angle) * lastSegment.length;
-    
-    ctx.save();
-    ctx.translate(weaponX, weaponY);
-    ctx.rotate(lastSegment.angle);
-    
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 3;
-    
-    if (arm.type === "laser") {
-      // Much larger laser weapon with side shooters
-      ctx.fillStyle = color;
-      
-      // Main laser housing - much larger
-      ctx.beginPath();
-      ctx.rect(0, -25, 60, 50);
-      ctx.fill();
-      ctx.stroke();
-      
-      // Main laser barrel - much larger
-      ctx.beginPath();
-      ctx.rect(60, -8, 40, 16);
-      ctx.fill();
-      ctx.stroke();
-      
-      // Side shooters for homing missiles - larger
-      ctx.fillStyle = "#ff4400";
-      ctx.beginPath();
-      ctx.rect(40, -35, 20, 10);
-      ctx.rect(40, 25, 20, 10);
-      ctx.fill();
-      ctx.stroke();
-      
-      // Laser focusing lenses
-      ctx.strokeStyle = "#00ffff";
-      ctx.lineWidth = 2;
-      for (let i = 0; i < 3; i++) {
-        ctx.beginPath();
-        ctx.arc(80 + i * 8, 0, 4, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      
-      // Charging effect
-      if (arm.laserCharging) {
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 6 + Math.sin(arm.laserChargeTime * 0.3) * 3;
-        ctx.beginPath();
-        ctx.rect(0, -25, 60, 50);
-        ctx.stroke();
-      }
-    } else {
-      // Massive missile launcher - much larger
-      ctx.fillStyle = color;
-      
-      // Main launcher body - much larger
-      ctx.beginPath();
-      ctx.rect(0, -35, 80, 70);
-      ctx.fill();
-      ctx.stroke();
-      
-      // Missile tubes - larger and more numerous
-      const tubePositions = [
-        {x: 80, y: -20, size: 8},
-        {x: 80, y: -5, size: 10},
-        {x: 80, y: 5, size: 8},
-        {x: 80, y: 20, size: 8},
-        {x: 70, y: -15, size: 6},
-        {x: 70, y: 0, size: 7},
-        {x: 70, y: 15, size: 6},
-        {x: 60, y: -10, size: 5},
-        {x: 60, y: 10, size: 5}
-      ];
-      
-      ctx.fillStyle = "#333333";
-      for (const tube of tubePositions) {
-        ctx.beginPath();
-        ctx.arc(tube.x, tube.y, tube.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      }
-      
-      // Launcher details - more prominent
-      ctx.strokeStyle = "#cccccc";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(10, -35);
-      ctx.lineTo(10, 35);
-      ctx.moveTo(30, -35);
-      ctx.lineTo(30, 35);
-      ctx.moveTo(50, -35);
-      ctx.lineTo(50, 35);
-      ctx.stroke();
-    }
-    
-    ctx.restore();
-    ctx.restore();
-  }
+  // Old drawArticulatedArm method removed - now using drawNewArm instead
 
   renderHealthBars(ctx) {
     const barWidth = 100;
@@ -997,5 +829,80 @@ export class Boss extends BaseEnemy {
     ctx.font = '16px "Press Start 2P"';
     ctx.textAlign = "center";
     ctx.fillText("MECHANICAL OVERLORD", this.x, this.y - this.size - 100);
+  }
+
+  drawNewArm(ctx, arm, color) {
+    ctx.save();
+    ctx.translate(arm.x, arm.y);
+    
+    // Draw shoulder joint (half-circle + rectangle)
+    ctx.save();
+    ctx.rotate(arm.shoulderAngle);
+    
+    // Shoulder base (rectangle)
+    ctx.fillStyle = "#666666";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.rect(-15, -arm.shoulderRadius, 30, arm.shoulderRadius * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Shoulder joint (half-circle)
+    ctx.fillStyle = "#888888";
+    ctx.beginPath();
+    ctx.arc(15, 0, arm.shoulderRadius, -Math.PI/2, Math.PI/2);
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.restore();
+    
+    // Draw weapon core angled toward player
+    ctx.save();
+    ctx.rotate(arm.coreAngle);
+    
+    // Weapon core
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 3;
+    
+    // Main weapon body
+    ctx.beginPath();
+    ctx.rect(0, -arm.coreHeight/2, arm.coreLength, arm.coreHeight);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Weapon details based on type
+    if (arm.type === "laser") {
+      // Laser cannon details
+      ctx.fillStyle = "#ffff00";
+      ctx.beginPath();
+      ctx.rect(arm.coreLength - 10, -5, 15, 10);
+      ctx.fill();
+      
+      // Charging effect
+      if (arm.laserCharging) {
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 4;
+        ctx.globalAlpha = 0.7 + Math.sin(arm.laserChargeTime * 0.3) * 0.3;
+        ctx.beginPath();
+        ctx.rect(-5, -arm.coreHeight/2 - 5, arm.coreLength + 10, arm.coreHeight + 10);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    } else {
+      // Missile launcher details
+      ctx.fillStyle = "#ff6666";
+      // Multiple missile tubes
+      for (let i = 0; i < 3; i++) {
+        const tubeY = (i - 1) * 8;
+        ctx.beginPath();
+        ctx.rect(arm.coreLength - 5, tubeY - 3, 10, 6);
+        ctx.fill();
+      }
+    }
+    
+    ctx.restore();
+    ctx.restore();
   }
 }

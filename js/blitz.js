@@ -68,6 +68,7 @@ class BlitzGame {
     this.highScore = this.loadHighScore();
 
     this.autoaim = false; // Default off
+    this.autoplay = false; // Default off
     this.allUpgradesState = null; // Store state before all upgrades
     this.cheatsUsed = false; // Track if cheats have been used this session
 
@@ -203,10 +204,78 @@ class BlitzGame {
       this.titleCanvas.height = window.innerHeight;
     }
 
+    // Store previous orientation
+    const previousOrientation = this.isPortrait;
+    
     // Determine orientation: portrait if height > width
     // This works for both mobile and desktop
     this.isPortrait = this.canvas.height > this.canvas.width;
+    
+    // Reset boss and miniboss positions if orientation changed
+    if (previousOrientation !== this.isPortrait) {
+      this.repositionBossesOnOrientationChange();
+    }
+    
     this.titleScreen.resize(window.innerWidth, window.innerHeight);
+  }
+
+  repositionBossesOnOrientationChange() {
+    // Reposition minibosses (check if array exists first)
+    if (this.miniBosses && this.miniBosses.length > 0) {
+      this.miniBosses.forEach((miniBoss, index) => {
+        // Update miniboss orientation
+        miniBoss.isPortrait = this.isPortrait;
+        
+        // Calculate spacing for multiple minibosses
+        const spacing = 120; // Distance between minibosses
+        const totalMinibosses = this.miniBosses.length;
+        const offset = (index - (totalMinibosses - 1) / 2) * spacing;
+        
+        // Instantly snap to new position based on orientation with spacing
+        if (this.isPortrait) {
+          miniBoss.x = this.canvas.width / 2 + offset; // Center horizontally with spacing
+          miniBoss.y = 150; // Top position
+          miniBoss.targetX = miniBoss.x;
+          miniBoss.targetY = miniBoss.y;
+        } else {
+          miniBoss.x = this.canvas.width - 150; // Right position
+          miniBoss.y = this.canvas.height / 2 + offset; // Center vertically with spacing
+          miniBoss.targetX = miniBoss.x;
+          miniBoss.targetY = miniBoss.y;
+        }
+        
+        // Set to patrol mode since we're already in position
+        miniBoss.movePattern = "patrol";
+        miniBoss.startX = miniBoss.x;
+        miniBoss.startY = miniBoss.y;
+      });
+    }
+
+    // Reposition boss
+    if (this.boss) {
+      // Update boss orientation
+      this.boss.isPortrait = this.isPortrait;
+      this.boss.canvasWidth = this.canvas.width;
+      this.boss.canvasHeight = this.canvas.height;
+      
+      // Instantly snap to new position based on orientation
+      if (this.isPortrait) {
+        this.boss.x = this.canvas.width / 2; // Center horizontally
+        this.boss.y = 200; // Top position
+        this.boss.targetX = this.boss.x;
+        this.boss.targetY = this.boss.y;
+      } else {
+        this.boss.x = this.canvas.width - 200; // Right position
+        this.boss.y = this.canvas.height / 2; // Center vertically
+        this.boss.targetX = this.boss.x;
+        this.boss.targetY = this.boss.y;
+      }
+      
+      // Set to patrol mode since we're already in position
+      this.boss.movePattern = "patrol";
+      this.boss.startX = this.boss.x;
+      this.boss.startY = this.boss.y;
+    }
   }
 
   // DRY helper for adding both click and touchstart events
@@ -607,6 +676,9 @@ class BlitzGame {
 
     // Update UI cooldown visuals
     this.ui.updateCooldownVisuals();
+
+    // Update cheat manager (for cursor hiding and button states)
+    this.cheats.update();
   }
 
   updateEntities(deltaTime, slowdownFactor) {
@@ -632,11 +704,15 @@ class BlitzGame {
       this.autoaim,
       this.player.mainWeaponLevel,
       this.timeSlowActive,
-      this.boss
+      this.boss,
+      this.autoplay,
+      this.enemyBullets,
+      this.enemyLasers,
+      this.powerups
     );
 
     // Player shooting (prevent firing during death animation)
-    if (input.fire && !this.death.animationActive) {
+    if ((input.fire || this.autoplay) && !this.death.animationActive) {
       const weaponType = this.player.shoot(
           this.bullets,
           Bullet,
@@ -1113,12 +1189,25 @@ class BlitzGame {
         }
 
         if (collision) {
-          // For lasers, we don't remove the laser on hit, as it's continuous
-          if (!(bullet instanceof Laser)) {
+          let shouldRemoveBullet = false;
+          let damage = 1;
+
+          if (bullet instanceof Laser) {
+            // Laser does reduced damage (0.5) and tracks penetration
+            damage = 0.5;
+            if (bullet.registerHit()) {
+              shouldRemoveBullet = true; // Remove laser if penetration limit reached
+            }
+          } else {
+            shouldRemoveBullet = true; // Regular bullets are destroyed on hit
+          }
+
+          // Remove bullet if needed
+          if (shouldRemoveBullet) {
             this.bullets.splice(i, 1);
           }
 
-          const damageResult = asteroid.takeDamage(1);
+          const damageResult = asteroid.takeDamage(damage);
           this.createDebris(asteroid.x, asteroid.y, "#ffffff"); // Always create debris on hit
           if (damageResult) {
             this.asteroids.splice(j, 1);
@@ -1186,9 +1275,9 @@ class BlitzGame {
             }
             this.audio.playSound(this.audio.sounds.asteroidExplosion);
           }
-          // If it's a laser, it can hit multiple targets, so don't break from inner loop
-          if (!(bullet instanceof Laser)) {
-            break; // Break from inner loop only if not a laser
+          // If bullet was removed, break from inner loop
+          if (shouldRemoveBullet) {
+            break;
           }
         }
       }
@@ -1208,19 +1297,32 @@ class BlitzGame {
         }
 
         if (collision) {
-          // For lasers, we don't remove the laser on hit, as it's continuous
-          if (!(bullet instanceof Laser)) {
+          let shouldRemoveBullet = false;
+          let damage = 1;
+
+          if (bullet instanceof Laser) {
+            // Laser does reduced damage (0.5) and tracks penetration
+            damage = 0.5;
+            if (bullet.registerHit()) {
+              shouldRemoveBullet = true; // Remove laser if penetration limit reached
+            }
+          } else {
+            shouldRemoveBullet = true; // Regular bullets are destroyed on hit
+          }
+
+          // Remove bullet if needed
+          if (shouldRemoveBullet) {
             this.bullets.splice(i, 1);
           }
 
-          const result = this.handleEnemyDamage(enemy, 1, bullet.x, bullet.y);
+          const result = this.handleEnemyDamage(enemy, damage, bullet.x, bullet.y);
           if (result === "destroyed") {
             this.removeDestroyedEnemy(enemy);
           }
 
-          // If it's a laser, it can hit multiple targets, so don't break from inner loop
-          if (!(bullet instanceof Laser)) {
-            break; // Break from inner loop only if not a laser
+          // If bullet was removed, break from inner loop
+          if (shouldRemoveBullet) {
+            break;
           }
         }
       }
@@ -1460,6 +1562,13 @@ class BlitzGame {
     if (!obj1 || !obj2) {
       return false;
     }
+    
+    // Special collision handling for boss - use precise hitbox detection
+    if (obj2 instanceof Boss) {
+      // Check if bullet hits any boss part using boss's getHitPart method
+      return obj2.getHitPart(obj1.x, obj1.y) !== null;
+    }
+    
     const dx = obj1.x - obj2.x;
     const dy = obj1.y - obj2.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1467,6 +1576,27 @@ class BlitzGame {
   }
 
   checkLaserCollision(laser, target) {
+    // Special collision handling for boss - check if laser intersects boss parts
+    if (target instanceof Boss) {
+      const laserStartX = laser.x;
+      const laserStartY = laser.y;
+      const laserEndX = laser.x + Math.cos(laser.angle) * 200; // Laser length is 200
+      const laserEndY = laser.y + Math.sin(laser.angle) * 200;
+      
+      // Check multiple points along the laser line
+      const steps = 20;
+      for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const checkX = laserStartX + t * (laserEndX - laserStartX);
+        const checkY = laserStartY + t * (laserEndY - laserStartY);
+        
+        if (target.getHitPart(checkX, checkY) !== null) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     const laserStartX = laser.x;
     const laserStartY = laser.y;
     const laserEndX = laser.x + Math.cos(laser.angle) * 200; // Laser length is 200
@@ -1728,7 +1858,7 @@ class BlitzGame {
       // Check enemies
       for (let enemy of this.enemies) {
         const dist = Math.sqrt((x - enemy.x) ** 2 + (y - enemy.y) ** 2);
-        if (dist < enemy.radius + 10) {
+        if (dist < enemy.size + 10) {
           // Add 10px margin for easier targeting
           isOverTarget = true;
           break;
@@ -1739,7 +1869,7 @@ class BlitzGame {
       if (!isOverTarget) {
         for (let asteroid of this.asteroids) {
           const dist = Math.sqrt((x - asteroid.x) ** 2 + (y - asteroid.y) ** 2);
-          if (dist < asteroid.radius + 10) {
+          if (dist < asteroid.size + 10) {
             // Add 10px margin for easier targeting
             isOverTarget = true;
             break;
@@ -1751,7 +1881,7 @@ class BlitzGame {
       if (!isOverTarget) {
         for (let miniBoss of this.miniBosses) {
           const dist = Math.sqrt((x - miniBoss.x) ** 2 + (y - miniBoss.y) ** 2);
-          if (dist < miniBoss.radius + 10) {
+          if (dist < miniBoss.size + 10) {
             // Add 10px margin for easier targeting
             isOverTarget = true;
             break;
@@ -1771,16 +1901,20 @@ class BlitzGame {
       // Draw crosshair with appropriate color
       this.ctx.save();
       this.ctx.strokeStyle = isOverTarget ? "#00ff00" : "#ffffff"; // Green if over target, white otherwise
-      this.ctx.lineWidth = 1;
+      this.ctx.lineWidth = 2;
       this.ctx.globalAlpha = 1.0;
 
-      const size = 10;
+      const size = 15;
       this.ctx.beginPath();
-      // Vertical line
+      // Vertical line - perfect plus sign with gap in center
       this.ctx.moveTo(x, y - size);
+      this.ctx.lineTo(x, y - 3);
+      this.ctx.moveTo(x, y + 3);
       this.ctx.lineTo(x, y + size);
-      // Horizontal line
+      // Horizontal line - perfect plus sign with gap in center
       this.ctx.moveTo(x - size, y);
+      this.ctx.lineTo(x - 3, y);
+      this.ctx.moveTo(x + 3, y);
       this.ctx.lineTo(x + size, y);
       this.ctx.stroke();
 

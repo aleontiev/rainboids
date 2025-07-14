@@ -41,12 +41,15 @@ export class CircularBullet {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
     ctx.fillStyle = this.color;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(0, 0, this.size, 0, Math.PI * 2); // Draw a perfect circle
     ctx.fill();
+    
+    // Add white stroke for enemy bullets
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1;
     ctx.stroke();
+    
     ctx.restore();
   }
 }

@@ -24,6 +24,10 @@ export class Asteroid {
         this.rotationSpeed = (Math.random() - 0.5) * 0.02; // Slower rotation
         this.health = Math.floor(size / 10);
         
+        // Vulnerability properties (for consistency with auto-aim system)
+        this.godMode = false;
+        this.invulnerable = false;
+        
         // Generate more vertices for detailed shape
         this.vertices = [];
         const numVertices = 12 + Math.floor(Math.random() * 8); // 12-20 vertices
@@ -72,6 +76,11 @@ export class Asteroid {
             }
         }
         return false;
+    }
+
+    // Check if this asteroid can be targeted by auto-aim
+    isVulnerableToAutoAim() {
+        return !this.godMode && !this.invulnerable;
     }
     
     update(slowdownFactor = 1.0) {
