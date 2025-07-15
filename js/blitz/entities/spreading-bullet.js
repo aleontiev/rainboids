@@ -24,15 +24,27 @@ export class SpreadingBullet {
     this.time = 0;
     this.exploded = false;
     this.health = 1; // Can be damaged by player
+    
+    // Velocity tracking (dx/dy per second)
+    this.dx = 0;
+    this.dy = 0;
   }
 
   update(slowdownFactor = 1.0, addEnemyBulletCallback) {
     if (this.exploded) return false; // Already exploded, remove
 
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     this.x += Math.cos(this.angle) * this.speed * slowdownFactor;
     this.y += Math.sin(this.angle) * this.speed * slowdownFactor;
     this.life -= slowdownFactor;
     this.time += slowdownFactor;
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
 
     // Explode if time is up or health is 0
     if (this.time >= this.explosionTime || this.health <= 0) {

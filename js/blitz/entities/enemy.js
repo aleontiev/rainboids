@@ -40,6 +40,12 @@ export class BaseEnemy {
     // Vulnerability properties (used for auto-aim filtering)
     this.godMode = false;
     this.invulnerable = false;
+    
+    // Velocity tracking (dx/dy per second)
+    this.dx = 0;
+    this.dy = 0;
+    this.lastX = x;
+    this.lastY = y;
   }
 
   // Check if this enemy can be targeted by auto-aim
@@ -88,12 +94,20 @@ export class BaseEnemy {
     slowdownFactor,
     addEnemyCallback
   ) {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     // Base movement - move straight
     if (this.isPortrait) {
       this.y += this.speed * slowdownFactor;
     } else {
       this.x -= this.speed * slowdownFactor;
     }
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
   }
 
   isOnScreen() {
@@ -172,6 +186,10 @@ export class SineEnemy extends BaseEnemy {
   }
 
   updateMovement(playerX, playerY, bullets, lasers, slowdownFactor) {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     if (this.isPortrait) {
       this.y += this.speed * slowdownFactor;
       this.x =
@@ -181,6 +199,10 @@ export class SineEnemy extends BaseEnemy {
       this.y =
         this.initialY + Math.sin(this.time * this.frequency) * this.amplitude;
     }
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
   }
 
   shoot(bullets, player) {
@@ -253,6 +275,10 @@ export class ZigzagEnemy extends BaseEnemy {
   }
 
   updateMovement(playerX, playerY, bullets, lasers, slowdownFactor) {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     if (this.isPortrait) {
       this.y += this.speed * slowdownFactor;
       this.zigzagTimer += slowdownFactor;
@@ -270,6 +296,10 @@ export class ZigzagEnemy extends BaseEnemy {
       }
       this.y += this.zigzagDirection * 2 * slowdownFactor;
     }
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
   }
 
   shoot(bullets, player) {
@@ -317,6 +347,10 @@ export class CircleEnemy extends BaseEnemy {
     slowdownFactor,
     addEnemyCallback
   ) {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     if (this.isPortrait) {
       this.y += this.speed * 0.5 * slowdownFactor;
       this.centerY += this.speed * 0.5 * slowdownFactor;
@@ -328,6 +362,10 @@ export class CircleEnemy extends BaseEnemy {
     const angle = this.time * this.angularSpeed;
     this.x = this.centerX + Math.cos(angle) * this.radius;
     this.y = this.centerY + Math.sin(angle) * this.radius;
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
 
     // Handle cloning - only if under the clone limit and on-screen
     this.cloneTimer += slowdownFactor;
@@ -428,6 +466,10 @@ export class DiveEnemy extends BaseEnemy {
   }
 
   updateMovement(playerX, playerY, bullets, lasers, slowdownFactor) {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     if (this.phase === "approach") {
       if (this.isPortrait) {
         this.y += this.speed * slowdownFactor;
@@ -451,6 +493,10 @@ export class DiveEnemy extends BaseEnemy {
       this.y += Math.sin(this.diveAngle) * this.diveSpeed * slowdownFactor;
       this.angle = this.diveAngle;
     }
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
   }
 
   shoot(bullets, player) {
@@ -490,11 +536,19 @@ export class LaserEnemy extends BaseEnemy {
   }
 
   updateMovement(playerX, playerY, bullets, lasers, slowdownFactor) {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     if (this.isPortrait) {
       this.y += this.speed * 0.8 * slowdownFactor;
     } else {
       this.x -= this.speed * 0.8 * slowdownFactor;
     }
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
 
     // Handle laser state machine
     switch (this.laserState) {
@@ -561,6 +615,39 @@ export class LaserEnemy extends BaseEnemy {
   }
 
   render(ctx) {
+    // Draw laser warning line BEFORE transformations (in world coordinates)
+    if (this.laserState === "preview" && this.targetX !== undefined && this.targetY !== undefined) {
+      ctx.save();
+      
+      // Calculate pulsing effect for warning line
+      const pulseIntensity = 0.7 + 0.3 * Math.sin(Date.now() * 0.02); // Pulsing red line
+      
+      // Draw warning line from laser enemy to target position
+      ctx.strokeStyle = `rgba(255, 0, 0, ${pulseIntensity})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 4]); // Dashed line for better visibility
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(this.targetX, this.targetY);
+      ctx.stroke();
+      ctx.setLineDash([]); // Reset line dash
+      
+      // Draw small warning circle at target location
+      ctx.fillStyle = `rgba(255, 0, 0, ${pulseIntensity * 0.6})`;
+      ctx.beginPath();
+      ctx.arc(this.targetX, this.targetY, 15, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Draw warning outline
+      ctx.strokeStyle = `rgba(255, 0, 0, ${pulseIntensity})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(this.targetX, this.targetY, 15, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
@@ -634,6 +721,10 @@ export class PulseEnemy extends BaseEnemy {
   }
 
   updateMovement(playerX, playerY, bullets, lasers, slowdownFactor) {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     if (this.isPortrait) {
       this.y += this.speed * 0.6 * slowdownFactor;
     } else {
@@ -646,6 +737,10 @@ export class PulseEnemy extends BaseEnemy {
       // Create ring of bullets instead of pulse circle
       this.firePulseRing(bullets);
     }
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
   }
 
   firePulseRing(bullets) {
@@ -743,6 +838,10 @@ export class SquareEnemy extends BaseEnemy {
   }
 
   updateMovement(playerX, playerY, bullets, lasers, slowdownFactor) {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     if (this.isPortrait) {
       this.y += this.speed * 0.7 * slowdownFactor;
       // Add dynamic side-to-side movement
@@ -767,6 +866,10 @@ export class SquareEnemy extends BaseEnemy {
       this.cornerTimer = 0;
       this.fireFromAllCorners(bullets);
     }
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
   }
 
   fireFromAllCorners(bullets) {

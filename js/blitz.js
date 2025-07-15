@@ -711,8 +711,27 @@ class BlitzGame {
       this.powerups
     );
 
+    // Handle autoplay abilities
+    if (this.autoplay) {
+      this.player.autoplayer.handleAutoplayAbilities(
+        this.allEnemies, 
+        this.enemyBullets, 
+        this.enemyLasers, 
+        this.asteroids, 
+        this.boss, 
+        input, 
+        this.powerups
+      );
+    }
+
     // Player shooting (prevent firing during death animation)
-    if ((input.fire || this.autoplay) && !this.death.animationActive) {
+    // For autoplay, only fire when there are valid targets on screen
+    let shouldAutoplayFire = false;
+    if (this.autoplay) {
+      shouldAutoplayFire = this.player.autoplayer.hasValidTargets(this.allEnemies, this.asteroids, this.boss);
+    }
+    
+    if ((input.fire || (this.autoplay && shouldAutoplayFire)) && !this.death.animationActive) {
       const weaponType = this.player.shoot(
           this.bullets,
           Bullet,

@@ -1,5 +1,6 @@
 // Player entity for Rainboids: Blitz
 import { GAME_CONFIG } from "../constants.js";
+import { Autoplayer } from "../autoplayer.js";
 
 export class Player {
   constructor(x, y) {
@@ -33,586 +34,157 @@ export class Player {
     this.prevX = x;
     this.prevY = y;
     
-    // Autoplay movement timer
-    this.autoplayMovementTimer = 0;
-    
-    // Autoplay ability timers
-    this.autoplayShieldTimer = 0;
-    this.autoplaySlowTimer = 0;
-    this.autoplayBombTimer = 0;
+    // Initialize autoplayer
+    this.autoplayer = new Autoplayer(this);
   }
 
-  // Handle strategic ability usage for autoplay
-  handleAutoplayAbilities(enemies, enemyBullets, enemyLasers, asteroids, boss, keys, powerups = []) {
-    this.autoplayShieldTimer++;
-    this.autoplaySlowTimer++;
-    this.autoplayBombTimer++;
-    
-    // Calculate immediate threat level
-    const threatLevel = this.calculateThreatLevel(enemies, enemyBullets, enemyLasers, asteroids, boss);
-    
-    // Check if there's a valuable powerup nearby that we might want to shield for
-    let nearbyValuablePowerup = false;
-    if (powerups && powerups.length > 0) {
-      for (const powerup of powerups) {
-        const distance = Math.sqrt((powerup.x - this.x) ** 2 + (powerup.y - this.y) ** 2);
-        if (distance < 150 && (powerup.type === 'bomb' || powerup.type === 'rainbowStar' || powerup.type === 'shield')) {
-          nearbyValuablePowerup = true;
-          break;
-        }
-      }
-    }
-    
-    // Shield usage - activate when in immediate danger, going for powerups, or shield is available
-    const shouldUseShield = (
-      (threatLevel >= 0.7 || // High threat level
-       (nearbyValuablePowerup && threatLevel >= 0.4)) && // Moderate threat but valuable powerup nearby
-      !this.isShielding && // Not already shielding
-      this.shieldCooldown <= 0 && // Shield is available
-      this.autoplayShieldTimer > 60 // Minimum 1 second between shield considerations
-    );
-    
-    if (shouldUseShield) {
-      keys.shield = true; // Trigger shield activation
-      this.autoplayShieldTimer = 0; // Reset timer
-    }
-    
-    // Time slow usage - activate when overwhelmed or facing boss
-    const shouldUseTimeSlow = (
-      (threatLevel >= 0.8 || // Very high threat level
-       (boss && !boss.isDefeated) || // Boss fight
-       enemyBullets.length > 15 || // Many bullets on screen
-       this.autoplaySlowTimer > 600) && // Or every 10 seconds as strategic usage
-      this.autoplaySlowTimer > 180 // Minimum 3 seconds between slow considerations
-    );
-    
-    if (shouldUseTimeSlow) {
-      keys.f = true; // Trigger time slow
-      this.autoplaySlowTimer = 0; // Reset timer
-    }
-    
-    // Bomb usage - activate in extreme situations with cooldown
-    const shouldUseBomb = (
-      (threatLevel >= 0.9 || // Extreme threat level
-       (enemyBullets.length > 25) || // Screen full of bullets
-       (boss && !boss.isDefeated && boss.finalPhase && threatLevel >= 0.6) || // Boss final phase
-       (enemies.length > 10 && threatLevel >= 0.7)) && // Many enemies with high threat
-      this.autoplayBombTimer > 300 // Minimum 5 seconds between bomb considerations
-    );
-    
-    if (shouldUseBomb) {
-      keys.z = true; // Trigger bomb (game will check if bombs are available)
-      this.autoplayBombTimer = 0; // Reset timer
-    }
-  }
+  // Calculate exact intercept solution accounting for all velocity vectors
+  calculateInterceptSolution(playerX, playerY, playerVx, playerVy, targetX, targetY, targetVx, targetVy, bulletSpeed) {
+    // Relative position and velocity
+    const relativeX = targetX - playerX;
+    const relativeY = targetY - playerY;
+    const relativeVx = targetVx - playerVx;
+    const relativeVy = targetVy - playerVy;
 
-  // Calculate overall threat level (0.0 = safe, 1.0 = extreme danger)
-  calculateThreatLevel(enemies, enemyBullets, enemyLasers, asteroids, boss) {
-    let threatScore = 0;
-    const dangerRadius = 150; // Radius to consider threats
+    // Quadratic equation coefficients for intercept calculation
+    // We want to solve: |relative_pos + relative_vel * t| = bullet_speed * t
+    // This gives us: (relativeX + relativeVx*t)² + (relativeY + relativeVy*t)² = (bulletSpeed*t)²
     
-    // Count nearby enemy bullets (highest threat)
-    let nearbyBullets = 0;
-    for (const bullet of enemyBullets) {
-      const distance = Math.sqrt((bullet.x - this.x) ** 2 + (bullet.y - this.y) ** 2);
-      if (distance < dangerRadius) {
-        // Closer bullets are more dangerous
-        const proximityFactor = Math.max(0, (dangerRadius - distance) / dangerRadius);
-        nearbyBullets += proximityFactor;
-      }
-    }
-    threatScore += Math.min(nearbyBullets * 0.15, 0.6); // Cap bullet threat at 0.6
-    
-    // Count nearby enemy lasers
-    let nearbyLasers = 0;
-    for (const laser of enemyLasers) {
-      const distance = Math.sqrt((laser.x - this.x) ** 2 + (laser.y - this.y) ** 2);
-      if (distance < dangerRadius) {
-        nearbyLasers++;
-      }
-    }
-    threatScore += Math.min(nearbyLasers * 0.2, 0.4); // Cap laser threat at 0.4
-    
-    // Count charging laser enemies (special threat)
-    let chargingLasers = 0;
-    for (const enemy of enemies) {
-      if (enemy.type === 'laser' && (enemy.laserState === 'charging' || enemy.laserState === 'preview')) {
-        const distance = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
-        if (distance < dangerRadius * 1.5) {
-          chargingLasers++;
-        }
-      }
-    }
-    threatScore += Math.min(chargingLasers * 0.25, 0.5); // Cap charging laser threat at 0.5
-    
-    // Count nearby dangerous enemies
-    let nearbyEnemies = 0;
-    for (const enemy of enemies) {
-      const distance = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
-      if (distance < dangerRadius * 0.8) {
-        nearbyEnemies++;
-      }
-    }
-    threatScore += Math.min(nearbyEnemies * 0.05, 0.3); // Cap enemy threat at 0.3
-    
-    // Count nearby asteroids
-    let nearbyAsteroids = 0;
-    for (const asteroid of asteroids) {
-      const distance = Math.sqrt((asteroid.x - this.x) ** 2 + (asteroid.y - this.y) ** 2);
-      if (distance < dangerRadius * 0.6) {
-        nearbyAsteroids++;
-      }
-    }
-    threatScore += Math.min(nearbyAsteroids * 0.03, 0.2); // Cap asteroid threat at 0.2
-    
-    // Boss presence increases base threat
-    if (boss && !boss.isDefeated) {
-      threatScore += 0.2; // Base boss threat
-      
-      // Additional threat based on boss proximity and phase
-      const bossDistance = Math.sqrt((boss.x - this.x) ** 2 + (boss.y - this.y) ** 2);
-      if (bossDistance < dangerRadius * 1.2) {
-        threatScore += 0.1;
-      }
-      
-      if (boss.finalPhase) {
-        threatScore += 0.1; // Final phase is more dangerous
-      }
-    }
-    
-    return Math.min(threatScore, 1.0); // Cap at 1.0
-  }
-
-  // Precise movement calculation for autoplay - only move when necessary
-  calculateDodgeVector(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups = []) {
-    let dodgeX = 0;
-    let dodgeY = 0;
-    const avoidRadius = 200; // Reduced for more precise movement
-    const futureFrames = 90; // Increased prediction time for better accuracy
-    
-    if (!this.autoplayMovementTimer) this.autoplayMovementTimer = 0;
-    this.autoplayMovementTimer += 1;
-    
-    // Calculate immediate bullet threats with precise prediction
-    let urgentThreatMovementX = 0;
-    let urgentThreatMovementY = 0;
-    let hasUrgentThreats = false;
-    
-    // Analyze bullet threats with precise collision prediction
-    for (const bullet of enemyBullets) {
-      const threatInfo = this.calculatePreciseThreatVector(bullet, avoidRadius, futureFrames);
-      if (threatInfo.isUrgent) {
-        hasUrgentThreats = true;
-        urgentThreatMovementX += threatInfo.x * threatInfo.strength * 4.0;
-        urgentThreatMovementY += threatInfo.y * threatInfo.strength * 4.0;
-      }
-    }
-    
-    // Analyze laser threats
-    for (const laser of enemyLasers) {
-      const threatInfo = this.calculatePreciseThreatVector(laser, avoidRadius * 1.5, futureFrames);
-      if (threatInfo.isUrgent) {
-        hasUrgentThreats = true;
-        urgentThreatMovementX += threatInfo.x * threatInfo.strength * 3.0;
-        urgentThreatMovementY += threatInfo.y * threatInfo.strength * 3.0;
-      }
-    }
-    
-    // Check for laser enemies about to fire (critical threat)
-    let laserEnemyThreatX = 0;
-    let laserEnemyThreatY = 0;
-    let hasLaserEnemyThreat = false;
-    
-    // Check for moving enemies with collision trajectories
-    let movingEnemyThreatX = 0;
-    let movingEnemyThreatY = 0;
-    let hasMovingEnemyThreat = false;
-    
-    for (const enemy of enemies) {
-      if (enemy.type === 'laser') {
-        const distance = Math.sqrt((enemy.x - this.x) ** 2 + (enemy.y - this.y) ** 2);
-        
-        // High priority for charging or preview state laser enemies
-        if (enemy.laserState === 'charging' || enemy.laserState === 'preview') {
-          if (distance < 400) { // Extended range for laser enemy threats
-            hasLaserEnemyThreat = true;
-            const threat = this.calculateOptimalEscapeVector(enemy, distance);
-            laserEnemyThreatX += threat.x * 3.0;
-            laserEnemyThreatY += threat.y * 3.0;
-          }
-        }
-      }
-      
-      // Check all enemies for collision trajectories (dive enemies, moving enemies, etc.)
-      const threatInfo = this.calculatePreciseThreatVector(enemy, avoidRadius * 1.2, futureFrames);
-      if (threatInfo.isUrgent && threatInfo.strength > 0.3) {
-        hasMovingEnemyThreat = true;
-        movingEnemyThreatX += threatInfo.x * threatInfo.strength * 2.5;
-        movingEnemyThreatY += threatInfo.y * threatInfo.strength * 2.5;
-      }
-    }
-    
-    // Check asteroids for collision avoidance (only if close)
-    let asteroidThreatX = 0;
-    let asteroidThreatY = 0;
-    for (const asteroid of asteroids) {
-      const threat = this.calculatePreciseThreatVector(asteroid, avoidRadius * 0.7, futureFrames);
-      if (threat.isUrgent) {
-        asteroidThreatX += threat.x * threat.strength * 2.0;
-        asteroidThreatY += threat.y * threat.strength * 2.0;
-      }
-    }
-    const hasAsteroidThreat = !!asteroidThreatX || !!asteroidThreatY;
-
-    
-    // Boss threat (only if close)
-    let bossThreatX = 0;
-    let bossThreatY = 0;
-    if (boss && !boss.isDefeated) {
-      const distance = Math.sqrt((boss.x - this.x) ** 2 + (boss.y - this.y) ** 2);
-      if (distance < 200) {
-        const threat = this.calculateOptimalEscapeVector(boss, distance);
-        bossThreatX = threat.x * 1.5;
-        bossThreatY = threat.y * 1.5;
-      }
-    }
-    const hasBossThreat = !!bossThreatX || !!bossThreatY;
-    
-    // Powerup collection - only if safe to do so
-    let powerupMovementX = 0;
-    let powerupMovementY = 0;
-    
-    // Only pursue powerups if there are no urgent threats
-    if (!hasUrgentThreats && !hasLaserEnemyThreat && powerups && powerups.length > 0) {
-      let closestPowerup = null;
-      let closestDistance = Infinity;
-      
-      for (const powerup of powerups) {
-        const distance = Math.sqrt((powerup.x - this.x) ** 2 + (powerup.y - this.y) ** 2);
-        if (distance < closestDistance && distance < 250) { // Reduced range for safer collection
-          closestDistance = distance;
-          closestPowerup = powerup;
-        }
-      }
-      
-      if (closestPowerup && this.isPowerupSafeToCollect(closestPowerup, enemyBullets, enemyLasers)) {
-        const powerupDx = closestPowerup.x - this.x;
-        const powerupDy = closestPowerup.y - this.y;
-        const powerupDistance = Math.sqrt(powerupDx * powerupDx + powerupDy * powerupDy);
-        
-        if (powerupDistance > 0) {
-          const attractionStrength = Math.min(0.6, (250 - powerupDistance) / 250);
-          powerupMovementX = (powerupDx / powerupDistance) * attractionStrength;
-          powerupMovementY = (powerupDy / powerupDistance) * attractionStrength;
-        }
-      }
-    }
-    const hasPowerupMovement = !!powerupMovementX || !!powerupMovementY;
-    
-    // Combine movement vectors with priority
-    const outOfBounds = this.isPortrait ? this.y < 200 : this.x > (window.innerWidth - 100);
-    if (outOfBounds) {
-    } else if (hasUrgentThreats) {
-      // Priority 1: Immediate bullet/laser threats
-      dodgeX = urgentThreatMovementX;
-      dodgeY = urgentThreatMovementY;
-    } else if (hasMovingEnemyThreat) {
-      // Priority 2: Moving enemies on collision course (dive enemies, etc.)
-      dodgeX = movingEnemyThreatX;
-      dodgeY = movingEnemyThreatY;
-    } else if (hasLaserEnemyThreat) {
-      // Priority 3: Laser enemies about to fire
-      dodgeX = laserEnemyThreatX;
-      dodgeY = laserEnemyThreatY;
-    } else if (hasAsteroidThreat || hasBossThreat || hasPowerupMovement) {
-      // Priority 4: Asteroids, boss, and powerup collection
-      dodgeX = asteroidThreatX + bossThreatX + powerupMovementX;
-      dodgeY = asteroidThreatY + bossThreatY + powerupMovementY;
-    } else {
-        // Priority 5: move towards center
-        const adjustment = 0.1;
-        dodgeX = (window.innerWidth / 2 - this.x) * adjustment;
-        dodgeY = (window.innerHeight / 2 - this.y) * adjustment;
-    }
-    
-    // Apply movement only if significant enough to matter
-    const dodgeLength = Math.sqrt(dodgeX * dodgeX + dodgeY * dodgeY);
-    if (dodgeLength > 0.05) { // Minimum threshold to avoid tiny movements
-      const movementMultiplier = hasUrgentThreats ? 1.0 : 1; // Full movement for urgent threats
-      return {
-        x: (dodgeX / dodgeLength) * movementMultiplier,
-        y: (dodgeY / dodgeLength) * movementMultiplier
-      };
-    }
-    
-    // Stay perfectly still when no threats require movement
-    return { x: 0, y: 0 };
-  }
-
-  // Calculate precise threat with collision trajectory analysis
-  calculatePreciseThreatVector(entity, avoidRadius, futureFrames) {
-    // Get entity velocity vector
-    let entityVx = 0;
-    let entityVy = 0;
-    
-    if (entity.vx !== undefined && entity.vy !== undefined) {
-      entityVx = entity.vx;
-      entityVy = entity.vy;
-    } else if (entity.speed !== undefined && entity.angle !== undefined) {
-      entityVx = Math.cos(entity.angle) * entity.speed;
-      entityVy = Math.sin(entity.angle) * entity.speed;
-    }
-    
-    // Check if entity is actually moving towards player using trajectory analysis
-    const collisionInfo = this.calculateCollisionTrajectory(
-      entity.x, entity.y, entityVx, entityVy,
-      this.x, this.y, avoidRadius, futureFrames
-    );
-    
-    if (!collisionInfo.willCollide) {
-      return { x: 0, y: 0, strength: 0, isUrgent: false };
-    }
-    
-    // Calculate urgency based on time to collision
-    const isUrgent = collisionInfo.timeToCollision < futureFrames * 0.6; // Urgent if collision within 60% of prediction time
-    const strength = Math.max(0, 1.0 - (collisionInfo.timeToCollision / futureFrames));
-    
-    // Calculate optimal dodge direction based on trajectory
-    const dodgeVector = this.calculateTrajectoryDodgeVector(
-      entity.x, entity.y, entityVx, entityVy,
-      collisionInfo.timeToCollision
-    );
-    
-    return {
-      x: dodgeVector.x,
-      y: dodgeVector.y,
-      strength: strength,
-      isUrgent: isUrgent
-    };
-  }
-
-  // Calculate if and when a moving entity will collide with player
-  calculateCollisionTrajectory(entityX, entityY, entityVx, entityVy, playerX, playerY, safeRadius, maxFrames) {
-    // If entity isn't moving, use simple distance check
-    if (Math.abs(entityVx) < 0.1 && Math.abs(entityVy) < 0.1) {
-      const distance = Math.sqrt((entityX - playerX) ** 2 + (entityY - playerY) ** 2);
-      return {
-        willCollide: distance < safeRadius,
-        timeToCollision: distance < safeRadius ? 0 : Infinity,
-        closestDistance: distance
-      };
-    }
-    
-    // Calculate relative position and velocity
-    const relativeX = entityX - playerX;
-    const relativeY = entityY - playerY;
-    const relativeVx = entityVx; // Assuming player is stationary for prediction
-    const relativeVy = entityVy;
-    
-    // Find closest approach using quadratic formula
-    // Distance² = (relativeX + relativeVx * t)² + (relativeY + relativeVy * t)²
-    // Minimize by taking derivative and setting to 0
-    
-    const a = relativeVx * relativeVx + relativeVy * relativeVy;
+    const a = relativeVx * relativeVx + relativeVy * relativeVy - bulletSpeed * bulletSpeed;
     const b = 2 * (relativeX * relativeVx + relativeY * relativeVy);
     const c = relativeX * relativeX + relativeY * relativeY;
-    
-    let timeToClosest = 0;
-    if (Math.abs(a) > 0.001) {
-      timeToClosest = -b / (2 * a);
-      timeToClosest = Math.max(0, Math.min(maxFrames, timeToClosest)); // Clamp to valid range
-    }
-    
-    // Calculate position at closest approach
-    const closestX = entityX + entityVx * timeToClosest;
-    const closestY = entityY + entityVy * timeToClosest;
-    const closestDistance = Math.sqrt((closestX - playerX) ** 2 + (closestY - playerY) ** 2);
-    
-    // Check if trajectory will result in collision
-    const willCollide = closestDistance < safeRadius && timeToClosest < maxFrames;
-    
-    return {
-      willCollide: willCollide,
-      timeToCollision: willCollide ? timeToClosest : Infinity,
-      closestDistance: closestDistance,
-      closestX: closestX,
-      closestY: closestY
-    };
-  }
 
-  // Calculate optimal dodge direction based on entity trajectory
-  calculateTrajectoryDodgeVector(entityX, entityY, entityVx, entityVy, timeToCollision) {
-    // Predict where the entity will be at collision time
-    const collisionX = entityX + entityVx * timeToCollision;
-    const collisionY = entityY + entityVy * timeToCollision;
-    
-    // Calculate perpendicular vector to entity's motion
-    const entitySpeed = Math.sqrt(entityVx * entityVx + entityVy * entityVy);
-    if (entitySpeed > 0) {
-      // Two perpendicular directions to entity motion
-      const perpX1 = -entityVy / entitySpeed;
-      const perpY1 = entityVx / entitySpeed;
-      const perpX2 = entityVy / entitySpeed;
-      const perpY2 = -entityVx / entitySpeed;
-      
-      // Choose the perpendicular direction that moves away from entity's current position
-      const toEntityX = entityX - this.x;
-      const toEntityY = entityY - this.y;
-      
-      const dot1 = perpX1 * toEntityX + perpY1 * toEntityY;
-      const dot2 = perpX2 * toEntityX + perpY2 * toEntityY;
-      
-      // Choose direction that moves away from entity
-      if (dot1 < dot2) {
-        return { x: perpX1, y: perpY1 };
+    const discriminant = b * b - 4 * a * c;
+
+    // No solution if discriminant is negative
+    if (discriminant < 0) {
+      return null;
+    }
+
+    let interceptTime = 0;
+
+    if (Math.abs(a) < 0.0001) {
+      // Linear case: target and bullet speeds nearly cancel out
+      if (Math.abs(b) > 0.0001) {
+        interceptTime = -c / b;
       } else {
-        return { x: perpX2, y: perpY2 };
+        // Target is already at the right position
+        interceptTime = 0;
       }
-    }
-    
-    // Fallback: move away from entity's current position
-    const toPlayerX = this.x - entityX;
-    const toPlayerY = this.y - entityY;
-    const distance = Math.sqrt(toPlayerX * toPlayerX + toPlayerY * toPlayerY);
-    
-    if (distance > 0) {
-      return { x: toPlayerX / distance, y: toPlayerY / distance };
-    }
-    
-    // Last fallback: random safe direction
-    const safeAngle = this.findSafestDirection();
-    return { x: Math.cos(safeAngle), y: Math.sin(safeAngle) };
-  }
+    } else {
+      // Quadratic case: solve for intercept time
+      const sqrtDiscriminant = Math.sqrt(discriminant);
+      const t1 = (-b - sqrtDiscriminant) / (2 * a);
+      const t2 = (-b + sqrtDiscriminant) / (2 * a);
 
-  // Calculate the safest direction to move away from a threat
-  calculateOptimalEscapeVector(entity, distance) {
-    if (distance === 0) {
-      // If exactly on top, choose a random safe direction
-      const safeAngle = this.findSafestDirection();
-      return {
-        x: Math.cos(safeAngle),
-        y: Math.sin(safeAngle)
-      };
-    }
-    
-    // Basic avoidance vector (away from threat)
-    const basicAvoidX = (this.x - entity.x) / distance;
-    const basicAvoidY = (this.y - entity.y) / distance;
-    
-    // Check if this direction would take us off-screen or into other dangers
-    const testX = this.x + basicAvoidX * 50;
-    const testY = this.y + basicAvoidY * 50;
-    
-    // Keep on screen
-    if (testX < 50 || testX > window.innerWidth - 50 || 
-        testY < 50 || testY > window.innerHeight - 50) {
-      // Find alternative safe direction
-      const safeAngle = this.findSafestDirection();
-      return {
-        x: Math.cos(safeAngle),
-        y: Math.sin(safeAngle)
-      };
-    }
-    
-    return {
-      x: basicAvoidX,
-      y: basicAvoidY
-    };
-  }
-
-  // Find the safest direction to move (away from most threats)
-  findSafestDirection() {
-    const testAngles = [0, Math.PI/4, Math.PI/2, 3*Math.PI/4, Math.PI, 5*Math.PI/4, 3*Math.PI/2, 7*Math.PI/4];
-    let safestAngle = 0;
-    let lowestThreat = Infinity;
-    
-    for (const angle of testAngles) {
-      const testX = this.x + Math.cos(angle) * 60;
-      const testY = this.y + Math.sin(angle) * 60;
+      // Choose the smallest positive time
+      const validTimes = [t1, t2].filter(t => t > 0.001); // Small epsilon to avoid division issues
       
-      // Check if this position is safe and on-screen
-      if (testX >= 50 && testX <= window.innerWidth - 50 && 
-          testY >= 50 && testY <= window.innerHeight - 50) {
-        
-        // This direction is valid, prefer it over going off-screen
-        if (lowestThreat === Infinity) {
-          safestAngle = angle;
-          lowestThreat = 0;
-        }
+      if (validTimes.length === 0) {
+        return null;
       }
+      
+      interceptTime = Math.min(...validTimes);
     }
-    
-    return safestAngle;
-  }
 
-  // Check if a powerup is safe to collect
-  isPowerupSafeToCollect(powerup, enemyBullets, enemyLasers) {
-    const safetyRadius = 40;
-    
-    // Check for bullets near the powerup
-    for (const bullet of enemyBullets) {
-      const distance = Math.sqrt((bullet.x - powerup.x) ** 2 + (bullet.y - powerup.y) ** 2);
-      if (distance < safetyRadius) {
-        return false;
-      }
-    }
-    
-    // Check for lasers near the powerup
-    for (const laser of enemyLasers) {
-      const distance = Math.sqrt((laser.x - powerup.x) ** 2 + (laser.y - powerup.y) ** 2);
-      if (distance < safetyRadius) {
-        return false;
-      }
-    }
-    
-    return true;
-  }
+    // Calculate intercept position
+    const interceptX = targetX + targetVx * interceptTime;
+    const interceptY = targetY + targetVy * interceptTime;
 
-  // Calculate threat from a single entity
-  calculateThreatVector(entity, avoidRadius, futureFrames) {
-    // Predict entity position
-    let futureX = entity.x;
-    let futureY = entity.y;
-    
-    if (entity.vx !== undefined && entity.vy !== undefined) {
-      // Entity has velocity, predict future position
-      futureX += entity.vx * futureFrames;
-      futureY += entity.vy * futureFrames;
-    } else if (entity.speed !== undefined && entity.angle !== undefined) {
-      // Entity has speed and angle
-      futureX += Math.cos(entity.angle) * entity.speed * futureFrames;
-      futureY += Math.sin(entity.angle) * entity.speed * futureFrames;
-    }
-    
-    // Calculate distance to predicted position
-    const dx = futureX - this.x;
-    const dy = futureY - this.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    if (distance > avoidRadius) {
-      return { x: 0, y: 0, strength: 0 }; // Not a threat
-    }
-    
-    // Calculate avoidance strength (stronger when closer)
-    const strength = Math.max(0, (avoidRadius - distance) / avoidRadius);
-    
-    // Return normalized avoidance vector (away from threat)
-    if (distance > 0) {
-      return {
-        x: -dx / distance, // Move away from threat
-        y: -dy / distance,
-        strength: strength
-      };
-    }
-    
-    // If exactly on top, move in random direction
-    const randomAngle = Math.random() * Math.PI * 2;
     return {
-      x: Math.cos(randomAngle),
-      y: Math.sin(randomAngle),
-      strength: 1.0
+      interceptX,
+      interceptY,
+      interceptTime
     };
   }
+
+  // Simple lead target calculation (fallback method)
+  calculateSimpleLeadTarget(targetX, targetY, targetVx, targetVy, playerX, playerY, bulletSpeed) {
+    // Simple leading: assume player is stationary, calculate where target will be
+    const distance = Math.sqrt((targetX - playerX) ** 2 + (targetY - playerY) ** 2);
+    
+    if (distance === 0) {
+      return { x: targetX, y: targetY };
+    }
+
+    // Estimate time for bullet to reach target's current position
+    let timeToTarget = distance / bulletSpeed;
+    
+    // Iterative improvement for better accuracy (2 iterations usually sufficient)
+    for (let i = 0; i < 3; i++) {
+      const predictedX = targetX + targetVx * timeToTarget;
+      const predictedY = targetY + targetVy * timeToTarget;
+      const newDistance = Math.sqrt((predictedX - playerX) ** 2 + (predictedY - playerY) ** 2);
+      timeToTarget = newDistance / bulletSpeed;
+    }
+
+    return {
+      x: targetX + targetVx * timeToTarget,
+      y: targetY + targetVy * timeToTarget
+    };
+  }
+
+  // Calculate how likely we are to hit a target based on its movement pattern
+  calculateTargetHitScore(target, bulletSpeed, distance) {
+    // Get target velocity
+    const targetVx = target.vx !== undefined ? target.vx : (target.dx || 0) / 60;
+    const targetVy = target.vy !== undefined ? target.vy : (target.dy || 0) / 60;
+    const targetSpeed = Math.sqrt(targetVx * targetVx + targetVy * targetVy);
+
+    // Base score starts high
+    let hitScore = 1.0;
+
+    // Penalize fast-moving targets
+    if (targetSpeed > 0) {
+      const relativeSpeed = targetSpeed / bulletSpeed;
+      hitScore *= Math.max(0.1, 1.0 - relativeSpeed * 0.5);
+    }
+
+    // Check if we can calculate a valid intercept
+    const interceptSolution = this.calculateInterceptSolution(
+      this.x, this.y, this.vx || 0, this.vy || 0,
+      target.x, target.y, targetVx, targetVy,
+      bulletSpeed
+    );
+
+    if (!interceptSolution) {
+      hitScore *= 0.2; // Heavy penalty for no intercept solution
+    } else {
+      const { interceptTime } = interceptSolution;
+      
+      // Prefer targets that require less lead time
+      if (interceptTime > 0) {
+        hitScore *= Math.max(0.3, 1.0 - interceptTime / 120); // 2 seconds max lead time
+      }
+    }
+
+    // Bonus for stationary or slow targets
+    if (targetSpeed < 1.0) {
+      hitScore *= 1.2; // 20% bonus for nearly stationary targets
+    }
+
+    // Penalty for targets moving perpendicular to our line of sight
+    if (targetSpeed > 0) {
+      const dx = target.x - this.x;
+      const dy = target.y - this.y;
+      const toTargetLength = Math.sqrt(dx * dx + dy * dy);
+      
+      if (toTargetLength > 0) {
+        const toTargetX = dx / toTargetLength;
+        const toTargetY = dy / toTargetLength;
+        
+        // Dot product of target velocity with direction to target
+        const radialComponent = Math.abs(targetVx * toTargetX + targetVy * toTargetY);
+        const tangentialComponent = targetSpeed - radialComponent;
+        
+        // Penalize high tangential movement (harder to hit)
+        hitScore *= Math.max(0.4, 1.0 - (tangentialComponent / bulletSpeed) * 0.8);
+      }
+    }
+
+    return Math.max(0.1, Math.min(1.0, hitScore));
+  }
+
 
   update(
     keys,
@@ -664,7 +236,7 @@ export class Player {
     // Handle movement - autoplay overrides manual input
     if (autoplayEnabled) {
       // Autoplay: automatically dodge threats and collect powerups
-      const dodgeVector = this.calculateDodgeVector(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups);
+      const dodgeVector = this.autoplayer.calculateDodgeVector(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups);
       this.x += dodgeVector.x * currentSpeed;
       this.y += dodgeVector.y * currentSpeed;
     } else if (keys.target) {
@@ -696,7 +268,7 @@ export class Player {
 
     // Autoplay strategic ability usage
     if (autoplayEnabled) {
-      this.handleAutoplayAbilities(enemies, enemyBullets, enemyLasers, asteroids, boss, keys, powerups);
+      this.autoplayer.handleAutoplayAbilities(enemies, enemyBullets, enemyLasers, asteroids, boss, keys, powerups);
     }
 
     // Handle aiming - autoaim/autoplay overrides mouse input
@@ -731,7 +303,7 @@ export class Player {
       return GAME_CONFIG.BULLET_SPEED; // All other levels use standard speed (8)
     };
 
-    // Advanced predictive aiming that considers both player and target velocity
+    // Enhanced interceptive targeting that accounts for all velocity vectors
     const calculatePredictiveAim = (target, bulletSpeed) => {
       if (bulletSpeed === Infinity) {
         // For laser, aim directly at target
@@ -739,54 +311,53 @@ export class Player {
       }
 
       // Get target velocity (some targets may not have velocity)
-      const targetVx = target.vx || 0;
-      const targetVy = target.vy || 0;
+      const targetVx = target.vx !== undefined ? target.vx : (target.dx || 0) / 60;
+      const targetVy = target.vy !== undefined ? target.vy : (target.dy || 0) / 60;
 
-      // Calculate relative velocity (target velocity minus player velocity)
-      const relativeVx = targetVx - this.vx;
-      const relativeVy = targetVy - this.vy;
+      // Get player velocity
+      const playerVx = this.vx || 0;
+      const playerVy = this.vy || 0;
 
-      // Calculate relative position
-      const relativeX = target.x - this.x;
-      const relativeY = target.y - this.y;
+      // Initial positions
+      const targetX = target.x;
+      const targetY = target.y;
+      const playerX = this.x;
+      const playerY = this.y;
 
-      // Solve for intercept time using quadratic formula
-      // |target_pos + target_vel * t - player_pos - player_vel * t| = bulletSpeed * t
-      const a =
-        relativeVx * relativeVx +
-        relativeVy * relativeVy -
-        bulletSpeed * bulletSpeed;
-      const b = 2 * (relativeX * relativeVx + relativeY * relativeVy);
-      const c = relativeX * relativeX + relativeY * relativeY;
+      // Calculate intercept solution using proper interceptive targeting math
+      const interceptSolution = this.calculateInterceptSolution(
+        playerX, playerY, playerVx, playerVy,
+        targetX, targetY, targetVx, targetVy,
+        bulletSpeed
+      );
 
-      let interceptTime = 0;
-
-      if (Math.abs(a) < 0.001) {
-        // Linear case: solve bt + c = 0
-        if (Math.abs(b) > 0.001) {
-          interceptTime = -c / b;
-        }
-      } else {
-        // Quadratic case
-        const discriminant = b * b - 4 * a * c;
-        if (discriminant >= 0) {
-          const t1 = (-b + Math.sqrt(discriminant)) / (2 * a);
-          const t2 = (-b - Math.sqrt(discriminant)) / (2 * a);
-
-          // Choose the smallest positive time
-          const validTimes = [t1, t2].filter((t) => t > 0);
-          if (validTimes.length > 0) {
-            interceptTime = Math.min(...validTimes);
-          }
+      if (interceptSolution) {
+        const { interceptX, interceptY, interceptTime } = interceptSolution;
+        
+        // Validate the solution - make sure intercept point is reasonable
+        const distanceToIntercept = Math.sqrt(
+          (interceptX - playerX) ** 2 + (interceptY - playerY) ** 2
+        );
+        const maxReasonableDistance = bulletSpeed * 180; // 3 seconds at bullet speed
+        
+        if (interceptTime > 0 && interceptTime < 180 && distanceToIntercept < maxReasonableDistance) {
+          // Return angle to intercept point
+          return Math.atan2(interceptY - playerY, interceptX - playerX);
         }
       }
 
-      // Calculate predicted intercept position
-      const predictedX = target.x + targetVx * interceptTime;
-      const predictedY = target.y + targetVy * interceptTime;
+      // Fallback: simple leading target (without player velocity consideration)
+      const fallbackSolution = this.calculateSimpleLeadTarget(
+        targetX, targetY, targetVx, targetVy,
+        playerX, playerY, bulletSpeed
+      );
 
-      // Return angle to predicted position
-      return Math.atan2(predictedY - this.y, predictedX - this.x);
+      if (fallbackSolution) {
+        return Math.atan2(fallbackSolution.y - playerY, fallbackSolution.x - playerX);
+      }
+
+      // Final fallback: direct aim
+      return Math.atan2(targetY - playerY, targetX - playerX);
     };
 
     // Enhanced predictive aim with priority system
@@ -811,15 +382,24 @@ export class Player {
       const shootingEnemyTypes = ["straight", "sine", "zigzag"];
 
       // Priority 1: Very close targets (within 200px) - any enemy or asteroid
+      // Enhanced to prefer targets we can actually hit
       let closestNearbyTarget = null;
       let closestNearbyDistance = Infinity;
+      let bestNearbyScore = -1;
 
       for (const t of allTargets) {
         if (isTargetInViewport(t)) {
           const dist = Math.sqrt((t.x - this.x) ** 2 + (t.y - this.y) ** 2);
-          if (dist < 200 && dist < closestNearbyDistance) {
-            closestNearbyDistance = dist;
-            closestNearbyTarget = t;
+          if (dist < 200) {
+            // Calculate hit probability for this target
+            const hitScore = this.calculateTargetHitScore(t, bulletSpeed, dist);
+            const combinedScore = hitScore * (1.0 - dist / 200); // Closer = better
+            
+            if (combinedScore > bestNearbyScore) {
+              bestNearbyScore = combinedScore;
+              closestNearbyDistance = dist;
+              closestNearbyTarget = t;
+            }
           }
         }
       }

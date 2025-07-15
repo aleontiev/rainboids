@@ -28,6 +28,10 @@ export class Asteroid {
         this.godMode = false;
         this.invulnerable = false;
         
+        // Velocity tracking (dx/dy per second) - initialize with current velocity
+        this.dx = this.vx * 60;
+        this.dy = this.vy * 60;
+        
         // Generate more vertices for detailed shape
         this.vertices = [];
         const numVertices = 12 + Math.floor(Math.random() * 8); // 12-20 vertices
@@ -84,9 +88,17 @@ export class Asteroid {
     }
     
     update(slowdownFactor = 1.0) {
+        // Store previous position for velocity calculation
+        const prevX = this.x;
+        const prevY = this.y;
+        
         this.x += this.vx * slowdownFactor;
         this.y += this.vy * slowdownFactor;
         this.angle += this.rotationSpeed * slowdownFactor;
+        
+        // Calculate velocity (pixels per frame * 60 = pixels per second)
+        this.dx = (this.x - prevX) * 60;
+        this.dy = (this.y - prevY) * 60;
     }
     
     render(ctx) {

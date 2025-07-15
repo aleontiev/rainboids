@@ -53,6 +53,10 @@ export class MiniBoss extends BaseEnemy {
     this.deathExplosionTimer = 0;
     this.deathExplosionInterval = 3; // Explosions every 3 frames
     this.finalExplosionTriggered = false;
+    
+    // Velocity tracking (dx/dy per second)
+    this.dx = 0;
+    this.dy = 0;
   }
 
   // Check if this miniboss can be targeted by auto-aim
@@ -96,6 +100,10 @@ export class MiniBoss extends BaseEnemy {
       }
     }
 
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     // Movement logic
     if (this.movePattern === "entering") {
       // Move to target position
@@ -132,6 +140,10 @@ export class MiniBoss extends BaseEnemy {
         }
       }
     }
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
 
     // Weapon timers
     this.primaryWeaponTimer += slowdownFactor;

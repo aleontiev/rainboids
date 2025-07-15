@@ -18,12 +18,24 @@ export class CircularBullet {
     this.color = color;
     this.life = 300;
     this.isPortrait = isPortrait;
+    
+    // Velocity tracking (dx/dy per second)
+    this.dx = 0;
+    this.dy = 0;
   }
 
   update(slowdownFactor = 1.0) {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     this.x += Math.cos(this.angle) * this.speed * slowdownFactor;
     this.y += Math.sin(this.angle) * this.speed * slowdownFactor;
     this.life -= slowdownFactor;
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
 
     // Remove if off screen or life expired
     if (this.isPortrait) {

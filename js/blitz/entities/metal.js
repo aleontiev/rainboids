@@ -28,6 +28,10 @@ export class Metal {
       this.vx = -this.speed; // Move leftward
       this.vy = (Math.random() - 0.5) * 0.5; // Slight vertical drift
     }
+    
+    // Velocity tracking (dx/dy per second) - initialize with current velocity
+    this.dx = this.vx * 60;
+    this.dy = this.vy * 60;
   }
 
   generateSegments() {
@@ -79,12 +83,20 @@ export class Metal {
   }
 
   update(slowdownFactor = 1.0) {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     // Update position
     this.x += this.vx * slowdownFactor;
     this.y += this.vy * slowdownFactor;
     
     // Update rotation
     this.rotation += this.rotationSpeed * slowdownFactor;
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
     
     // Check if off screen for cleanup
     const margin = 100;

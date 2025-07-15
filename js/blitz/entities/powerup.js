@@ -7,6 +7,10 @@ export class Powerup {
     this.speed = 1;
     this.pulseTimer = 0;
     this.isPortrait = isPortrait;
+    
+    // Velocity tracking (dx/dy per second)
+    this.dx = 0;
+    this.dy = 0;
     this.colors = {
       shield: "#4488ff", // Blue
       mainWeapon: "#44ff44", // green
@@ -18,12 +22,20 @@ export class Powerup {
   }
 
   update() {
+    // Store previous position for velocity calculation
+    const prevX = this.x;
+    const prevY = this.y;
+    
     if (this.isPortrait) {
       this.y += this.speed;
     } else {
       this.x -= this.speed;
     }
     this.pulseTimer += 0.1;
+    
+    // Calculate velocity (pixels per frame * 60 = pixels per second)
+    this.dx = (this.x - prevX) * 60;
+    this.dy = (this.y - prevY) * 60;
   }
 
   render(ctx) {
