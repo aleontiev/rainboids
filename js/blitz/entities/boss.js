@@ -48,6 +48,16 @@ export class Boss extends BaseEnemy {
       coreHeight: 20,
       coreLength: 60,
       invulnerable: false,
+      // Sweeping laser properties
+      sweepState: "inactive", // inactive, charging, sweeping
+      sweepAngle: -Math.PI / 2, // Start pointing up
+      sweepDirection: 1, // 1 = clockwise, -1 = counterclockwise
+      sweepSpeed: 0.02, // Radians per frame (slow sweep)
+      sweepChargeTime: 0,
+      sweepMaxChargeTime: 120, // 2 seconds charge time
+      sweepDuration: 0,
+      sweepMaxDuration: 360, // 6 seconds of sweeping
+      activeLaser: null, // Current laser beam
       isVulnerableToAutoAim: function() { return !this.destroyed && !this.invulnerable; }
     };
     
@@ -373,63 +383,83 @@ export class Boss extends BaseEnemy {
     return false;
   }
 
-  // Fire left arm lasers and homing missiles
+  // Fire left arm sweeping laser
   fireLeftArm(playerX, playerY) {
-    if (this.leftArm.destroyed || this.leftArm.cooldown > 0) return [];
+    if (this.leftArm.destroyed) return [];
     
-    const projectiles = [];
-    
-    // Get firing position from arm position
-    const armX = this.leftArm.x;
-    const armY = this.leftArm.y;
-    
-    // Main laser (like laser enemy)
-    if (Math.random() < 0.3) { // 30% chance for main laser
-      this.leftArm.laserCharging = true;
-      this.leftArm.laserChargeTime = 0;
-      this.leftArm.cooldown = this.leftArm.maxCooldown;
-      
-      // Fire main laser after charging
-      setTimeout(() => {
-        const angle = Math.atan2(playerY - armY, playerX - armX);
-        projectiles.push({
-          type: "laser",
-          x: armX,
-          y: armY,
-          angle: angle,
-          speed: 1.5,
-          color: "#ff8800", // Orange laser
-          width: 8,
-          length: 400
-        });
-      }, 1000);
-    }
-    
-    // Side shooter homing missiles
-    if (Math.random() < 0.7) { // 70% chance for side missiles
-      const sideOffsets = [-15, 15]; // Left and right sides
-      for (const offset of sideOffsets) {
-        const sideAngle = Math.atan2(playerY - armY, playerX - armX) + Math.PI/2;
-        const sideX = armX + Math.cos(sideAngle) * offset;
-        const sideY = armY + Math.sin(sideAngle) * offset;
+    // Handle sweeping laser state machine
+    switch (this.leftArm.sweepState) {
+      case "inactive":
+        // Start charging if cooldown is over
+        if (this.leftArm.cooldown <= 0) {
+          this.leftArm.sweepState = "charging";
+          this.leftArm.sweepChargeTime = 0;
+          this.leftArm.sweepAngle = -Math.PI / 2; // Start pointing up
+        }
+        break;
         
-        projectiles.push({
-          type: "homing",
-          x: sideX,
-          y: sideY,
-          vx: Math.cos(Math.atan2(playerY - sideY, playerX - sideX)) * 2,
-          vy: Math.sin(Math.atan2(playerY - sideY, playerX - sideX)) * 2,
-          targetX: playerX,
-          targetY: playerY,
-          homingStrength: 0.05,
-          color: "#ff4400", // Red-orange missiles
-          size: 6
-        });
-      }
+      case "charging":
+        this.leftArm.sweepChargeTime++;
+        // Update arm angle to point at current sweep target
+        this.leftArm.coreAngle = this.leftArm.sweepAngle;
+        
+        if (this.leftArm.sweepChargeTime >= this.leftArm.sweepMaxChargeTime) {
+          // Start sweeping
+          this.leftArm.sweepState = "sweeping";
+          this.leftArm.sweepDuration = 0;
+          this.leftArm.sweepDirection = 1; // Start clockwise
+        }
+        break;
+        
+      case "sweeping":
+        this.leftArm.sweepDuration++;
+        
+        // Update sweep angle
+        this.leftArm.sweepAngle += this.leftArm.sweepSpeed * this.leftArm.sweepDirection;
+        this.leftArm.coreAngle = this.leftArm.sweepAngle;
+        
+        // Check for direction changes at endpoints
+        const bottomMidAngle = Math.PI / 2; // Pointing down
+        const topAngle = -Math.PI / 2; // Pointing up
+        
+        // If sweeping clockwise and reached bottom mid, reverse direction
+        if (this.leftArm.sweepDirection > 0 && this.leftArm.sweepAngle >= bottomMidAngle) {
+          this.leftArm.sweepDirection = -1;
+          this.leftArm.sweepAngle = bottomMidAngle;
+        }
+        // If sweeping counter-clockwise and reached top, reverse direction
+        else if (this.leftArm.sweepDirection < 0 && this.leftArm.sweepAngle <= topAngle) {
+          this.leftArm.sweepDirection = 1;
+          this.leftArm.sweepAngle = topAngle;
+        }
+        
+        // Create continuous laser beam
+        if (this.leftArm.sweepDuration % 3 === 0) { // Fire every 3 frames for continuous beam
+          const armX = this.leftArm.x;
+          const armY = this.leftArm.y;
+          
+          return [{
+            type: "laser",
+            x: armX,
+            y: armY,
+            angle: this.leftArm.sweepAngle,
+            speed: 8, // Fast moving laser segments
+            color: "#ff8800", // Orange laser
+            width: 12,
+            length: 60, // Shorter segments for continuous beam effect
+            isSweepingLaser: true
+          }];
+        }
+        
+        // End sweeping after max duration
+        if (this.leftArm.sweepDuration >= this.leftArm.sweepMaxDuration) {
+          this.leftArm.sweepState = "inactive";
+          this.leftArm.cooldown = this.leftArm.maxCooldown * 2; // Longer cooldown for powerful attack
+        }
+        break;
     }
     
-    this.leftArm.cooldown = this.leftArm.maxCooldown;
-    return projectiles;
+    return [];
   }
 
   // Fire right arm missiles and bullet spreads
@@ -857,16 +887,37 @@ export class Boss extends BaseEnemy {
     ctx.save();
     ctx.rotate(arm.coreAngle);
     
-    // Weapon core
+    // Weapon core with charging effects for sweeping laser
     ctx.fillStyle = color;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 3;
+    
+    // Add charging effects for left arm sweeping laser
+    if (arm.type === "laser" && arm.sweepState === "charging") {
+      const chargeProgress = arm.sweepChargeTime / arm.sweepMaxChargeTime;
+      const intensity = Math.min(1, chargeProgress);
+      
+      // Pulsing orange glow around weapon core
+      ctx.shadowColor = "#ff8800";
+      ctx.shadowBlur = 15 + intensity * 20;
+      ctx.strokeStyle = `rgba(255, 136, 0, ${intensity})`;
+      ctx.lineWidth = 3 + intensity * 5;
+    } else if (arm.type === "laser" && arm.sweepState === "sweeping") {
+      // Bright glow when actively sweeping
+      ctx.shadowColor = "#ffaa00";
+      ctx.shadowBlur = 25;
+      ctx.strokeStyle = "#ffaa00";
+      ctx.lineWidth = 6;
+    }
     
     // Main weapon body
     ctx.beginPath();
     ctx.rect(0, -arm.coreHeight/2, arm.coreLength, arm.coreHeight);
     ctx.fill();
     ctx.stroke();
+    
+    // Reset shadow effects
+    ctx.shadowBlur = 0;
     
     // Weapon details based on type
     if (arm.type === "laser") {

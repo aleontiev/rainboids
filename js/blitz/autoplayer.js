@@ -180,18 +180,21 @@ export class Autoplayer {
   }
 
   // Enhanced movement calculation with comprehensive threat avoidance
-  calculateDodgeVector(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups = []) {
+  calculateDodgeVector(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups = [], timeSlowActive = false) {
     if (!this.autoplayMovementTimer) this.autoplayMovementTimer = 0;
     this.autoplayMovementTimer += 1;
+
+    // Calculate slowdown factor for time slow mode
+    const slowdownFactor = timeSlowActive ? 0.3 : 1.0;
 
     // Step 1: Determine current point objective
     const objective = this.calculatePointObjective(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups);
     
-    // Step 2: Create comprehensive threat map
-    const allThreats = this.mapAllThreats(enemies, enemyBullets, enemyLasers, asteroids, boss);
+    // Step 2: Create comprehensive threat map with slowdown factor
+    const allThreats = this.mapAllThreats(enemies, enemyBullets, enemyLasers, asteroids, boss, slowdownFactor);
     
-    // Step 3: Find safe path to objective
-    const safeMovement = this.calculateSafeMovement(objective, allThreats);
+    // Step 3: Find safe path to objective accounting for time slow
+    const safeMovement = this.calculateSafeMovement(objective, allThreats, slowdownFactor);
     
     return safeMovement;
   }
@@ -287,6 +290,51 @@ export class Autoplayer {
       }
     }
     
+    // Boss/miniboss distance prioritization - stay far but centered
+    const miniboss = enemies.find(enemy => enemy.type === 'miniboss' || enemy.isMiniboss);
+    
+    if (isBossActive || miniboss) {
+      const threat = isBossActive ? boss : miniboss;
+      const isPortrait = window.innerHeight > window.innerWidth;
+      
+      let targetX, targetY;
+      
+      if (isPortrait) {
+        // Portrait: stay centered horizontally, maximize vertical distance
+        targetX = centerX;
+        
+        // Determine which end of screen is farther from threat
+        const distanceToTop = Math.abs(threat.y - 50);
+        const distanceToBottom = Math.abs(threat.y - (window.innerHeight - 50));
+        
+        if (distanceToTop > distanceToBottom) {
+          targetY = 100; // Stay near top
+        } else {
+          targetY = window.innerHeight - 100; // Stay near bottom
+        }
+      } else {
+        // Landscape: stay centered vertically, maximize horizontal distance
+        targetY = centerY;
+        
+        // Determine which side of screen is farther from threat
+        const distanceToLeft = Math.abs(threat.x - 50);
+        const distanceToRight = Math.abs(threat.x - (window.innerWidth - 50));
+        
+        if (distanceToLeft > distanceToRight) {
+          targetX = 100; // Stay near left
+        } else {
+          targetX = window.innerWidth - 100; // Stay near right
+        }
+      }
+      
+      return {
+        type: 'boss_distance',
+        x: targetX,
+        y: targetY,
+        priority: 1.0 // High priority during boss fights
+      };
+    }
+    
     // Enhanced center-seeking with distance-based priority
     const distanceFromCenter = Math.sqrt((this.player.x - centerX) ** 2 + (this.player.y - centerY) ** 2);
     const maxDistanceFromCenter = Math.sqrt((centerX ** 2) + (centerY ** 2));
@@ -301,37 +349,45 @@ export class Autoplayer {
   }
 
   // Create a comprehensive map of all threats with their danger zones
-  mapAllThreats(enemies, enemyBullets, enemyLasers, asteroids, boss) {
+  mapAllThreats(enemies, enemyBullets, enemyLasers, asteroids, boss, slowdownFactor = 1.0) {
     const threats = [];
     const futureFrames = 90;
     
     // Map all enemy bullets as high-priority threats
     for (const bullet of enemyBullets) {
+      // Apply slowdown factor to bullet velocity (bullets slow down during time slow)
+      const adjustedVx = ((bullet.dx || 0) / 60) * slowdownFactor;
+      const adjustedVy = ((bullet.dy || 0) / 60) * slowdownFactor;
+      
       threats.push({
         entity: bullet,
         type: 'bullet',
         x: bullet.x,
         y: bullet.y,
-        vx: (bullet.dx || 0) / 60,
-        vy: (bullet.dy || 0) / 60,
+        vx: adjustedVx,
+        vy: adjustedVy,
         radius: 60, // Increased danger radius around bullet
         priority: 1.0,
-        predictedPath: this.predictEntityPath(bullet, futureFrames)
+        predictedPath: this.predictEntityPath(bullet, futureFrames, slowdownFactor)
       });
     }
     
     // Map all enemy lasers
     for (const laser of enemyLasers) {
+      // Apply slowdown factor to laser velocity 
+      const adjustedVx = ((laser.dx || 0) / 60) * slowdownFactor;
+      const adjustedVy = ((laser.dy || 0) / 60) * slowdownFactor;
+      
       threats.push({
         entity: laser,
         type: 'laser',
         x: laser.x,
         y: laser.y,
-        vx: (laser.dx || 0) / 60,
-        vy: (laser.dy || 0) / 60,
+        vx: adjustedVx,
+        vy: adjustedVy,
         radius: 70, // Increased danger radius around laser
         priority: 0.95,
-        predictedPath: this.predictEntityPath(laser, futureFrames)
+        predictedPath: this.predictEntityPath(laser, futureFrames, slowdownFactor)
       });
     }
     
@@ -401,7 +457,7 @@ export class Autoplayer {
   }
 
   // Calculate safe movement vector towards objective while avoiding all threats
-  calculateSafeMovement(objective, allThreats) {
+  calculateSafeMovement(objective, allThreats, slowdownFactor = 1.0) {
     const playerSpeed = GAME_CONFIG.PLAYER_SPEED;
     
     // Check for immediate danger requiring quick dodging
@@ -442,7 +498,7 @@ export class Autoplayer {
       const testX = Math.cos(angle);
       const testY = Math.sin(angle);
       
-      const safety = this.calculateDirectionSafety(testX, testY, allThreats, playerSpeed);
+      const safety = this.calculateDirectionSafety(testX, testY, allThreats, playerSpeed, slowdownFactor);
       
       if (safety > bestSafety) {
         bestSafety = safety;
@@ -478,6 +534,172 @@ export class Autoplayer {
       x: bestDirection.x * movementScale,
       y: bestDirection.y * movementScale
     };
+  }
+
+  // Detect immediate threats requiring urgent evasion
+  detectImmediateDanger(allThreats) {
+    const immediateRadius = 80; // Threats within 80px are immediate danger
+    const immediateDangers = [];
+    
+    for (const threat of allThreats) {
+      const distance = Math.sqrt((threat.x - this.player.x) ** 2 + (threat.y - this.player.y) ** 2);
+      
+      // Check for immediate collision threats
+      if (distance < immediateRadius) {
+        // For bullets and lasers, also check their trajectory
+        if (threat.type === 'bullet' || threat.type === 'laser') {
+          const timeToImpact = this.calculateTimeToImpact(threat);
+          if (timeToImpact > 0 && timeToImpact < 30) { // 0.5 seconds at 60fps
+            immediateDangers.push({ threat, distance, timeToImpact });
+          }
+        } else {
+          // Static threats like enemies and asteroids
+          immediateDangers.push({ threat, distance, timeToImpact: 0 });
+        }
+      }
+    }
+    
+    return immediateDangers.length > 0 ? immediateDangers : null;
+  }
+
+  // Calculate aggressive dodge movement for immediate threats
+  calculateAggressiveDodge(immediateDangers, allThreats) {
+    // Find the most urgent threat
+    let mostUrgent = immediateDangers[0];
+    for (const danger of immediateDangers) {
+      if (danger.timeToImpact < mostUrgent.timeToImpact) {
+        mostUrgent = danger;
+      }
+    }
+    
+    const threat = mostUrgent.threat;
+    
+    // Calculate escape vector - perpendicular to threat velocity
+    let escapeX = 0;
+    let escapeY = 0;
+    
+    if (threat.vx !== undefined && threat.vy !== undefined) {
+      // For moving threats, escape perpendicular to their movement
+      const threatSpeed = Math.sqrt(threat.vx * threat.vx + threat.vy * threat.vy);
+      if (threatSpeed > 0) {
+        // Perpendicular directions
+        const perpX1 = -threat.vy / threatSpeed;
+        const perpY1 = threat.vx / threatSpeed;
+        const perpX2 = threat.vy / threatSpeed;
+        const perpY2 = -threat.vx / threatSpeed;
+        
+        // Choose the perpendicular direction that moves toward center
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        
+        const toCenterX = centerX - this.player.x;
+        const toCenterY = centerY - this.player.y;
+        
+        const dot1 = perpX1 * toCenterX + perpY1 * toCenterY;
+        const dot2 = perpX2 * toCenterX + perpY2 * toCenterY;
+        
+        if (dot1 > dot2) {
+          escapeX = perpX1;
+          escapeY = perpY1;
+        } else {
+          escapeX = perpX2;
+          escapeY = perpY2;
+        }
+      }
+    }
+    
+    if (escapeX === 0 && escapeY === 0) {
+      // For static threats or if perpendicular calculation failed, move directly away
+      const awayX = this.player.x - threat.x;
+      const awayY = this.player.y - threat.y;
+      const awayDistance = Math.sqrt(awayX * awayX + awayY * awayY);
+      
+      if (awayDistance > 0) {
+        escapeX = awayX / awayDistance;
+        escapeY = awayY / awayDistance;
+      }
+    }
+    
+    // Maximum aggressive movement - ship is fast!
+    const aggressiveScale = 1.5;
+    
+    return {
+      x: escapeX * aggressiveScale,
+      y: escapeY * aggressiveScale
+    };
+  }
+
+  // More aggressive proximity limit calculation
+  calculateAggressiveProximityLimit(allThreats) {
+    const proximityRadius = 40; // Slightly larger radius for aggressive movement
+    const minMovementScale = 0.7; // Higher minimum - stay aggressive
+    const maxMovementScale = 1.0;
+    
+    let closestThreatDistance = Infinity;
+    let hasNearbyCollidableThreats = false;
+    
+    // Check distance to all threats
+    for (const threat of allThreats) {
+      const distance = Math.sqrt(
+        (threat.x - this.player.x) ** 2 + (threat.y - this.player.y) ** 2
+      );
+      
+      // Only consider very dangerous threats
+      if (threat.type === 'bullet' || threat.type === 'laser' || 
+          (threat.type === 'enemy' && distance < 25)) {
+        
+        if (distance <= proximityRadius) {
+          hasNearbyCollidableThreats = true;
+          closestThreatDistance = Math.min(closestThreatDistance, distance);
+        }
+      }
+    }
+    
+    // If no nearby dangerous threats, allow full aggressive movement
+    if (!hasNearbyCollidableThreats) {
+      return maxMovementScale;
+    }
+    
+    // Less severe slowdown for proximity
+    const proximityRatio = closestThreatDistance / proximityRadius;
+    return minMovementScale + (maxMovementScale - minMovementScale) * proximityRatio;
+  }
+
+  // Calculate time until threat will impact player position
+  calculateTimeToImpact(threat) {
+    // If threat has no velocity, it's not moving toward us
+    if (!threat.vx && !threat.vy) {
+      return Infinity;
+    }
+    
+    const relativeX = this.player.x - threat.x;
+    const relativeY = this.player.y - threat.y;
+    const threatVx = threat.vx || 0;
+    const threatVy = threat.vy || 0;
+    
+    // Calculate if threat is moving toward player
+    const dotProduct = relativeX * threatVx + relativeY * threatVy;
+    if (dotProduct <= 0) {
+      // Threat is moving away from player
+      return Infinity;
+    }
+    
+    // Calculate closest approach using quadratic formula
+    const a = threatVx * threatVx + threatVy * threatVy;
+    const b = -2 * (relativeX * threatVx + relativeY * threatVy);
+    const c = relativeX * relativeX + relativeY * relativeY;
+    
+    if (a === 0) return Infinity;
+    
+    const discriminant = b * b - 4 * a * c;
+    if (discriminant < 0) return Infinity;
+    
+    const t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
+    const t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
+    
+    // Return the smaller positive time
+    const validTimes = [t1, t2].filter(t => t > 0);
+    return validTimes.length > 0 ? Math.min(...validTimes) : Infinity;
   }
 
   // Calculate movement speed limit based on proximity to threats
@@ -542,19 +764,23 @@ export class Autoplayer {
   }
 
   // Calculate safety score for a movement direction
-  calculateDirectionSafety(dirX, dirY, allThreats, playerSpeed) {
+  calculateDirectionSafety(dirX, dirY, allThreats, playerSpeed, slowdownFactor = 1.0) {
     let safetyScore = 1.0;
     const lookAheadFrames = 45; // Increased lookahead for better prediction
     
+    // Player movement is also affected by slowdown factor
+    const effectivePlayerSpeed = playerSpeed * slowdownFactor;
+    
     // Test multiple points along the movement path
     for (let frame = 1; frame <= lookAheadFrames; frame++) {
-      const futureX = this.player.x + dirX * playerSpeed * frame;
-      const futureY = this.player.y + dirY * playerSpeed * frame;
+      const futureX = this.player.x + dirX * effectivePlayerSpeed * frame;
+      const futureY = this.player.y + dirY * effectivePlayerSpeed * frame;
       
       // Check safety at this future position
       for (const threat of allThreats) {
-        const threatFutureX = threat.x + (threat.vx || ((threat.dx || 0) / 60)) * frame;
-        const threatFutureY = threat.y + (threat.vy || ((threat.dy || 0) / 60)) * frame;
+        // Threat velocities are already adjusted for slowdown factor in mapAllThreats
+        const threatFutureX = threat.x + (threat.vx || 0) * frame;
+        const threatFutureY = threat.y + (threat.vy || 0) * frame;
         
         const distance = Math.sqrt((futureX - threatFutureX) ** 2 + (futureY - threatFutureY) ** 2);
         const safeDistance = threat.radius;
@@ -817,12 +1043,16 @@ export class Autoplayer {
   }
 
   // Helper methods for the new system
-  predictEntityPath(entity, frames) {
+  predictEntityPath(entity, frames, slowdownFactor = 1.0) {
     const path = [];
+    // Use already-adjusted velocities from threat mapping
+    const vx = entity.vx !== undefined ? entity.vx : ((entity.dx || 0) / 60) * slowdownFactor;
+    const vy = entity.vy !== undefined ? entity.vy : ((entity.dy || 0) / 60) * slowdownFactor;
+    
     for (let i = 0; i <= frames; i += 5) {
       path.push({
-        x: entity.x + ((entity.vx !== undefined ? entity.vx : (entity.dx || 0) / 60)) * i,
-        y: entity.y + ((entity.vy !== undefined ? entity.vy : (entity.dy || 0) / 60)) * i,
+        x: entity.x + vx * i,
+        y: entity.y + vy * i,
         frame: i
       });
     }
@@ -1023,7 +1253,7 @@ export class Autoplayer {
   findLaserTargetThreat(enemies) {
     const playerX = this.player.x;
     const playerY = this.player.y;
-    const dangerRadius = 80; // Radius around locked target position that's dangerous
+    const trajectoryDangerRadius = 40; // Distance from trajectory line that's dangerous
     
     for (const enemy of enemies) {
       if (enemy.type === 'laser') {
@@ -1034,15 +1264,27 @@ export class Autoplayer {
           const targetY = enemy.targetY;
           
           if (targetX !== undefined && targetY !== undefined) {
-            // Check if player is currently near the laser's target zone
-            const distanceToTarget = Math.sqrt(
-              (playerX - targetX) ** 2 + (playerY - targetY) ** 2
+            // Calculate distance from player to the laser trajectory line
+            const distanceToTrajectory = this.distanceToLine(
+              playerX, playerY,
+              enemy.x, enemy.y,
+              targetX, targetY
             );
             
-            if (distanceToTarget < dangerRadius) {
-              // Find safe escape point away from the laser target zone
-              const escapePoint = this.calculateLaserEscapePoint(
-                targetX, targetY, enemy.x, enemy.y, dangerRadius
+            // Also check if player is in the trajectory path (not behind the laser)
+            const isInTrajectoryPath = this.isPointInLaserPath(
+              playerX, playerY,
+              enemy.x, enemy.y,
+              targetX, targetY
+            );
+            
+            if (distanceToTrajectory < trajectoryDangerRadius && isInTrajectoryPath) {
+              // Find safe escape point perpendicular to the laser trajectory
+              const escapePoint = this.calculateLaserTrajectoryEscape(
+                playerX, playerY,
+                enemy.x, enemy.y,
+                targetX, targetY,
+                trajectoryDangerRadius
               );
               
               return escapePoint;
@@ -1428,6 +1670,102 @@ export class Autoplayer {
     return true;
   }
 
+  // Calculate perpendicular distance from point to line
+  distanceToLine(px, py, x1, y1, x2, y2) {
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+    
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    
+    if (lenSq === 0) {
+      // Line has zero length
+      return Math.sqrt(A * A + B * B);
+    }
+    
+    const param = dot / lenSq;
+    let xx, yy;
+    
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+    
+    const dx = px - xx;
+    const dy = py - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Check if point is in the laser's firing path (not behind the laser)
+  isPointInLaserPath(px, py, laserX, laserY, targetX, targetY) {
+    // Calculate vectors
+    const laserToTarget = { x: targetX - laserX, y: targetY - laserY };
+    const laserToPlayer = { x: px - laserX, y: py - laserY };
+    
+    // Dot product to see if player is in front of laser
+    const dotProduct = laserToTarget.x * laserToPlayer.x + laserToTarget.y * laserToPlayer.y;
+    
+    // Player is in laser path if dot product is positive (same direction)
+    return dotProduct > 0;
+  }
+
+  // Calculate safe escape point perpendicular to laser trajectory
+  calculateLaserTrajectoryEscape(playerX, playerY, laserX, laserY, targetX, targetY, safeDistance) {
+    // Calculate laser direction vector
+    const dx = targetX - laserX;
+    const dy = targetY - laserY;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    
+    if (length === 0) {
+      // Fallback to center if no direction
+      return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    }
+    
+    // Normalized laser direction
+    const dirX = dx / length;
+    const dirY = dy / length;
+    
+    // Perpendicular directions to laser trajectory
+    const perpX1 = -dirY;
+    const perpY1 = dirX;
+    const perpX2 = dirY;
+    const perpY2 = -dirX;
+    
+    // Choose perpendicular direction that moves toward center
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const toCenterX = centerX - playerX;
+    const toCenterY = centerY - playerY;
+    
+    const dot1 = perpX1 * toCenterX + perpY1 * toCenterY;
+    const dot2 = perpX2 * toCenterX + perpY2 * toCenterY;
+    
+    const escapeDistance = safeDistance * 2; // Move well clear of trajectory
+    let escapeX, escapeY;
+    
+    if (dot1 > dot2) {
+      escapeX = playerX + perpX1 * escapeDistance;
+      escapeY = playerY + perpY1 * escapeDistance;
+    } else {
+      escapeX = playerX + perpX2 * escapeDistance;
+      escapeY = playerY + perpY2 * escapeDistance;
+    }
+    
+    // Keep escape point on screen
+    return {
+      x: Math.max(50, Math.min(window.innerWidth - 50, escapeX)),
+      y: Math.max(50, Math.min(window.innerHeight - 50, escapeY))
+    };
+  }
+
   // More lenient safety check for aggressive powerup collection
   isPowerupReasonablySafe(powerup, enemyBullets, enemyLasers) {
     const immediateRadius = 25; // Smaller safety radius for more aggressive collection
@@ -1449,6 +1787,267 @@ export class Autoplayer {
     }
     
     return true;
+  }
+
+  // Calculate optimal aim angle using autoaim logic
+  calculateAutoAim(enemies, asteroids, boss, mainWeaponLevel, isPortrait, keys) {
+    // Check if autoaim should be used
+    const autoaimEnabled = keys.autoaimEnabled;
+    const autoplayEnabled = keys.autoplayEnabled;
+    
+    // Handle manual aiming when autoaim/autoplay is disabled
+    if (!autoaimEnabled && !autoplayEnabled && keys.mousePosition) {
+      // Desktop: aim toward mouse cursor
+      const dx = keys.mousePosition.x - this.player.x;
+      const dy = keys.mousePosition.y - this.player.y;
+      return Math.atan2(dy, dx);
+    } else if (!autoaimEnabled && !autoplayEnabled) {
+      // Mobile: use default orientation when not using autoaim/autoplay
+      if (isPortrait) {
+        return -Math.PI / 2; // Face up
+      } else {
+        return 0; // Face right
+      }
+    }
+
+    // Build complete target list, filter out invulnerable targets
+    const allTargets = [...enemies, ...asteroids].filter(target => 
+      target.isVulnerableToAutoAim && target.isVulnerableToAutoAim()
+    );
+    
+    // Add boss targetable parts if boss exists
+    if (boss && !boss.isDefeated && boss.getTargetableParts) {
+      allTargets.push(...boss.getTargetableParts());
+    }
+    
+    if ((autoaimEnabled || autoplayEnabled || !keys.mousePosition) && allTargets.length > 0) {
+      const target = this.selectBestTarget(allTargets, enemies, mainWeaponLevel);
+      if (target) {
+        return this.calculatePredictiveAim(target, mainWeaponLevel);
+      }
+    }
+    
+    // Default fallback angle
+    return isPortrait ? -Math.PI / 2 : 0;
+  }
+
+  // Select the best target using priority system
+  selectBestTarget(allTargets, enemies, mainWeaponLevel) {
+    const bulletSpeed = this.getCurrentBulletSpeed(mainWeaponLevel);
+    const shootingEnemyTypes = ["straight", "sine", "zigzag"];
+    
+    // Priority 1: Very close targets (within 200px) - any enemy or asteroid
+    let closestNearbyTarget = null;
+    let bestNearbyScore = -1;
+    
+    for (const target of allTargets) {
+      if (this.isTargetInViewport(target)) {
+        const dist = Math.sqrt((target.x - this.player.x) ** 2 + (target.y - this.player.y) ** 2);
+        if (dist < 200) {
+          // Calculate hit probability for this target
+          const hitScore = this.calculateTargetHitScore(target, bulletSpeed, dist);
+          const combinedScore = hitScore * (1.0 - dist / 200); // Closer = better
+          
+          if (combinedScore > bestNearbyScore) {
+            bestNearbyScore = combinedScore;
+            closestNearbyTarget = target;
+          }
+        }
+      }
+    }
+    
+    if (closestNearbyTarget) {
+      return closestNearbyTarget;
+    }
+    
+    // Priority 2: Shooting enemies (nearby ones first)
+    let closestShootingEnemy = null;
+    let closestShootingDistance = Infinity;
+    
+    for (const enemy of enemies) {
+      if (shootingEnemyTypes.includes(enemy.type) && this.isTargetInViewport(enemy)) {
+        const dist = Math.sqrt((enemy.x - this.player.x) ** 2 + (enemy.y - this.player.y) ** 2);
+        if (dist < closestShootingDistance) {
+          closestShootingDistance = dist;
+          closestShootingEnemy = enemy;
+        }
+      }
+    }
+    
+    if (closestShootingEnemy) {
+      return closestShootingEnemy;
+    }
+    
+    // Priority 3: Any enemies (nearby ones first)
+    let closestEnemy = null;
+    let closestEnemyDistance = Infinity;
+    
+    for (const enemy of enemies) {
+      if (this.isTargetInViewport(enemy)) {
+        const dist = Math.sqrt((enemy.x - this.player.x) ** 2 + (enemy.y - this.player.y) ** 2);
+        if (dist < closestEnemyDistance) {
+          closestEnemyDistance = dist;
+          closestEnemy = enemy;
+        }
+      }
+    }
+    
+    if (closestEnemy) {
+      return closestEnemy;
+    }
+    
+    // Priority 4: Asteroids (if no enemies available)
+    let closestAsteroid = null;
+    let closestAsteroidDistance = Infinity;
+    
+    for (const asteroid of allTargets) {
+      if (asteroid.type === 'asteroid' && this.isTargetInViewport(asteroid)) {
+        const dist = Math.sqrt((asteroid.x - this.player.x) ** 2 + (asteroid.y - this.player.y) ** 2);
+        if (dist < closestAsteroidDistance) {
+          closestAsteroidDistance = dist;
+          closestAsteroid = asteroid;
+        }
+      }
+    }
+    
+    return closestAsteroid;
+  }
+
+  // Helper function to check if target is within viewport
+  isTargetInViewport(target) {
+    return (
+      target.x >= 0 &&
+      target.x <= window.innerWidth &&
+      target.y >= 0 &&
+      target.y <= window.innerHeight
+    );
+  }
+
+  // Get current bullet speed based on weapon level
+  getCurrentBulletSpeed(level) {
+    if (level === 5) return Infinity; // Laser beam is instant
+    return 8; // GAME_CONFIG.BULLET_SPEED - all other levels use standard speed
+  }
+
+  // Enhanced interceptive targeting that accounts for all velocity vectors
+  calculatePredictiveAim(target, mainWeaponLevel) {
+    const bulletSpeed = this.getCurrentBulletSpeed(mainWeaponLevel);
+    
+    if (bulletSpeed === Infinity) {
+      // For laser, aim directly at target
+      return Math.atan2(target.y - this.player.y, target.x - this.player.x);
+    }
+    
+    // Get target velocity
+    const targetVx = target.vx !== undefined ? target.vx : (target.dx || 0) / 60;
+    const targetVy = target.vy !== undefined ? target.vy : (target.dy || 0) / 60;
+    
+    // Get player velocity
+    const playerVx = this.player.vx || 0;
+    const playerVy = this.player.vy || 0;
+    
+    // Calculate intercept solution
+    const interceptSolution = this.calculateInterceptSolution(
+      this.player.x, this.player.y, playerVx, playerVy,
+      target.x, target.y, targetVx, targetVy,
+      bulletSpeed
+    );
+    
+    if (interceptSolution && interceptSolution.isValid) {
+      return Math.atan2(
+        interceptSolution.interceptY - this.player.y,
+        interceptSolution.interceptX - this.player.x
+      );
+    }
+    
+    // Fallback: direct aim
+    return Math.atan2(target.y - this.player.y, target.x - this.player.x);
+  }
+
+  // Calculate intercept solution for moving targets
+  calculateInterceptSolution(px, py, pvx, pvy, tx, ty, tvx, tvy, bulletSpeed) {
+    // Relative position and velocity
+    const rx = tx - px;
+    const ry = ty - py;
+    const rvx = tvx - pvx;
+    const rvy = tvy - pvy;
+    
+    // Quadratic equation coefficients: a*t^2 + b*t + c = 0
+    const a = rvx * rvx + rvy * rvy - bulletSpeed * bulletSpeed;
+    const b = 2 * (rx * rvx + ry * rvy);
+    const c = rx * rx + ry * ry;
+    
+    // Solve quadratic equation
+    const discriminant = b * b - 4 * a * c;
+    
+    if (discriminant < 0) {
+      return { isValid: false };
+    }
+    
+    let t1 = (-b - Math.sqrt(discriminant)) / (2 * a);
+    let t2 = (-b + Math.sqrt(discriminant)) / (2 * a);
+    
+    // Choose the smallest positive time
+    let timeToIntercept = null;
+    if (t1 > 0 && t2 > 0) {
+      timeToIntercept = Math.min(t1, t2);
+    } else if (t1 > 0) {
+      timeToIntercept = t1;
+    } else if (t2 > 0) {
+      timeToIntercept = t2;
+    }
+    
+    if (timeToIntercept === null || timeToIntercept < 0) {
+      return { isValid: false };
+    }
+    
+    // Calculate intercept point
+    const interceptX = tx + tvx * timeToIntercept;
+    const interceptY = ty + tvy * timeToIntercept;
+    
+    return {
+      isValid: true,
+      timeToIntercept,
+      interceptX,
+      interceptY
+    };
+  }
+
+  // Calculate how likely we are to hit a target based on its movement pattern
+  calculateTargetHitScore(target, bulletSpeed, distance) {
+    // Get target velocity
+    const targetVx = target.vx !== undefined ? target.vx : (target.dx || 0) / 60;
+    const targetVy = target.vy !== undefined ? target.vy : (target.dy || 0) / 60;
+    const targetSpeed = Math.sqrt(targetVx * targetVx + targetVy * targetVy);
+    
+    // Base score starts high
+    let hitScore = 1.0;
+    
+    // Penalize fast-moving targets
+    if (targetSpeed > 0) {
+      const relativeSpeed = targetSpeed / bulletSpeed;
+      hitScore *= Math.max(0.1, 1.0 - relativeSpeed * 0.5);
+    }
+    
+    // Check if we can calculate a valid intercept
+    const interceptSolution = this.calculateInterceptSolution(
+      this.player.x, this.player.y, this.player.vx || 0, this.player.vy || 0,
+      target.x, target.y, targetVx, targetVy,
+      bulletSpeed
+    );
+    
+    if (!interceptSolution.isValid) {
+      hitScore *= 0.1; // Heavy penalty for untargetable enemies
+    }
+    
+    // Bonus for targets moving predictably
+    if (target.type === 'straight') {
+      hitScore *= 1.2;
+    } else if (target.type === 'sine') {
+      hitScore *= 0.9; // Slightly harder to hit
+    }
+    
+    return hitScore;
   }
 
   // Check if there are valid targets for autoaim

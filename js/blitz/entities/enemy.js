@@ -575,8 +575,8 @@ export class LaserEnemy extends BaseEnemy {
 
       case "preview":
         this.laserChargeTime += slowdownFactor;
-        if (this.laserChargeTime > 60) {
-          // 1 second preview warning
+        if (this.laserChargeTime > 90) {
+          // 1.5 second preview warning
           this.laserState = "firing";
           this.laserChargeTime = 0;
           // Add 30px radius targeting inaccuracy to the captured target
@@ -622,27 +622,47 @@ export class LaserEnemy extends BaseEnemy {
       // Calculate pulsing effect for warning line
       const pulseIntensity = 0.7 + 0.3 * Math.sin(Date.now() * 0.02); // Pulsing red line
       
-      // Draw warning line from laser enemy to target position
-      ctx.strokeStyle = `rgba(255, 0, 0, ${pulseIntensity})`;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 4]); // Dashed line for better visibility
+      // Calculate full trajectory line across the screen
+      const dx = this.targetX - this.x;
+      const dy = this.targetY - this.y;
+      const angle = Math.atan2(dy, dx);
+      
+      // Extend line to screen edges
+      const screenDiagonal = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight);
+      const startX = this.x - Math.cos(angle) * screenDiagonal;
+      const startY = this.y - Math.sin(angle) * screenDiagonal;
+      const endX = this.x + Math.cos(angle) * screenDiagonal;
+      const endY = this.y + Math.sin(angle) * screenDiagonal;
+      
+      // Draw full trajectory warning line across screen
+      ctx.strokeStyle = `rgba(255, 0, 0, ${pulseIntensity * 0.8})`;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([12, 6]); // Larger dashed line for better visibility
       ctx.beginPath();
-      ctx.moveTo(this.x, this.y);
-      ctx.lineTo(this.targetX, this.targetY);
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
       ctx.stroke();
       ctx.setLineDash([]); // Reset line dash
       
-      // Draw small warning circle at target location
-      ctx.fillStyle = `rgba(255, 0, 0, ${pulseIntensity * 0.6})`;
+      // Draw thicker laser tip indicator
+      ctx.strokeStyle = `rgba(255, 0, 0, ${pulseIntensity})`;
+      ctx.lineWidth = 5;
       ctx.beginPath();
-      ctx.arc(this.targetX, this.targetY, 15, 0, Math.PI * 2);
+      ctx.moveTo(this.x, this.y);
+      ctx.lineTo(this.x + Math.cos(angle) * 40, this.y + Math.sin(angle) * 40);
+      ctx.stroke();
+      
+      // Draw warning circle at target location
+      ctx.fillStyle = `rgba(255, 0, 0, ${pulseIntensity * 0.4})`;
+      ctx.beginPath();
+      ctx.arc(this.targetX, this.targetY, 20, 0, Math.PI * 2);
       ctx.fill();
       
       // Draw warning outline
       ctx.strokeStyle = `rgba(255, 0, 0, ${pulseIntensity})`;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(this.targetX, this.targetY, 15, 0, Math.PI * 2);
+      ctx.arc(this.targetX, this.targetY, 20, 0, Math.PI * 2);
       ctx.stroke();
       
       ctx.restore();

@@ -236,7 +236,7 @@ export class Player {
     // Handle movement - autoplay overrides manual input
     if (autoplayEnabled) {
       // Autoplay: automatically dodge threats and collect powerups
-      const dodgeVector = this.autoplayer.calculateDodgeVector(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups);
+      const dodgeVector = this.autoplayer.calculateDodgeVector(enemies, enemyBullets, enemyLasers, asteroids, boss, powerups, timeSlowActive);
       this.x += dodgeVector.x * currentSpeed;
       this.y += dodgeVector.y * currentSpeed;
     } else if (keys.target) {
