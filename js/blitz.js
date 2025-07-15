@@ -885,8 +885,10 @@ class BlitzGame {
         this.effects.createChainExplosion(miniBoss.x, miniBoss.y, 5); // Chain explosion
         this.audio.playSound(this.audio.sounds.enemyExplosion);
 
-        // Award score
-        this.score += 1000;
+        // Award score (only if no cheats used)
+        if (!this.cheatsUsed) {
+          this.score += 1000;
+        }
         this.ui.update();
 
         // Mark for removal
@@ -1231,7 +1233,9 @@ class BlitzGame {
           this.createDebris(asteroid.x, asteroid.y, "#ffffff"); // Always create debris on hit
           if (damageResult) {
             this.asteroids.splice(j, 1);
-            this.score += 100;
+            if (!this.cheatsUsed) {
+              this.score += 100;
+            }
             this.ui.update();
 
             if (damageResult === "breakIntoMedium") {
@@ -1718,7 +1722,9 @@ class BlitzGame {
       case "mainWeapon":
         if (this.player.mainWeaponLevel >= 5) {
           // Max level reached
-          this.score += 1000;
+          if (!this.cheatsUsed) {
+            this.score += 1000;
+          }
           this.textParticles.push(
             new TextParticle(powerup.x, powerup.y, "+1000", "#ffff00", 25, 45)
           ); // Yellow, larger, faster fade
@@ -2026,14 +2032,18 @@ class BlitzGame {
         this.enemies[i].color
       );
       this.enemies.splice(i, 1);
-      this.score += 200;
+      if (!this.cheatsUsed) {
+        this.score += 200;
+      }
     }
 
     for (let i = this.asteroids.length - 1; i >= 0; i--) {
       this.effects.createExplosion(this.asteroids[i].x, this.asteroids[i].y);
       this.createDebris(this.asteroids[i].x, this.asteroids[i].y, "#888");
       this.asteroids.splice(i, 1);
-      this.score += 100;
+      if (!this.cheatsUsed) {
+        this.score += 100;
+      }
     }
 
     // Damage mini-bosses significantly
@@ -2123,10 +2133,14 @@ class BlitzGame {
           this.startBossDeathSequence();
         } else if (enemy.maxHealth > 50) {
           // Mini-boss
-          this.score += 1000;
+          if (!this.cheatsUsed) {
+            this.score += 1000;
+          }
         } else {
           // Regular enemy
-          this.score += 200;
+          if (!this.cheatsUsed) {
+            this.score += 200;
+          }
         }
 
         this.ui.update();
@@ -2140,7 +2154,9 @@ class BlitzGame {
       // Regular enemy without takeDamage method
       this.effects.createEnemyExplosion(enemy.x, enemy.y);
       this.audio.playSound(this.audio.sounds.enemyExplosion);
-      this.score += 200;
+      if (!this.cheatsUsed) {
+        this.score += 200;
+      }
       this.ui.update();
       return "destroyed";
     }

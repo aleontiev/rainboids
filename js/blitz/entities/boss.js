@@ -162,15 +162,25 @@ export class Boss extends BaseEnemy {
       this.shield = this.maxShield;
     }
 
-    // Animate robot head movement
+    // Animate robot head movement (subtle movement around center)
     this.headMoveTime += 0.02;
-    this.headOffsetX = Math.sin(this.headMoveTime) * 15;
-    this.headOffsetY = Math.cos(this.headMoveTime * 0.7) * 10;
+    this.headOffsetX = Math.sin(this.headMoveTime) * 8; // Reduced range
+    this.headOffsetY = Math.cos(this.headMoveTime * 0.7) * 5; // Reduced range
 
-    // Animate eyes
-    this.eyeMoveTime += 0.05;
-    this.eyeOffsetX = Math.sin(this.eyeMoveTime) * 3;
-    this.eyeOffsetY = Math.cos(this.eyeMoveTime * 1.3) * 2;
+    // Calculate eye tracking toward player
+    const eyeTrackRange = 8; // Maximum eye movement range
+    const eyeToPlayerX = playerX - this.x;
+    const eyeToPlayerY = playerY - this.y;
+    const eyeDistance = Math.sqrt(eyeToPlayerX * eyeToPlayerX + eyeToPlayerY * eyeToPlayerY);
+    
+    if (eyeDistance > 0) {
+      // Normalize and scale eye movement
+      this.eyeOffsetX = (eyeToPlayerX / eyeDistance) * eyeTrackRange;
+      this.eyeOffsetY = (eyeToPlayerY / eyeDistance) * eyeTrackRange;
+    } else {
+      this.eyeOffsetX = 0;
+      this.eyeOffsetY = 0;
+    }
 
     // Animate mouth
     this.mouthTimer++;
@@ -613,11 +623,11 @@ export class Boss extends BaseEnemy {
     
     ctx.restore();
 
-    // Draw moving robot head (rounded rectangle)
+    // Draw moving robot head (rounded rectangle) - positioned relative to boss body
     const headWidth = this.size * 0.5;
     const headHeight = this.size * 0.4;
-    const headX = this.headOffsetX;
-    const headY = this.headOffsetY - this.size * 0.1;
+    const headX = this.x + this.headOffsetX; // Relative to boss body position
+    const headY = this.y + this.headOffsetY - this.size * 0.3; // Positioned above body center
     
     ctx.fillStyle = "#666666";
     ctx.strokeStyle = "#ffffff";
@@ -629,30 +639,49 @@ export class Boss extends BaseEnemy {
     ctx.fill();
     ctx.stroke();
 
-    // Draw angry eyes
+    // Draw angry eyes with tracking eyeballs
+    const eyeSocketSize = this.size * 0.08;
+    const eyeballSize = this.size * 0.04;
+    const leftEyeX = -headWidth * 0.25;
+    const rightEyeX = headWidth * 0.25;
+    const eyeY = -headHeight * 0.15;
+    
+    // Draw eye sockets (larger, angled for anger)
+    ctx.fillStyle = "#333333";
+    ctx.beginPath();
+    ctx.ellipse(leftEyeX, eyeY, eyeSocketSize, eyeSocketSize * 0.7, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.beginPath();
+    ctx.ellipse(rightEyeX, eyeY, eyeSocketSize, eyeSocketSize * 0.7, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Draw tracking eyeballs (constrained within sockets)
     ctx.fillStyle = "#ff0000";
-    const eyeSize = this.size * 0.06;
+    const maxEyeMovement = eyeSocketSize * 0.3; // Limit eyeball movement within socket
+    const constrainedEyeX = Math.max(-maxEyeMovement, Math.min(maxEyeMovement, this.eyeOffsetX * 0.3));
+    const constrainedEyeY = Math.max(-maxEyeMovement, Math.min(maxEyeMovement, this.eyeOffsetY * 0.3));
     
-    // Left eye (angled downward for anger)
+    // Left eyeball
     ctx.beginPath();
-    ctx.ellipse(-headWidth * 0.25 + this.eyeOffsetX, -headHeight * 0.15 + this.eyeOffsetY, eyeSize, eyeSize * 0.7, -0.3, 0, Math.PI * 2);
+    ctx.ellipse(leftEyeX + constrainedEyeX, eyeY + constrainedEyeY, eyeballSize, eyeballSize * 0.8, -0.3, 0, Math.PI * 2);
     ctx.fill();
     
-    // Right eye (angled downward for anger)
+    // Right eyeball
     ctx.beginPath();
-    ctx.ellipse(headWidth * 0.25 + this.eyeOffsetX, -headHeight * 0.15 + this.eyeOffsetY, eyeSize, eyeSize * 0.7, 0.3, 0, Math.PI * 2);
+    ctx.ellipse(rightEyeX + constrainedEyeX, eyeY + constrainedEyeY, eyeballSize, eyeballSize * 0.8, 0.3, 0, Math.PI * 2);
     ctx.fill();
     
-    // Angry eyebrows
+    // Angry eyebrows (fixed position, not following eyes)
     ctx.strokeStyle = "#ff0000";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    // Left eyebrow
-    ctx.moveTo(-headWidth * 0.35 + this.eyeOffsetX, -headHeight * 0.25 + this.eyeOffsetY);
-    ctx.lineTo(-headWidth * 0.15 + this.eyeOffsetX, -headHeight * 0.2 + this.eyeOffsetY);
-    // Right eyebrow
-    ctx.moveTo(headWidth * 0.15 + this.eyeOffsetX, -headHeight * 0.2 + this.eyeOffsetY);
-    ctx.lineTo(headWidth * 0.35 + this.eyeOffsetX, -headHeight * 0.25 + this.eyeOffsetY);
+    // Left eyebrow (angled down toward center for anger)
+    ctx.moveTo(-headWidth * 0.35, -headHeight * 0.25);
+    ctx.lineTo(-headWidth * 0.15, -headHeight * 0.2);
+    // Right eyebrow (angled down toward center for anger)
+    ctx.moveTo(headWidth * 0.15, -headHeight * 0.2);
+    ctx.lineTo(headWidth * 0.35, -headHeight * 0.25);
     ctx.stroke();
     
     // Draw angry mouth
@@ -733,102 +762,69 @@ export class Boss extends BaseEnemy {
   // Old drawArticulatedArm method removed - now using drawNewArm instead
 
   renderHealthBars(ctx) {
-    const barWidth = 100;
-    const barHeight = 12;
-    const barSpacing = 5;
-    let currentY = this.y - this.size - 80;
-
-    // Left arm health
+    const barWidth = 60;  // Smaller, more compact bars
+    const barHeight = 6;  // Thinner bars
+    const barOffset = 25; // Distance above each component
+    
+    // Left arm health - positioned above the left arm
     if (!this.leftArm.destroyed) {
-      const barX = this.x - barWidth / 2;
+      const barX = this.leftArm.x - barWidth / 2;
+      const barY = this.leftArm.y - barOffset;
+      
       ctx.fillStyle = "#333333";
-      ctx.fillRect(barX, currentY, barWidth, barHeight);
-
+      ctx.fillRect(barX, barY, barWidth, barHeight);
       const healthPercent = this.leftArm.health / this.leftArm.maxHealth;
       ctx.fillStyle = "#ff8800";
-      ctx.fillRect(barX, currentY, barWidth * healthPercent, barHeight);
-
+      ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(barX, currentY, barWidth, barHeight);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = '10px "Press Start 2P"';
-      ctx.textAlign = "center";
-      ctx.fillText("LEFT ARM", this.x, currentY + 10);
-
-      currentY += barHeight + barSpacing;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX, barY, barWidth, barHeight);
     }
-
-    // Right arm health
+    
+    // Right arm health - positioned above the right arm
     if (!this.rightArm.destroyed) {
-      const barX = this.x - barWidth / 2;
+      const barX = this.rightArm.x - barWidth / 2;
+      const barY = this.rightArm.y - barOffset;
+      
       ctx.fillStyle = "#333333";
-      ctx.fillRect(barX, currentY, barWidth, barHeight);
-
+      ctx.fillRect(barX, barY, barWidth, barHeight);
       const healthPercent = this.rightArm.health / this.rightArm.maxHealth;
       ctx.fillStyle = "#ff0000";
-      ctx.fillRect(barX, currentY, barWidth * healthPercent, barHeight);
-
+      ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(barX, currentY, barWidth, barHeight);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = '10px "Press Start 2P"';
-      ctx.textAlign = "center";
-      ctx.fillText("RIGHT ARM", this.x, currentY + 10);
-
-      currentY += barHeight + barSpacing;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX, barY, barWidth, barHeight);
     }
-
-    // Shield bar (final phase)
+    
+    // Shield bar (final phase) - positioned above the main body
     if (this.finalPhase && this.shield > 0) {
       const barX = this.x - barWidth / 2;
+      const barY = this.y - this.size / 2 - barOffset;
+      
       ctx.fillStyle = "#333333";
-      ctx.fillRect(barX, currentY, barWidth, barHeight);
-
+      ctx.fillRect(barX, barY, barWidth, barHeight);
       const shieldPercent = this.shield / this.maxShield;
       ctx.fillStyle = "#00ffff";
-      ctx.fillRect(barX, currentY, barWidth * shieldPercent, barHeight);
-
+      ctx.fillRect(barX, barY, barWidth * shieldPercent, barHeight);
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(barX, currentY, barWidth, barHeight);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = '10px "Press Start 2P"';
-      ctx.textAlign = "center";
-      ctx.fillText("SHIELD", this.x, currentY + 10);
-
-      currentY += barHeight + barSpacing;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX, barY, barWidth, barHeight);
     }
-
-    // Main health bar
+    
+    // Main health bar - positioned above the main body
     if (this.finalPhase || (this.leftArm.destroyed && this.rightArm.destroyed)) {
       const barX = this.x - barWidth / 2;
+      const barY = this.y - this.size / 2 - barOffset - (this.finalPhase && this.shield > 0 ? barHeight + 5 : 0);
+      
       ctx.fillStyle = "#333333";
-      ctx.fillRect(barX, currentY, barWidth, barHeight);
-
+      ctx.fillRect(barX, barY, barWidth, barHeight);
       const healthPercent = this.getHealthPercentage();
       ctx.fillStyle = healthPercent > 0.5 ? "#00ff00" : healthPercent > 0.25 ? "#ffff00" : "#ff0000";
-      ctx.fillRect(barX, currentY, barWidth * healthPercent, barHeight);
-
+      ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(barX, currentY, barWidth, barHeight);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = '10px "Press Start 2P"';
-      ctx.textAlign = "center";
-      ctx.fillText("CORE", this.x, currentY + 10);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX, barY, barWidth, barHeight);
     }
-
-    // Boss name
-    ctx.fillStyle = "#ffffff";
-    ctx.font = '16px "Press Start 2P"';
-    ctx.textAlign = "center";
-    ctx.fillText("MECHANICAL OVERLORD", this.x, this.y - this.size - 100);
   }
 
   drawNewArm(ctx, arm, color) {

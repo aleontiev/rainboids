@@ -56,7 +56,7 @@ export class Autoplayer {
     if (shouldUseShield) {
       keys.shift = true; // Trigger shield activation (using correct input property)
       this.autoplayShieldTimer = 0; // Reset timer
-      console.log('Autoplayer: Activating Shield! Threat:', threatLevel.toFixed(2), 'Nearby:', nearbyProjectiles, 'VeryClose:', veryCloseProjectiles, 'Corner:', nearCornerShield, 'Boss:', isBossActive, 'Miniboss:', isMinibossActive, 'Total:', projectileCount);
+      console.log('Autoplayer: Activating Shield! Threat:', threatLevel.toFixed(2), 'Nearby:', nearbyProjectiles, 'VeryClose:', veryCloseProjectiles, 'InCorner:', nearCornerShield, 'Boss:', isBossActive, 'Miniboss:', isMinibossActive, 'Total:', projectileCount);
     }
     
     // Time slow usage - more aggressive during boss fights
@@ -78,7 +78,7 @@ export class Autoplayer {
     if (shouldUseTimeSlow) {
       keys.f = true; // Trigger time slow
       this.autoplaySlowTimer = 0; // Reset timer
-      console.log('Autoplayer: Activating Time Slow! Threat:', threatLevel.toFixed(2), 'Nearby:', nearbyProjectiles, 'VeryClose:', veryCloseProjectiles, 'Corner:', nearCornerSlow, 'Boss:', isBossActive, 'Miniboss:', isMinibossActive, 'Total:', projectileCount);
+      console.log('Autoplayer: Activating Time Slow! Threat:', threatLevel.toFixed(2), 'Nearby:', nearbyProjectiles, 'VeryClose:', veryCloseProjectiles, 'InCorner:', nearCornerSlow, 'Boss:', isBossActive, 'Miniboss:', isMinibossActive, 'Total:', projectileCount);
     }
     
     // Check if player is near a corner (within 80px of edges)
@@ -100,7 +100,7 @@ export class Autoplayer {
     if (shouldUseBomb) {
       keys.z = true; // Trigger bomb (game will check if bombs are available)
       this.autoplayBombTimer = 0; // Reset timer
-      console.log('Autoplayer: Using Bomb! Threat level:', threatLevel.toFixed(2), 'Near corner:', nearCorner, 'Nearby bullets:', nearbyProjectiles);
+      console.log('Autoplayer: Using Bomb! Threat level:', threatLevel.toFixed(2), 'In corner:', nearCorner, 'Nearby bullets:', nearbyProjectiles);
     }
   }
 
@@ -212,18 +212,36 @@ export class Autoplayer {
       };
     }
     
-    // Check for safe powerups first
+    // Check for powerups more aggressively - larger range, less strict safety requirements
     if (powerups && powerups.length > 0) {
+      let bestPowerup = null;
+      let bestScore = 0;
+      
       for (const powerup of powerups) {
         const distance = Math.sqrt((powerup.x - this.player.x) ** 2 + (powerup.y - this.player.y) ** 2);
-        if (distance < 300 && this.isPathSafe(this.player.x, this.player.y, powerup.x, powerup.y, enemies, enemyBullets, enemyLasers, asteroids, boss)) {
-          return {
-            type: 'powerup',
-            x: powerup.x,
-            y: powerup.y,
-            priority: this.getPowerupPriority(powerup)
-          };
+        // Increased range from 300 to 500 pixels
+        if (distance < 500) {
+          const powerupPriority = this.getPowerupPriority(powerup);
+          // Calculate score based on priority and inverse distance
+          const score = powerupPriority * (1.0 - distance / 500);
+          
+          // More lenient safety check - only avoid immediate threats
+          const isReasonablySafe = this.isPowerupReasonablySafe(powerup, enemyBullets, enemyLasers);
+          
+          if (isReasonablySafe && score > bestScore) {
+            bestScore = score;
+            bestPowerup = powerup;
+          }
         }
+      }
+      
+      if (bestPowerup) {
+        return {
+          type: 'powerup',
+          x: bestPowerup.x,
+          y: bestPowerup.y,
+          priority: 1.2 // Higher priority than most other objectives
+        };
       }
     }
     
@@ -386,6 +404,13 @@ export class Autoplayer {
   calculateSafeMovement(objective, allThreats) {
     const playerSpeed = GAME_CONFIG.PLAYER_SPEED;
     
+    // Check for immediate danger requiring quick dodging
+    const immediateDanger = this.detectImmediateDanger(allThreats);
+    if (immediateDanger) {
+      // AGGRESSIVE DODGE: Move quickly away from immediate threats
+      return this.calculateAggressiveDodge(immediateDanger, allThreats);
+    }
+    
     // Calculate direct vector to objective
     const directX = objective.x - this.player.x;
     const directY = objective.y - this.player.y;
@@ -395,25 +420,21 @@ export class Autoplayer {
       return { x: 0, y: 0 };
     }
     
-    // Normalize direct vector
-    const directNormX = directX / directDistance;
-    const directNormY = directY / directDistance;
-    
-    // Test multiple movement directions to find the safest path
+    // Test many more movement directions for better pathfinding
     const testAngles = [];
     const baseAngle = Math.atan2(directY, directX);
     
     // Primary direction: towards objective
     testAngles.push(baseAngle);
     
-    // Secondary directions: slight deviations from direct path
-    for (let i = 1; i <= 8; i++) {
-      const deviation = (Math.PI / 16) * i; // 11.25 degree increments
+    // Secondary directions: more granular testing for better paths
+    for (let i = 1; i <= 16; i++) {
+      const deviation = (Math.PI / 32) * i; // Smaller 5.625 degree increments for precision
       testAngles.push(baseAngle + deviation);
       testAngles.push(baseAngle - deviation);
     }
     
-    // Find the safest direction
+    // Find the safest direction with enhanced scoring
     let bestDirection = null;
     let bestSafety = -1;
     
@@ -421,7 +442,6 @@ export class Autoplayer {
       const testX = Math.cos(angle);
       const testY = Math.sin(angle);
       
-      // Calculate safety score for this direction
       const safety = this.calculateDirectionSafety(testX, testY, allThreats, playerSpeed);
       
       if (safety > bestSafety) {
@@ -435,11 +455,24 @@ export class Autoplayer {
       return this.calculateEmergencyAvoidance(allThreats);
     }
     
-    // Check for nearby threats and limit movement speed for precision
-    const proximityScale = this.calculateProximityMovementLimit(allThreats);
+    // More aggressive movement scaling - ship is fast, use it!
+    let movementScale = 1.2; // Base aggressive multiplier
     
-    // Scale movement based on objective priority, safety, and proximity
-    const movementScale = Math.min(1.0, objective.priority * bestSafety * proximityScale);
+    // Scale based on objective priority and safety
+    movementScale *= Math.max(0.6, objective.priority * bestSafety);
+    
+    // Boost movement when many threats are around (need to move quickly)
+    const threatCount = allThreats.filter(t => 
+      Math.sqrt((t.x - this.player.x) ** 2 + (t.y - this.player.y) ** 2) < 150
+    ).length;
+    
+    if (threatCount > 5) {
+      movementScale *= 1.3; // Even more aggressive when surrounded
+    }
+    
+    // Only reduce speed slightly when very close to threats
+    const proximityScale = this.calculateAggressiveProximityLimit(allThreats);
+    movementScale *= proximityScale;
     
     return {
       x: bestDirection.x * movementScale,
@@ -552,9 +585,9 @@ export class Autoplayer {
         }
       }
       
-      // Strong corner avoidance - prevent getting within 50px of edges
-      const edgeBuffer = 50;
-      const cornerPenalty = this.calculateCornerPenalty(futureX, futureY, edgeBuffer);
+      // Corner avoidance - prevent getting trapped in actual corners
+      const cornerBuffer = 50;
+      const cornerPenalty = this.calculateCornerPenalty(futureX, futureY, cornerBuffer);
       safetyScore -= cornerPenalty;
       
       // Penalize going off-screen completely
@@ -597,36 +630,29 @@ export class Autoplayer {
     const distanceFromTop = y;
     const distanceFromBottom = height - y;
     
-    // Apply exponential penalty as we get closer to edges
-    if (distanceFromLeft < edgeBuffer) {
-      const ratio = 1 - (distanceFromLeft / edgeBuffer);
-      penalty += ratio * ratio * 2.0; // Quadratic penalty
-    }
-    if (distanceFromRight < edgeBuffer) {
-      const ratio = 1 - (distanceFromRight / edgeBuffer);
-      penalty += ratio * ratio * 2.0;
-    }
-    if (distanceFromTop < edgeBuffer) {
-      const ratio = 1 - (distanceFromTop / edgeBuffer);
-      penalty += ratio * ratio * 2.0;
-    }
-    if (distanceFromBottom < edgeBuffer) {
-      const ratio = 1 - (distanceFromBottom / edgeBuffer);
-      penalty += ratio * ratio * 2.0;
-    }
+    // Remove individual edge penalties - only penalize actual corners
+    // (Individual edges are fine, corners are dangerous)
     
-    // Extra penalty for corners (multiple edges close)
-    const nearCorner = (distanceFromLeft < edgeBuffer || distanceFromRight < edgeBuffer) &&
-                       (distanceFromTop < edgeBuffer || distanceFromBottom < edgeBuffer);
-    if (nearCorner) {
-      penalty += 1.0; // Extra corner penalty
+    // Extra penalty for actual corners (two edges close simultaneously)
+    const nearLeftEdge = distanceFromLeft < edgeBuffer;
+    const nearRightEdge = distanceFromRight < edgeBuffer;
+    const nearTopEdge = distanceFromTop < edgeBuffer;
+    const nearBottomEdge = distanceFromBottom < edgeBuffer;
+    
+    const inActualCorner = (nearLeftEdge && nearTopEdge) ||
+                          (nearRightEdge && nearTopEdge) ||
+                          (nearLeftEdge && nearBottomEdge) ||
+                          (nearRightEdge && nearBottomEdge);
+    
+    if (inActualCorner) {
+      penalty += 2.0; // Heavy penalty for actual corners
     }
     
     return penalty;
   }
 
-  // Check if player is near a corner of the screen
-  isNearCorner(edgeBuffer = 80) {
+  // Check if player is near an actual corner of the screen (not just edges)
+  isNearCorner(cornerBuffer = 80) {
     const width = window.innerWidth;
     const height = window.innerHeight;
     
@@ -635,30 +661,57 @@ export class Autoplayer {
     const distanceFromTop = this.player.y;
     const distanceFromBottom = height - this.player.y;
     
-    // Check if close to any edge
-    const nearLeftEdge = distanceFromLeft < edgeBuffer;
-    const nearRightEdge = distanceFromRight < edgeBuffer;
-    const nearTopEdge = distanceFromTop < edgeBuffer;
-    const nearBottomEdge = distanceFromBottom < edgeBuffer;
+    // Check if close to edges
+    const nearLeftEdge = distanceFromLeft < cornerBuffer;
+    const nearRightEdge = distanceFromRight < cornerBuffer;
+    const nearTopEdge = distanceFromTop < cornerBuffer;
+    const nearBottomEdge = distanceFromBottom < cornerBuffer;
     
-    // Return true if near any edge (corner or edge)
-    return nearLeftEdge || nearRightEdge || nearTopEdge || nearBottomEdge;
+    // Return true only if near TWO edges simultaneously (actual corner)
+    return (nearLeftEdge && nearTopEdge) ||     // Top-left corner
+           (nearRightEdge && nearTopEdge) ||    // Top-right corner
+           (nearLeftEdge && nearBottomEdge) ||  // Bottom-left corner
+           (nearRightEdge && nearBottomEdge);   // Bottom-right corner
+  }
+
+  // Check if a given position would be in a corner
+  wouldBeInCorner(x, y, cornerBuffer) {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    const distanceFromLeft = x;
+    const distanceFromRight = width - x;
+    const distanceFromTop = y;
+    const distanceFromBottom = height - y;
+    
+    const nearLeftEdge = distanceFromLeft < cornerBuffer;
+    const nearRightEdge = distanceFromRight < cornerBuffer;
+    const nearTopEdge = distanceFromTop < cornerBuffer;
+    const nearBottomEdge = distanceFromBottom < cornerBuffer;
+    
+    return (nearLeftEdge && nearTopEdge) ||
+           (nearRightEdge && nearTopEdge) ||
+           (nearLeftEdge && nearBottomEdge) ||
+           (nearRightEdge && nearBottomEdge);
   }
 
   // Find pockets of safety on the field during intense bullet patterns
   findSafetyPocket(enemies, enemyBullets, enemyLasers, asteroids, boss) {
     const width = window.innerWidth;
     const height = window.innerHeight;
-    const edgeBuffer = 70; // Stay away from screen edges
+    const cornerBuffer = 70; // Stay away from screen corners (but edges are OK)
     const safetyRadius = 80; // Size of safety pocket
     const gridSize = 40; // Test points every 40 pixels
     
     let bestSafetyScore = -1;
     let bestPocket = null;
     
-    // Test grid points across the screen for safety
-    for (let x = edgeBuffer; x < width - edgeBuffer; x += gridSize) {
-      for (let y = edgeBuffer; y < height - edgeBuffer; y += gridSize) {
+    // Test grid points across the screen for safety (avoid corners but allow near edges)
+    for (let x = cornerBuffer; x < width - cornerBuffer; x += gridSize) {
+      for (let y = cornerBuffer; y < height - cornerBuffer; y += gridSize) {
+        // Skip if this position would be in a corner
+        const wouldBeInCorner = this.wouldBeInCorner(x, y, cornerBuffer);
+        if (wouldBeInCorner) continue;
         const safetyScore = this.calculatePocketSafety(x, y, safetyRadius, 
           enemies, enemyBullets, enemyLasers, asteroids, boss);
         
@@ -1368,6 +1421,29 @@ export class Autoplayer {
     for (const laser of enemyLasers) {
       const distance = Math.sqrt((laser.x - powerup.x) ** 2 + (laser.y - powerup.y) ** 2);
       if (distance < safetyRadius) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  // More lenient safety check for aggressive powerup collection
+  isPowerupReasonablySafe(powerup, enemyBullets, enemyLasers) {
+    const immediateRadius = 25; // Smaller safety radius for more aggressive collection
+    
+    // Only avoid bullets that are very close
+    for (const bullet of enemyBullets) {
+      const distance = Math.sqrt((bullet.x - powerup.x) ** 2 + (bullet.y - powerup.y) ** 2);
+      if (distance < immediateRadius) {
+        return false;
+      }
+    }
+    
+    // Only avoid lasers that are very close
+    for (const laser of enemyLasers) {
+      const distance = Math.sqrt((laser.x - powerup.x) ** 2 + (laser.y - powerup.y) ** 2);
+      if (distance < immediateRadius) {
         return false;
       }
     }
