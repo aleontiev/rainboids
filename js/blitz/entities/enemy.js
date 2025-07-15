@@ -575,8 +575,8 @@ export class LaserEnemy extends BaseEnemy {
 
       case "preview":
         this.laserChargeTime += slowdownFactor;
-        if (this.laserChargeTime > 15) {
-          // 0.25 seconds preview
+        if (this.laserChargeTime > 60) {
+          // 1 second preview warning
           this.laserState = "firing";
           this.laserChargeTime = 0;
           // Add 30px radius targeting inaccuracy to the captured target

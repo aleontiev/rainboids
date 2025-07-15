@@ -684,7 +684,21 @@ class BlitzGame {
   updateEntities(deltaTime, slowdownFactor) {
     const input = this.inputHandler.getInput();
 
-    // Handle input
+    // Handle autoplay abilities BEFORE processing input
+    if (this.autoplay) {
+      this.player.autoplayer.handleAutoplayAbilities(
+        this.allEnemies, 
+        this.enemyBullets, 
+        this.enemyLasers, 
+        this.asteroids, 
+        this.boss, 
+        input, 
+        this.powerups,
+        this // Pass game object for cooldown checks
+      );
+    }
+
+    // Handle input (now includes autoplayer modifications)
     if (input.shift) {
       this.activateShield();
     }
@@ -710,19 +724,6 @@ class BlitzGame {
       this.enemyLasers,
       this.powerups
     );
-
-    // Handle autoplay abilities
-    if (this.autoplay) {
-      this.player.autoplayer.handleAutoplayAbilities(
-        this.allEnemies, 
-        this.enemyBullets, 
-        this.enemyLasers, 
-        this.asteroids, 
-        this.boss, 
-        input, 
-        this.powerups
-      );
-    }
 
     // Player shooting (prevent firing during death animation)
     // For autoplay, only fire when there are valid targets on screen

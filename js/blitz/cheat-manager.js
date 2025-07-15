@@ -103,6 +103,9 @@ export class CheatManager {
     const autoaimBtn = document.getElementById("autoaim-btn");
     const toggleAutoaim = () => {
       this.game.autoaim = !this.game.autoaim;
+      if (this.game.autoaim) {
+        this.game.cheatsUsed = true; // Mark cheats as used
+      }
       this.update();
     };
     if (autoaimBtn) {

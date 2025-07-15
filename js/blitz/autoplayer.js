@@ -20,7 +20,7 @@ export class Autoplayer {
   }
 
   // Handle strategic ability usage for autoplay
-  handleAutoplayAbilities(enemies, enemyBullets, enemyLasers, asteroids, boss, keys, powerups = []) {
+  handleAutoplayAbilities(enemies, enemyBullets, enemyLasers, asteroids, boss, keys, powerups = [], game = null) {
     this.autoplayShieldTimer++;
     this.autoplaySlowTimer++;
     this.autoplayBombTimer++;
@@ -28,71 +28,79 @@ export class Autoplayer {
     // Calculate immediate threat level
     const threatLevel = this.calculateThreatLevel(enemies, enemyBullets, enemyLasers, asteroids, boss);
     
-    // Check if there's a valuable powerup nearby that we might want to shield for
-    let nearbyValuablePowerup = false;
-    if (powerups && powerups.length > 0) {
-      for (const powerup of powerups) {
-        const distance = Math.sqrt((powerup.x - this.player.x) ** 2 + (powerup.y - this.player.y) ** 2);
-        if (distance < 150 && (powerup.type === 'bomb' || powerup.type === 'rainbowStar' || powerup.type === 'shield')) {
-          nearbyValuablePowerup = true;
-          break;
-        }
-      }
-    }
+    // Remove powerup-based shield usage - keep abilities for emergencies only
     
-    // Enhanced shield usage - more aggressive about protecting against projectiles
+    // Shield usage - more aggressive during boss fights
     const projectileCount = enemyBullets.length + enemyLasers.length;
-    const nearbyProjectiles = this.countNearbyProjectiles(enemyBullets, enemyLasers, 150);
+    const nearbyProjectiles = this.countNearbyProjectiles(enemyBullets, enemyLasers, 120);
+    const veryCloseProjectiles = this.countNearbyProjectiles(enemyBullets, enemyLasers, 50);
+    const nearCornerShield = this.isNearCorner(60);
+    const isBossActive = boss && !boss.isDefeated;
+    const isMinibossActive = enemies.some(enemy => enemy.type === 'miniboss' || enemy.isMiniboss);
+    
+    // More aggressive thresholds during boss fights
+    const bossModifier = (isBossActive || isMinibossActive) ? 0.7 : 1.0; // 30% more aggressive
     
     const shouldUseShield = (
-      (threatLevel >= 0.3 || // Much more aggressive threshold
-       nearbyProjectiles >= 2 || // 2+ projectiles nearby
-       projectileCount >= 8 || // Fewer projectiles needed
-       (boss && !boss.isDefeated) || // Any boss phase
-       (nearbyValuablePowerup && threatLevel >= 0.2) || // Even lower threshold for powerups
-       this.autoplayShieldTimer > 180) && // Use every 3 seconds if available
+      (threatLevel >= (0.8 * bossModifier) || // Lower threshold during boss fights
+       (nearbyProjectiles >= Math.floor(6 * bossModifier) && veryCloseProjectiles >= 2) || // Fewer projectiles needed during boss
+       (nearCornerShield && nearbyProjectiles >= Math.floor(4 * bossModifier) && threatLevel >= (0.6 * bossModifier)) || // More aggressive when cornered during boss
+       (isBossActive && nearbyProjectiles >= 4 && threatLevel >= 0.5) || // Boss-specific condition
+       (isMinibossActive && nearbyProjectiles >= 3 && threatLevel >= 0.4) || // Miniboss-specific condition
+       (projectileCount >= Math.floor(25 * bossModifier) && nearbyProjectiles >= Math.floor(5 * bossModifier))) && // Screen overwhelmed
       !this.player.isShielding && // Not already shielding
       this.player.shieldCooldown <= 0 && // Shield is available
-      this.autoplayShieldTimer > 30 // Reduced minimum time (0.5 seconds)
+      this.autoplayShieldTimer > (isBossActive || isMinibossActive ? 120 : 180) // Shorter cooldown during boss fights
     );
     
     if (shouldUseShield) {
-      keys.shield = true; // Trigger shield activation
+      keys.shift = true; // Trigger shield activation (using correct input property)
       this.autoplayShieldTimer = 0; // Reset timer
+      console.log('Autoplayer: Activating Shield! Threat:', threatLevel.toFixed(2), 'Nearby:', nearbyProjectiles, 'VeryClose:', veryCloseProjectiles, 'Corner:', nearCornerShield, 'Boss:', isBossActive, 'Miniboss:', isMinibossActive, 'Total:', projectileCount);
     }
     
-    // Enhanced time slow usage - more strategic about when to use
+    // Time slow usage - more aggressive during boss fights
     const bossPhaseChange = this.detectBossPhaseChange(boss);
-    const minibossPresent = enemies.some(enemy => enemy.type === 'miniboss' || enemy.isMiniboss);
+    const nearCornerSlow = this.isNearCorner(60);
     
     const shouldUseTimeSlow = (
-      (threatLevel >= 0.4 || // Much more aggressive threshold
-       nearbyProjectiles >= 3 || // 3+ nearby projectiles
-       projectileCount >= 12 || // Fewer projectiles needed
-       bossPhaseChange || // Boss phase transition
-       minibossPresent || // Miniboss on screen
-       (boss && !boss.isDefeated) || // Any boss phase
-       this.autoplaySlowTimer > 300) && // Every 5 seconds if available
-      this.autoplaySlowTimer > 60 // Minimum 1 second between slow considerations
+      (threatLevel >= (0.9 * bossModifier) || // Lower threshold during boss fights
+       (nearbyProjectiles >= Math.floor(8 * bossModifier) && veryCloseProjectiles >= Math.floor(3 * bossModifier)) || // Fewer projectiles needed during boss
+       (nearCornerSlow && nearbyProjectiles >= Math.floor(6 * bossModifier) && threatLevel >= (0.7 * bossModifier)) || // More aggressive when cornered during boss
+       (bossPhaseChange && threatLevel >= (0.6 * bossModifier)) || // Boss phase transition
+       (isBossActive && nearbyProjectiles >= 6 && threatLevel >= 0.6) || // Boss-specific condition
+       (isMinibossActive && nearbyProjectiles >= 4 && threatLevel >= 0.5) || // Miniboss-specific condition
+       (projectileCount >= Math.floor(30 * bossModifier) && nearbyProjectiles >= Math.floor(7 * bossModifier))) && // Screen overwhelmed
+      this.autoplaySlowTimer > (isBossActive || isMinibossActive ? 180 : 240) && // Shorter cooldown during boss fights
+      game && game.timeSlowCooldown <= 0 && !game.timeSlowActive // Time slow is available
     );
     
     if (shouldUseTimeSlow) {
       keys.f = true; // Trigger time slow
       this.autoplaySlowTimer = 0; // Reset timer
+      console.log('Autoplayer: Activating Time Slow! Threat:', threatLevel.toFixed(2), 'Nearby:', nearbyProjectiles, 'VeryClose:', veryCloseProjectiles, 'Corner:', nearCornerSlow, 'Boss:', isBossActive, 'Miniboss:', isMinibossActive, 'Total:', projectileCount);
     }
     
-    // Bomb usage - activate in extreme situations with cooldown
+    // Check if player is near a corner (within 80px of edges)
+    const nearCorner = this.isNearCorner(80);
+    const manyNearbyBullets = nearbyProjectiles >= 5; // 5+ bullets nearby
+    
+    // Bomb usage - activate in extreme situations, when cornered, or with many nearby bullets
     const shouldUseBomb = (
       (threatLevel >= 0.9 || // Extreme threat level
        (enemyBullets.length > 25) || // Screen full of bullets
        (boss && !boss.isDefeated && boss.finalPhase && threatLevel >= 0.6) || // Boss final phase
-       (enemies.length > 10 && threatLevel >= 0.7)) && // Many enemies with high threat
-      this.autoplayBombTimer > 300 // Minimum 5 seconds between bomb considerations
+       (enemies.length > 10 && threatLevel >= 0.7) || // Many enemies with high threat
+       (nearCorner && manyNearbyBullets && threatLevel >= 0.5) || // Cornered with many bullets
+       (nearCorner && projectileCount >= 15 && threatLevel >= 0.4)) && // Cornered with screen full of bullets
+      this.autoplayBombTimer > 180 && // Reduced to 3 seconds between bomb considerations
+      game && game.bombCount > 0 // Only if bombs are available
     );
     
     if (shouldUseBomb) {
       keys.z = true; // Trigger bomb (game will check if bombs are available)
       this.autoplayBombTimer = 0; // Reset timer
+      console.log('Autoplayer: Using Bomb! Threat level:', threatLevel.toFixed(2), 'Near corner:', nearCorner, 'Nearby bullets:', nearbyProjectiles);
     }
   }
 
@@ -241,6 +249,24 @@ export class Autoplayer {
         y: escapePoint.y,
         priority: 1.5
       };
+    }
+    
+    // During boss/miniboss fights with many bullets, look for safety pockets
+    const isBossActive = boss && !boss.isDefeated;
+    const isMinibossActive = enemies.some(enemy => enemy.type === 'miniboss' || enemy.isMiniboss);
+    const manyProjectiles = enemyBullets.length + enemyLasers.length >= 15;
+    
+    if ((isBossActive || isMinibossActive) && manyProjectiles) {
+      const safetyPocket = this.findSafetyPocket(enemies, enemyBullets, enemyLasers, asteroids, boss);
+      if (safetyPocket) {
+        console.log('Autoplayer: Found safety pocket at', safetyPocket.x.toFixed(0), safetyPocket.y.toFixed(0), 'safety score:', safetyPocket.safety.toFixed(2));
+        return {
+          type: 'safety_pocket',
+          x: safetyPocket.x,
+          y: safetyPocket.y,
+          priority: 1.2 // High priority for safety pockets
+        };
+      }
     }
     
     // Enhanced center-seeking with distance-based priority
@@ -409,13 +435,77 @@ export class Autoplayer {
       return this.calculateEmergencyAvoidance(allThreats);
     }
     
-    // Scale movement based on objective priority and safety
-    const movementScale = Math.min(1.0, objective.priority * bestSafety);
+    // Check for nearby threats and limit movement speed for precision
+    const proximityScale = this.calculateProximityMovementLimit(allThreats);
+    
+    // Scale movement based on objective priority, safety, and proximity
+    const movementScale = Math.min(1.0, objective.priority * bestSafety * proximityScale);
     
     return {
       x: bestDirection.x * movementScale,
       y: bestDirection.y * movementScale
     };
+  }
+
+  // Calculate movement speed limit based on proximity to threats
+  calculateProximityMovementLimit(allThreats) {
+    const proximityRadius = 30; // 30px proximity check as requested
+    const minMovementScale = 0.1; // Minimum movement scale (very slow)
+    const maxMovementScale = 1.0; // Normal movement scale
+    
+    let closestThreatDistance = Infinity;
+    let hasNearbyCollidableThreats = false;
+    
+    // Check distance to all threats
+    for (const threat of allThreats) {
+      const distance = Math.sqrt(
+        (threat.x - this.player.x) ** 2 + (threat.y - this.player.y) ** 2
+      );
+      
+      // Only consider collidable threats (enemies, asteroids, bullets, lasers)
+      if (threat.type === 'enemy' || threat.type === 'asteroid' || 
+          threat.type === 'bullet' || threat.type === 'laser') {
+        
+        if (distance <= proximityRadius) {
+          hasNearbyCollidableThreats = true;
+          closestThreatDistance = Math.min(closestThreatDistance, distance);
+        }
+      }
+    }
+    
+    // If no nearby collidable threats, allow normal movement
+    if (!hasNearbyCollidableThreats) {
+      return maxMovementScale;
+    }
+    
+    // Calculate movement scale based on closest threat distance
+    // Closer threats = slower movement for precision
+    const proximityRatio = closestThreatDistance / proximityRadius;
+    
+    // Apply exponential scaling: very slow when very close, normal when at edge
+    const proximityScale = minMovementScale + 
+      (maxMovementScale - minMovementScale) * (proximityRatio ** 2);
+    
+    // Extra slow movement if multiple threats are nearby
+    let nearbyThreatCount = 0;
+    for (const threat of allThreats) {
+      const distance = Math.sqrt(
+        (threat.x - this.player.x) ** 2 + (threat.y - this.player.y) ** 2
+      );
+      if (distance <= proximityRadius && 
+          (threat.type === 'enemy' || threat.type === 'asteroid' || 
+           threat.type === 'bullet' || threat.type === 'laser')) {
+        nearbyThreatCount++;
+      }
+    }
+    
+    // Additional slowdown for multiple nearby threats
+    if (nearbyThreatCount > 1) {
+      const multiThreatPenalty = Math.max(0.1, 1.0 - (nearbyThreatCount - 1) * 0.2);
+      return Math.min(proximityScale, proximityScale * multiThreatPenalty);
+    }
+    
+    return proximityScale;
   }
 
   // Calculate safety score for a movement direction
@@ -535,6 +625,110 @@ export class Autoplayer {
     return penalty;
   }
 
+  // Check if player is near a corner of the screen
+  isNearCorner(edgeBuffer = 80) {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    const distanceFromLeft = this.player.x;
+    const distanceFromRight = width - this.player.x;
+    const distanceFromTop = this.player.y;
+    const distanceFromBottom = height - this.player.y;
+    
+    // Check if close to any edge
+    const nearLeftEdge = distanceFromLeft < edgeBuffer;
+    const nearRightEdge = distanceFromRight < edgeBuffer;
+    const nearTopEdge = distanceFromTop < edgeBuffer;
+    const nearBottomEdge = distanceFromBottom < edgeBuffer;
+    
+    // Return true if near any edge (corner or edge)
+    return nearLeftEdge || nearRightEdge || nearTopEdge || nearBottomEdge;
+  }
+
+  // Find pockets of safety on the field during intense bullet patterns
+  findSafetyPocket(enemies, enemyBullets, enemyLasers, asteroids, boss) {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const edgeBuffer = 70; // Stay away from screen edges
+    const safetyRadius = 80; // Size of safety pocket
+    const gridSize = 40; // Test points every 40 pixels
+    
+    let bestSafetyScore = -1;
+    let bestPocket = null;
+    
+    // Test grid points across the screen for safety
+    for (let x = edgeBuffer; x < width - edgeBuffer; x += gridSize) {
+      for (let y = edgeBuffer; y < height - edgeBuffer; y += gridSize) {
+        const safetyScore = this.calculatePocketSafety(x, y, safetyRadius, 
+          enemies, enemyBullets, enemyLasers, asteroids, boss);
+        
+        if (safetyScore > bestSafetyScore) {
+          bestSafetyScore = safetyScore;
+          bestPocket = { x, y, safety: safetyScore };
+        }
+      }
+    }
+    
+    // Only return pocket if it's significantly safer than current position
+    const currentSafety = this.calculatePocketSafety(this.player.x, this.player.y, safetyRadius,
+      enemies, enemyBullets, enemyLasers, asteroids, boss);
+    
+    if (bestPocket && bestPocket.safety > currentSafety + 0.3) {
+      return bestPocket;
+    }
+    
+    return null;
+  }
+
+  // Calculate safety score for a potential pocket location
+  calculatePocketSafety(x, y, radius, enemies, enemyBullets, enemyLasers, asteroids, boss) {
+    let safetyScore = 1.0;
+    const futureFrames = 90; // Look ahead 1.5 seconds
+    
+    // Check all projectiles and their future positions
+    const allProjectiles = [...enemyBullets, ...enemyLasers];
+    
+    for (const projectile of allProjectiles) {
+      for (let frame = 0; frame <= futureFrames; frame += 5) {
+        const futureX = projectile.x + ((projectile.dx || 0) / 60) * frame;
+        const futureY = projectile.y + ((projectile.dy || 0) / 60) * frame;
+        
+        const distance = Math.sqrt((x - futureX) ** 2 + (y - futureY) ** 2);
+        
+        if (distance < radius) {
+          // Projectile will pass through this pocket
+          const dangerLevel = (radius - distance) / radius;
+          const timeFactor = 1.0 - (frame / futureFrames); // Nearer future = more dangerous
+          safetyScore -= dangerLevel * timeFactor * 0.8;
+        }
+      }
+    }
+    
+    // Check static threats (enemies, asteroids)
+    const staticThreats = [...enemies, ...asteroids];
+    if (boss) staticThreats.push(boss);
+    
+    for (const threat of staticThreats) {
+      const distance = Math.sqrt((x - threat.x) ** 2 + (y - threat.y) ** 2);
+      const threatRadius = (threat.size || 30) + 40; // Buffer around threats
+      
+      if (distance < threatRadius) {
+        const dangerLevel = (threatRadius - distance) / threatRadius;
+        safetyScore -= dangerLevel * 0.6;
+      }
+    }
+    
+    // Bonus for being closer to center
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const distanceFromCenter = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+    const maxDistance = Math.sqrt(centerX ** 2 + centerY ** 2);
+    const centerBonus = (1.0 - distanceFromCenter / maxDistance) * 0.2;
+    safetyScore += centerBonus;
+    
+    return Math.max(0, safetyScore);
+  }
+
   // Emergency avoidance when no safe direction found
   calculateEmergencyAvoidance(allThreats) {
     // Find the direction with the least immediate danger
@@ -559,9 +753,13 @@ export class Autoplayer {
       }
     }
     
+    // Apply proximity-based movement limiting for emergency avoidance too
+    const proximityScale = this.calculateProximityMovementLimit(allThreats);
+    const emergencySpeed = 0.5 * proximityScale; // Even more cautious when near threats
+    
     return {
-      x: Math.cos(bestAngle) * 0.5, // Cautious movement in emergency
-      y: Math.sin(bestAngle) * 0.5
+      x: Math.cos(bestAngle) * emergencySpeed,
+      y: Math.sin(bestAngle) * emergencySpeed
     };
   }
 
