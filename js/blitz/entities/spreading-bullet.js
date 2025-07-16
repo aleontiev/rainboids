@@ -64,7 +64,7 @@ export class SpreadingBullet {
     this.exploded = true;
     const numBullets = 8; // Number of bullets in the ring
     const bulletSpeed = 4; // Speed of the spreading bullets
-    const bulletSize = this.size * 0.5; // Smaller bullets
+    const bulletSize = this.size * 0.3; // Much smaller bullets
 
     for (let i = 0; i < numBullets; i++) {
       const angle = (i / numBullets) * Math.PI * 2; // Evenly spaced around circle
@@ -99,49 +99,21 @@ export class SpreadingBullet {
     ctx.rotate(this.angle);
     ctx.fillStyle = this.color;
 
-    // Draw a large missile shape
-    const missileLength = this.size * 2.5;
-    const missileWidth = this.size * 0.8;
-    const tipLength = this.size * 0.7;
-    const finWidth = this.size * 0.6;
-    const finLength = this.size * 0.8;
+    // Draw like a regular bullet but larger (same style as enemy bullets)
+    const width = this.size * 2;
+    const height = this.size;
 
     ctx.beginPath();
-    // Main body
-    ctx.rect(-missileLength / 2, -missileWidth / 2, missileLength, missileWidth);
+    ctx.moveTo(-width / 2, -height / 2);
+    ctx.lineTo(width / 2 - height / 2, -height / 2);
+    ctx.arc(width / 2 - height / 2, 0, height / 2, -Math.PI / 2, Math.PI / 2, false);
+    ctx.lineTo(-width / 2, height / 2);
+    ctx.closePath();
     ctx.fill();
     
     // Add white stroke for enemy bullets
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Pointed tip
-    ctx.beginPath();
-    ctx.moveTo(missileLength / 2, -missileWidth / 2);
-    ctx.lineTo(missileLength / 2 + tipLength, 0);
-    ctx.lineTo(missileLength / 2, missileWidth / 2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Fins
-    ctx.beginPath();
-    // Top fin
-    ctx.moveTo(-missileLength / 2 + finLength, -missileWidth / 2);
-    ctx.lineTo(-missileLength / 2, -missileWidth / 2 - finWidth);
-    ctx.lineTo(-missileLength / 2, -missileWidth / 2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    // Bottom fin
-    ctx.moveTo(-missileLength / 2 + finLength, missileWidth / 2);
-    ctx.lineTo(-missileLength / 2, missileWidth / 2 + finWidth);
-    ctx.lineTo(-missileLength / 2, missileWidth / 2);
-    ctx.closePath();
-    ctx.fill();
     ctx.stroke();
 
     ctx.restore();

@@ -190,6 +190,36 @@ export class Metal {
     };
   }
 
+  // Calculate bounce direction for lasers (similar to bullets but with laser-specific properties)
+  calculateLaserBounceDirection(laser, segment) {
+    const { x1, y1, x2, y2 } = segment;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    
+    // Convert laser angle/speed to velocity components
+    const laserVx = Math.cos(laser.angle) * laser.speed;
+    const laserVy = Math.sin(laser.angle) * laser.speed;
+    
+    if (length === 0) return { vx: -laserVx, vy: -laserVy };
+    
+    // Normal vector to the line (perpendicular)
+    const nx = -dy / length;
+    const ny = dx / length;
+    
+    // Reflect the laser velocity
+    const dot = laserVx * nx + laserVy * ny;
+    const reflectedVx = laserVx - 2 * dot * nx;
+    const reflectedVy = laserVy - 2 * dot * ny;
+    
+    return { 
+      vx: reflectedVx, 
+      vy: reflectedVy,
+      angle: Math.atan2(reflectedVy, reflectedVx),
+      speed: Math.sqrt(reflectedVx * reflectedVx + reflectedVy * reflectedVy)
+    };
+  }
+
   render(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -207,7 +237,7 @@ export class Metal {
         const perpY = (dx / length) * (this.thickness / 2);
         
         // Create filled rectangle for each segment
-        ctx.fillStyle = "#557799"; // More metallic bluish-gray color
+        ctx.fillStyle = "#666666"; // Grayscale metallic color
         ctx.beginPath();
         ctx.moveTo(segment.x1 + perpX, segment.y1 + perpY);
         ctx.lineTo(segment.x2 + perpX, segment.y2 + perpY);
@@ -217,12 +247,12 @@ export class Metal {
         ctx.fill();
         
         // Add darker outline for definition
-        ctx.strokeStyle = "#334455";
+        ctx.strokeStyle = "#333333";
         ctx.lineWidth = 1;
         ctx.stroke();
         
         // Add metallic highlight on top edge
-        ctx.fillStyle = "#88bbdd"; // Lighter metallic blue highlight
+        ctx.fillStyle = "#aaaaaa"; // Lighter grayscale highlight
         ctx.beginPath();
         ctx.moveTo(segment.x1 + perpX, segment.y1 + perpY);
         ctx.lineTo(segment.x2 + perpX, segment.y2 + perpY);

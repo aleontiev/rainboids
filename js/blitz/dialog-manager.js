@@ -46,6 +46,9 @@ export class DialogManager {
     if (textElement) {
       textElement.textContent = this.dialogMessages[0];
     }
+    
+    // Hide game action buttons during dialog
+    this.hideGameActionButtons();
   }
 
   advance() {
@@ -73,6 +76,9 @@ export class DialogManager {
       dialogElement.style.display = "none";
     }
 
+    // Show game action buttons again
+    this.showGameActionButtons();
+
     this.game.gameState = "PLAYING";
     this.game.gamePhase = 5; // Phase 5: Boss fight phase
   }
@@ -80,6 +86,12 @@ export class DialogManager {
   update(deltaTime) {
     if (this.isActive) {
       this.timer += deltaTime;
+      
+      // Auto-advance dialog during autoplay mode (500ms per page)
+      if (this.game.autoplay && this.timer >= 500) {
+        this.advance();
+        this.timer = 0; // Reset timer for next page
+      }
     }
   }
 
@@ -95,5 +107,39 @@ export class DialogManager {
   // Check if dialog should be triggered
   shouldTrigger(gamePhase, timer) {
     return gamePhase === 4 && timer >= 5000 && !this.isActive;
+  }
+
+  // Hide game action buttons during dialog
+  hideGameActionButtons() {
+    const buttonIds = [
+      "time-slow-button",
+      "pause-button", 
+      "shield-button",
+      "bomb-button"
+    ];
+    
+    buttonIds.forEach(id => {
+      const button = document.getElementById(id);
+      if (button) {
+        button.style.display = "none";
+      }
+    });
+  }
+
+  // Show game action buttons after dialog
+  showGameActionButtons() {
+    const buttonIds = [
+      "time-slow-button",
+      "pause-button",
+      "shield-button", 
+      "bomb-button"
+    ];
+    
+    buttonIds.forEach(id => {
+      const button = document.getElementById(id);
+      if (button) {
+        button.style.display = "block";
+      }
+    });
   }
 }

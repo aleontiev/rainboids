@@ -8,6 +8,7 @@ import { SpreadingBullet } from "./blitz/entities/spreading-bullet.js";
 import { MiniBoss } from "./blitz/entities/miniboss.js";
 import { HomingMissile } from "./blitz/entities/homing-missile.js";
 import { Boss } from "./blitz/entities/boss.js";
+import { ContinuousLaserBeam } from "./blitz/entities/continuous-laser-beam.js";
 import { TextParticle, Debris } from "./blitz/entities/particle.js";
 import { Asteroid } from "./blitz/entities/asteroid.js";
 import { Metal } from "./blitz/entities/metal.js";
@@ -124,6 +125,9 @@ class BlitzGame {
       playerY = this.canvas.height / 2; // Center
     }
     this.player = new Player(playerX, playerY);
+    
+    // Reset all cheat states
+    this.cheats.reset();
     this.bullets = [];
     this.enemyBullets = [];
     this.enemyLasers = [];
@@ -686,12 +690,9 @@ class BlitzGame {
 
     // Handle autoplay abilities BEFORE processing input
     if (this.autoplay) {
+      const collidables = this.createCollidablesArray(this.allEnemies, this.enemyBullets, this.enemyLasers, this.asteroids, this.boss);
       this.player.autoplayer.handleAutoplayAbilities(
-        this.allEnemies, 
-        this.enemyBullets, 
-        this.enemyLasers, 
-        this.asteroids, 
-        this.boss, 
+        collidables,
         input, 
         this.powerups,
         this // Pass game object for cooldown checks
@@ -729,7 +730,8 @@ class BlitzGame {
     // For autoplay, only fire when there are valid targets on screen
     let shouldAutoplayFire = false;
     if (this.autoplay) {
-      shouldAutoplayFire = this.player.autoplayer.hasValidTargets(this.allEnemies, this.asteroids, this.boss);
+      const collidables = this.createCollidablesArray(this.allEnemies, this.enemyBullets, this.enemyLasers, this.asteroids, this.boss);
+      shouldAutoplayFire = this.player.autoplayer.hasValidTargets(collidables);
     }
     
     if ((input.fire || (this.autoplay && shouldAutoplayFire)) && !this.death.animationActive) {
@@ -939,13 +941,24 @@ class BlitzGame {
   handleEnemyWeapons(enemy) {
     // Handle new boss system
     if (enemy instanceof Boss) {
-      // Fire left arm lasers
+      // Fire left arm lasers (now handles continuous laser beam)
       const leftArmLasers = enemy.fireLeftArm(this.player.x, this.player.y);
       leftArmLasers.forEach((data) => {
         this.enemyLasers.push(
           new Laser(data.x, data.y, data.angle, data.speed, data.color)
         );
       });
+
+      // Update continuous laser beam if active
+      if (enemy.leftArm && enemy.leftArm.activeLaser) {
+        // Keep laser aligned with cannon position
+        enemy.leftArm.activeLaser.updateOrigin(enemy.leftArm.x, enemy.leftArm.y);
+        
+        const stillActive = enemy.leftArm.activeLaser.update(1.0, this.metals, this.player.x, this.player.y);
+        if (!stillActive) {
+          enemy.leftArm.activeLaser = null;
+        }
+      }
 
       // Fire right arm bullets
       const rightArmBullets = enemy.fireRightArm(this.player.x, this.player.y);
@@ -1373,6 +1386,88 @@ class BlitzGame {
       }
     }
 
+    // Enemy bullets vs asteroids
+    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+      for (let j = this.asteroids.length - 1; j >= 0; j--) {
+        const enemyBullet = this.enemyBullets[i];
+        const asteroid = this.asteroids[j];
+
+        if (this.checkCollision(enemyBullet, asteroid)) {
+          // Remove enemy bullet
+          this.enemyBullets.splice(i, 1);
+
+          // Damage the asteroid
+          const damageResult = asteroid.takeDamage(1);
+          this.createDebris(asteroid.x, asteroid.y, "#ffffff");
+          
+          if (damageResult) {
+            this.asteroids.splice(j, 1);
+            // No score for enemy bullets destroying asteroids
+
+            if (damageResult === "breakIntoMedium") {
+              const baseAngle = Math.atan2(asteroid.vy, asteroid.vx);
+              const spreadAngle = Math.PI / 6; // 30 degrees spread
+              const newSpeed = asteroid.speed * 1.5; // Faster than original
+              const mediumSize = 30 + Math.random() * 15;
+              const mediumSpeed = 1 + Math.random() * 0.5;
+
+              // Asteroid 1: slightly left
+              let angle1 = baseAngle - spreadAngle;
+              this.spawnAsteroid(
+                "medium",
+                asteroid.x,
+                asteroid.y,
+                Math.cos(angle1) * newSpeed,
+                Math.sin(angle1) * newSpeed,
+                mediumSize,
+                mediumSpeed
+              );
+
+              // Asteroid 2: straight ahead
+              let angle2 = baseAngle;
+              this.spawnAsteroid(
+                "medium",
+                asteroid.x,
+                asteroid.y,
+                Math.cos(angle2) * newSpeed,
+                Math.sin(angle2) * newSpeed,
+                mediumSize,
+                mediumSpeed
+              );
+
+              // Asteroid 3: slightly right
+              let angle3 = baseAngle + spreadAngle;
+              this.spawnAsteroid(
+                "medium",
+                asteroid.x,
+                asteroid.y,
+                Math.cos(angle3) * newSpeed,
+                Math.sin(angle3) * newSpeed,
+                mediumSize,
+                mediumSpeed
+              );
+            } else if (damageResult === "breakIntoSmall") {
+              const smallSize = 15 + Math.random() * 10;
+              const smallSpeed = 1.5 + Math.random() * 0.5;
+              for (let k = 0; k < 3; k++) {
+                this.spawnAsteroid(
+                  "small",
+                  asteroid.x + (Math.random() - 0.5) * 20,
+                  asteroid.y + (Math.random() - 0.5) * 20,
+                  (Math.random() - 0.5) * 4,
+                  (Math.random() - 0.5) * 4,
+                  smallSize,
+                  smallSpeed
+                );
+              }
+            }
+            this.audio.playSound(this.audio.sounds.asteroidExplosion);
+          }
+          break; // Break from asteroid loop since bullet was removed
+        }
+      }
+    }
+
     // Player bullets vs metals (bounce off)
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       for (let j = this.metals.length - 1; j >= 0; j--) {
@@ -1433,7 +1528,7 @@ class BlitzGame {
       }
     }
 
-    // Enemy lasers vs metals (destroyed by metal)
+    // Enemy lasers vs metals (continuous laser system with redirection)
     for (let i = this.enemyLasers.length - 1; i >= 0; i--) {
       for (let j = this.metals.length - 1; j >= 0; j--) {
         const laser = this.enemyLasers[i];
@@ -1441,8 +1536,20 @@ class BlitzGame {
 
         const hitSegment = metal.checkBulletCollision(laser);
         if (hitSegment) {
-          // Destroy the laser
-          this.enemyLasers.splice(i, 1);
+          // Calculate bounce direction
+          const bounceData = metal.calculateLaserBounceDirection(laser, hitSegment);
+          
+          // Position laser at the collision point (simplified - just offset it slightly)
+          const offsetDistance = 5; // Small offset to prevent immediate re-collision
+          laser.x = laser.x + Math.cos(bounceData.angle) * offsetDistance;
+          laser.y = laser.y + Math.sin(bounceData.angle) * offsetDistance;
+          
+          // Bounce the laser and check if it should be destroyed
+          const shouldDestroy = laser.registerBounce(bounceData.angle);
+          
+          if (shouldDestroy) {
+            this.enemyLasers.splice(i, 1);
+          }
           break;
         }
       }
@@ -1471,14 +1578,20 @@ class BlitzGame {
       }
     }
 
-    // Player vs asteroids (only if not shielding, not in godmode, and not rainbow invulnerable)
-    if (
-      !this.player.isShielding &&
-      !this.player.godMode &&
-      !this.player.rainbowInvulnerable
-    ) {
-      for (let i = this.asteroids.length - 1; i >= 0; i--) {
-        if (this.checkPlayerCollision(this.player, this.asteroids[i])) {
+    // Player vs asteroids
+    for (let i = this.asteroids.length - 1; i >= 0; i--) {
+      if (this.checkPlayerCollision(this.player, this.asteroids[i])) {
+        if (this.player.godMode) {
+          // In godmode, destroy the asteroid instead of taking damage
+          const asteroid = this.asteroids[i];
+          this.asteroids.splice(i, 1);
+          this.createDebris(asteroid.x, asteroid.y, "#ffffff");
+          this.effects.createExplosion(this.player.x, this.player.y);
+          continue;
+        }
+
+        // Check for damage collision (excludes godmode but includes shielding/rainbow)
+        if (this.checkPlayerDamageCollision(this.player, this.asteroids[i])) {
           if (this.player.secondShip.length > 0) {
             const destroyedShip = this.player.secondShip.pop(); // Remove one companion ship
             this.effects.createExplosion(destroyedShip.x, destroyedShip.y); // Explosion at companion ship's position
@@ -1497,13 +1610,24 @@ class BlitzGame {
     }
 
     // Player vs all enemies (unified)
-    if (
-      !this.player.isShielding &&
-      !this.player.godMode &&
-      !this.player.rainbowInvulnerable
-    ) {
-      for (let i = this.allEnemies.length - 1; i >= 0; i--) {
-        if (this.checkPlayerCollision(this.player, this.allEnemies[i])) {
+    for (let i = this.allEnemies.length - 1; i >= 0; i--) {
+      if (this.checkPlayerCollision(this.player, this.allEnemies[i])) {
+        const enemy = this.allEnemies[i];
+        
+        if (this.player.godMode) {
+          // In godmode, destroy regular enemies but not miniboss or boss
+          if (!(enemy instanceof MiniBoss) && !(enemy instanceof Boss)) {
+            this.removeDestroyedEnemy(enemy);
+            this.effects.createExplosion(enemy.x, enemy.y);
+            continue;
+          } else {
+            // Miniboss and boss are immune to godmode destruction
+            continue;
+          }
+        }
+
+        // Check for damage collision (excludes godmode but includes shielding/rainbow)
+        if (this.checkPlayerDamageCollision(this.player, this.allEnemies[i])) {
           if (this.player.secondShip.length > 0) {
             const destroyedShip = this.player.secondShip.pop();
             this.effects.createExplosion(destroyedShip.x, destroyedShip.y);
@@ -1521,14 +1645,18 @@ class BlitzGame {
       }
     }
 
-    // Player vs enemy bullets (only if not shielding, not in godmode, and not rainbow invulnerable)
-    if (
-      !this.player.isShielding &&
-      !this.player.godMode &&
-      !this.player.rainbowInvulnerable
-    ) {
-      for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
-        if (this.checkPlayerCollision(this.player, this.enemyBullets[i])) {
+    // Player vs enemy bullets
+    for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
+      if (this.checkPlayerCollision(this.player, this.enemyBullets[i])) {
+        if (this.player.godMode) {
+          // In godmode, destroy the enemy bullet instead of taking damage
+          this.enemyBullets.splice(i, 1);
+          this.effects.createExplosion(this.player.x, this.player.y);
+          continue;
+        }
+
+        // Check for damage collision (excludes godmode but includes shielding/rainbow)
+        if (this.checkPlayerDamageCollision(this.player, this.enemyBullets[i])) {
           if (this.player.secondShip.length > 0) {
             const destroyedShip = this.player.secondShip.pop();
             this.effects.createExplosion(destroyedShip.x, destroyedShip.y);
@@ -1549,13 +1677,17 @@ class BlitzGame {
     }
 
     // Player vs enemy lasers
-    if (
-      !this.player.isShielding &&
-      !this.player.godMode &&
-      !this.player.rainbowInvulnerable
-    ) {
-      for (let i = this.enemyLasers.length - 1; i >= 0; i--) {
-        if (this.checkPlayerLaserCollision(this.player, this.enemyLasers[i])) {
+    for (let i = this.enemyLasers.length - 1; i >= 0; i--) {
+      if (this.checkPlayerLaserCollision(this.player, this.enemyLasers[i])) {
+        if (this.player.godMode) {
+          // In godmode, destroy the enemy laser instead of taking damage
+          this.enemyLasers.splice(i, 1);
+          this.effects.createExplosion(this.player.x, this.player.y);
+          continue;
+        }
+
+        // Check for damage collision (excludes godmode but includes shielding/rainbow)
+        if (this.checkPlayerLaserDamageCollision(this.player, this.enemyLasers[i])) {
           if (this.player.secondShip.length > 0) {
             const destroyedShip = this.player.secondShip.pop();
             this.effects.createExplosion(destroyedShip.x, destroyedShip.y);
@@ -1580,6 +1712,9 @@ class BlitzGame {
         this.powerups.splice(i, 1);
       }
     }
+
+    // Handle continuous laser beam collisions
+    this.handleContinuousLaserCollisions();
   }
 
   checkCollision(obj1, obj2) {
@@ -1679,9 +1814,51 @@ class BlitzGame {
     return distanceToLaser < player.hitboxSize + laser.width / 2;
   }
 
+  checkPlayerLaserDamageCollision(player, laser) {
+    // Player is immune to damage while shielding or rainbow invulnerable
+    // Note: godMode is handled separately to allow destruction behavior
+    if (player.isShielding || player.rainbowInvulnerable) {
+      return false;
+    }
+
+    // Line-to-circle collision detection
+    const dx = player.x - laser.x;
+    const dy = player.y - laser.y;
+
+    // Calculate laser direction vector
+    const laserDx = Math.cos(laser.angle);
+    const laserDy = Math.sin(laser.angle);
+
+    // Project player position onto laser line
+    const projection = dx * laserDx + dy * laserDy;
+
+    // Clamp projection to laser length
+    const clampedProjection = Math.max(0, Math.min(laser.length, projection));
+
+    // Find closest point on laser to player
+    const closestX = laser.x + clampedProjection * laserDx;
+    const closestY = laser.y + clampedProjection * laserDy;
+
+    // Check distance from player to closest point on laser
+    const distanceToLaser = Math.sqrt(
+      (player.x - closestX) ** 2 + (player.y - closestY) ** 2
+    );
+
+    // Collision if distance is less than player hitbox + laser width
+    return distanceToLaser < player.hitboxSize + laser.width / 2;
+  }
+
   checkPlayerCollision(player, obj) {
-    // Player is immune to damage while shielding, in god mode, or rainbow invulnerable
-    if (player.isShielding || player.godMode || player.rainbowInvulnerable) {
+    const dx = player.x - obj.x;
+    const dy = player.y - obj.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    return distance < player.hitboxSize + obj.size;
+  }
+
+  checkPlayerDamageCollision(player, obj) {
+    // Player is immune to damage while shielding or rainbow invulnerable
+    // Note: godMode is handled separately to allow destruction behavior
+    if (player.isShielding || player.rainbowInvulnerable) {
       return false;
     }
 
@@ -1689,6 +1866,69 @@ class BlitzGame {
     const dy = player.y - obj.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     return distance < player.hitboxSize + obj.size;
+  }
+
+  handleContinuousLaserCollisions() {
+    // Check all bosses for active continuous laser beams
+    for (const enemy of this.allEnemies) {
+      if (!(enemy instanceof Boss)) continue;
+      const boss = enemy;
+      if (boss.leftArm && boss.leftArm.activeLaser) {
+        const laser = boss.leftArm.activeLaser;
+        
+        // Note: laser is already updated in boss.fireLeftArm(), just handle collisions here
+        
+        // Player collision
+        if (laser.checkCollision(this.player.x, this.player.y, this.player.hitboxSize)) {
+          if (this.player.godMode) {
+            // In godmode, laser has no effect but continue checking other entities
+          } else if (this.checkPlayerDamageCollision(this.player, { x: this.player.x, y: this.player.y, size: 0 })) {
+            if (this.player.secondShip.length > 0) {
+              const destroyedShip = this.player.secondShip.pop();
+              this.effects.createExplosion(destroyedShip.x, destroyedShip.y);
+              this.ui.update();
+            } else if (this.player.shield > 0) {
+              this.player.shield--;
+              this.effects.createExplosion(this.player.x, this.player.y);
+              this.ui.update();
+            } else {
+              this.effects.createExplosion(this.player.x, this.player.y);
+              this.death.start();
+              return;
+            }
+          }
+        }
+        
+        // Asteroid collisions
+        for (let i = this.asteroids.length - 1; i >= 0; i--) {
+          const asteroid = this.asteroids[i];
+          if (laser.checkCollision(asteroid.x, asteroid.y, asteroid.size)) {
+            this.asteroids.splice(i, 1);
+            this.createDebris(asteroid.x, asteroid.y, "#ffffff");
+            this.effects.createExplosion(asteroid.x, asteroid.y);
+          }
+        }
+        
+        // Enemy collisions (friendly fire)
+        for (let i = this.allEnemies.length - 1; i >= 0; i--) {
+          const enemy = this.allEnemies[i];
+          if (enemy !== boss && laser.checkCollision(enemy.x, enemy.y, enemy.size)) {
+            this.removeDestroyedEnemy(enemy);
+            this.effects.createExplosion(enemy.x, enemy.y);
+          }
+        }
+        
+        // Player companion ship collisions
+        for (let i = this.player.secondShip.length - 1; i >= 0; i--) {
+          const ship = this.player.secondShip[i];
+          if (laser.checkCollision(ship.x, ship.y, 15)) { // Ship radius ~15
+            this.player.secondShip.splice(i, 1);
+            this.effects.createExplosion(ship.x, ship.y);
+            this.ui.update();
+          }
+        }
+      }
+    }
   }
 
   createExplosion(x, y) {
@@ -2254,6 +2494,68 @@ class BlitzGame {
 
     this.render();
     requestAnimationFrame((timestamp) => this.loop(timestamp));
+  }
+
+  // Create unified collidables array with consistent interface
+  createCollidablesArray(enemies, enemyBullets, enemyLasers, asteroids, boss) {
+    const collidables = [];
+    
+    // Add all enemies
+    for (const enemy of enemies) {
+      collidables.push({
+        ...enemy,
+        collidableType: 'enemy',
+        // Ensure consistent velocity interface
+        dx: enemy.dx || 0,
+        dy: enemy.dy || 0
+      });
+    }
+    
+    // Add all enemy bullets
+    for (const bullet of enemyBullets) {
+      collidables.push({
+        ...bullet,
+        collidableType: 'enemyBullet',
+        // Ensure consistent velocity interface
+        dx: bullet.dx || 0,
+        dy: bullet.dy || 0
+      });
+    }
+    
+    // Add all enemy lasers
+    for (const laser of enemyLasers) {
+      collidables.push({
+        ...laser,
+        collidableType: 'enemyLaser',
+        // Ensure consistent velocity interface
+        dx: laser.dx || 0,
+        dy: laser.dy || 0
+      });
+    }
+    
+    // Add all asteroids
+    for (const asteroid of asteroids) {
+      collidables.push({
+        ...asteroid,
+        collidableType: 'asteroid',
+        // Ensure consistent velocity interface
+        dx: asteroid.dx || 0,
+        dy: asteroid.dy || 0
+      });
+    }
+    
+    // Add boss if present
+    if (boss) {
+      collidables.push({
+        ...boss,
+        collidableType: 'boss',
+        // Ensure consistent velocity interface
+        dx: boss.dx || 0,
+        dy: boss.dy || 0
+      });
+    }
+    
+    return collidables;
   }
 }
 

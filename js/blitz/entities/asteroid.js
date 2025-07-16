@@ -25,7 +25,6 @@ export class Asteroid {
         this.health = Math.floor(size / 10);
         
         // Vulnerability properties (for consistency with auto-aim system)
-        this.godMode = false;
         this.invulnerable = false;
         
         // Velocity tracking (dx/dy per second) - initialize with current velocity
@@ -84,7 +83,7 @@ export class Asteroid {
 
     // Check if this asteroid can be targeted by auto-aim
     isVulnerableToAutoAim() {
-        return !this.godMode && !this.invulnerable;
+        return !this.invulnerable;
     }
     
     update(slowdownFactor = 1.0) {

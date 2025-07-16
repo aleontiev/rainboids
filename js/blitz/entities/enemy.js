@@ -38,7 +38,6 @@ export class BaseEnemy {
     this.opacity = isClone ? 0 : 1.0;
     
     // Vulnerability properties (used for auto-aim filtering)
-    this.godMode = false;
     this.invulnerable = false;
     
     // Velocity tracking (dx/dy per second)
@@ -50,7 +49,7 @@ export class BaseEnemy {
 
   // Check if this enemy can be targeted by auto-aim
   isVulnerableToAutoAim() {
-    return !this.godMode && !this.invulnerable;
+    return !this.invulnerable;
   }
 
   update(
@@ -652,18 +651,6 @@ export class LaserEnemy extends BaseEnemy {
       ctx.lineTo(this.x + Math.cos(angle) * 40, this.y + Math.sin(angle) * 40);
       ctx.stroke();
       
-      // Draw warning circle at target location
-      ctx.fillStyle = `rgba(255, 0, 0, ${pulseIntensity * 0.4})`;
-      ctx.beginPath();
-      ctx.arc(this.targetX, this.targetY, 20, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Draw warning outline
-      ctx.strokeStyle = `rgba(255, 0, 0, ${pulseIntensity})`;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(this.targetX, this.targetY, 20, 0, Math.PI * 2);
-      ctx.stroke();
       
       ctx.restore();
     }

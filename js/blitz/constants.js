@@ -29,7 +29,7 @@ export const COLORS = {
     POWERUP_COLORS: {
         shield: '#00aaff',
         mainWeapon: '#8844ff',
-        sideWeapon: '#00ff88',
+        sideWeapon: '#00ccaa',
         secondShip: '#4488ff',
         bomb: '#aa44ff'
     }
@@ -49,7 +49,9 @@ export const GAME_CONFIG = {
     ENEMY_SIZE: 24, // 3x larger than original
     
     // Bullet settings
+    FAST_BULLET_SPEED: 16,
     BULLET_SPEED: 8,
+    LASER_SPEED: 80,
     BULLET_SIZE: 6, // 2x larger than original
     
     // Explosion settings

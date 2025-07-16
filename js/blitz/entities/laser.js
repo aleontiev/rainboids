@@ -13,6 +13,8 @@ export class Laser {
     this.colorIndex = 0;
     this.penetrationCount = 0; // Track how many targets this laser has hit
     this.maxPenetration = 3; // Maximum targets before laser is destroyed
+    this.bounceCount = 0; // Track how many times this laser has bounced off metal
+    this.maxBounces = 3; // Maximum bounces before laser is destroyed
     this.rainbowColors = [
       "#ff0000",
       "#ff8800",
@@ -45,13 +47,20 @@ export class Laser {
       this.colorIndex = Math.floor(Math.random() * this.rainbowColors.length);
     }
 
-    return this.life > 0 && this.penetrationCount < this.maxPenetration;
+    return this.life > 0 && this.penetrationCount < this.maxPenetration && this.bounceCount < this.maxBounces;
   }
 
   // Called when laser hits a target
   registerHit() {
     this.penetrationCount++;
     return this.penetrationCount >= this.maxPenetration; // Return true if laser should be destroyed
+  }
+
+  // Called when laser bounces off metal
+  registerBounce(newAngle) {
+    this.bounceCount++;
+    this.angle = newAngle;
+    return this.bounceCount >= this.maxBounces; // Return true if laser should be destroyed
   }
 
   render(ctx) {

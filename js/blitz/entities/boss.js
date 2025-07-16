@@ -1,4 +1,5 @@
 import { BaseEnemy } from "./enemy.js";
+import { ContinuousLaserBeam } from "./continuous-laser-beam.js";
 
 export class Boss extends BaseEnemy {
   constructor(x, y, isPortrait, canvasWidth, canvasHeight) {
@@ -394,7 +395,17 @@ export class Boss extends BaseEnemy {
         if (this.leftArm.cooldown <= 0) {
           this.leftArm.sweepState = "charging";
           this.leftArm.sweepChargeTime = 0;
-          this.leftArm.sweepAngle = -Math.PI / 2; // Start pointing up
+          // Calculate angle from arm to player as the starting point
+          const angleToPlayer = Math.atan2(playerY - this.leftArm.y, playerX - this.leftArm.x);
+          this.leftArm.sweepAngle = angleToPlayer;
+          
+          // Create new continuous laser beam
+          this.leftArm.activeLaser = new ContinuousLaserBeam(
+            this.leftArm.x,
+            this.leftArm.y,
+            0, // Initial angle (will be set by laser)
+            this.isPortrait
+          );
         }
         break;
         
@@ -414,47 +425,16 @@ export class Boss extends BaseEnemy {
       case "sweeping":
         this.leftArm.sweepDuration++;
         
-        // Update sweep angle
-        this.leftArm.sweepAngle += this.leftArm.sweepSpeed * this.leftArm.sweepDirection;
-        this.leftArm.coreAngle = this.leftArm.sweepAngle;
-        
-        // Check for direction changes at endpoints
-        const bottomMidAngle = Math.PI / 2; // Pointing down
-        const topAngle = -Math.PI / 2; // Pointing up
-        
-        // If sweeping clockwise and reached bottom mid, reverse direction
-        if (this.leftArm.sweepDirection > 0 && this.leftArm.sweepAngle >= bottomMidAngle) {
-          this.leftArm.sweepDirection = -1;
-          this.leftArm.sweepAngle = bottomMidAngle;
-        }
-        // If sweeping counter-clockwise and reached top, reverse direction
-        else if (this.leftArm.sweepDirection < 0 && this.leftArm.sweepAngle <= topAngle) {
-          this.leftArm.sweepDirection = 1;
-          this.leftArm.sweepAngle = topAngle;
+        // Update arm angle to match laser angle
+        if (this.leftArm.activeLaser) {
+          this.leftArm.coreAngle = this.leftArm.activeLaser.angle;
         }
         
-        // Create continuous laser beam
-        if (this.leftArm.sweepDuration % 3 === 0) { // Fire every 3 frames for continuous beam
-          const armX = this.leftArm.x;
-          const armY = this.leftArm.y;
-          
-          return [{
-            type: "laser",
-            x: armX,
-            y: armY,
-            angle: this.leftArm.sweepAngle,
-            speed: 8, // Fast moving laser segments
-            color: "#ff8800", // Orange laser
-            width: 12,
-            length: 60, // Shorter segments for continuous beam effect
-            isSweepingLaser: true
-          }];
-        }
-        
-        // End sweeping after max duration
+        // End sweeping after max duration (laser lifecycle is managed by main game loop)
         if (this.leftArm.sweepDuration >= this.leftArm.sweepMaxDuration) {
           this.leftArm.sweepState = "inactive";
           this.leftArm.cooldown = this.leftArm.maxCooldown * 2; // Longer cooldown for powerful attack
+          this.leftArm.activeLaser = null; // Clear laser reference
         }
         break;
     }
@@ -622,6 +602,11 @@ export class Boss extends BaseEnemy {
     // Draw right arm  
     if (!this.rightArm.destroyed) {
       this.drawNewArm(ctx, this.rightArm, "#ff0000");
+    }
+
+    // Draw continuous laser beam if active
+    if (this.leftArm.activeLaser) {
+      this.leftArm.activeLaser.render(ctx);
     }
 
     // Draw main body angled toward player

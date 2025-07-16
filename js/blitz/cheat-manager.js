@@ -174,4 +174,22 @@ export class CheatManager {
       }
     }
   }
+
+  // Reset all cheat states when game restarts
+  reset() {
+    // Reset player cheat states
+    if (this.game.player) {
+      this.game.player.godMode = false;
+    }
+    
+    // Reset autoaim and autoplay
+    this.game.autoaim = false;
+    this.game.autoplay = false;
+    
+    // Reset all upgrades state
+    this.game.allUpgradesState = null;
+    
+    // Update UI to reflect reset states
+    this.update();
+  }
 }
