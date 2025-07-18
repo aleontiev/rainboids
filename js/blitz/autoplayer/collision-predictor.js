@@ -1,4 +1,4 @@
-import { GAME_CONFIG } from "../constants.js";
+// Removed constants import - using defaults
 import { ThreatAssessment } from "./threat-assessment.js";
 
 /**
@@ -91,7 +91,7 @@ export class CollisionPredictor {
         (threat.y - this.player.y) ** 2
       );
       
-      const requiredSpeed = (distanceToThreat - threat.radius - GAME_CONFIG.PLAYER_HITBOX) / timeToCollision;
+      const requiredSpeed = (distanceToThreat - threat.radius - 6) / timeToCollision;
       
       if (requiredSpeed > playerSpeed) {
         unavoidableCollisions.push({
@@ -119,7 +119,7 @@ export class CollisionPredictor {
     const relativeVy = threatVy - (this.player.vy || 0);
     
     const threatData = this.threatAssessment.getThreatProperties(threat);
-    const collisionRadius = GAME_CONFIG.PLAYER_HITBOX + threatData.radius;
+    const collisionRadius = 6 + threatData.radius;
     
     // Calculate intersection point
     const timeToCollision = this.threatAssessment.calculateCollisionTime(threat, slowdownFactor);
@@ -204,7 +204,7 @@ export class CollisionPredictor {
         );
         
         const threatData = this.threatAssessment.getThreatProperties(threat.entity);
-        const safeDistance = threatData.radius + GAME_CONFIG.PLAYER_HITBOX + 20;
+        const safeDistance = threatData.radius + 6 + 20;
         
         if (threatDistance < safeDistance) {
           // Check if threat will be in this position when we arrive
@@ -258,7 +258,7 @@ export class CollisionPredictor {
         );
         
         const threatData = this.threatAssessment.getThreatProperties(threat.entity);
-        const dangerRadius = threatData.radius + GAME_CONFIG.PLAYER_HITBOX + 40;
+        const dangerRadius = threatData.radius + 6 + 40;
         
         if (threatDistance < dangerRadius) {
           const proximityFactor = 1.0 - (threatDistance / dangerRadius);

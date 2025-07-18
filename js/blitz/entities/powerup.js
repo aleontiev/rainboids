@@ -1,17 +1,18 @@
 export class Powerup {
-  constructor(x, y, type, isPortrait) {
+  constructor(x, y, type, isPortrait, game = null) {
     this.x = x;
     this.y = y;
     this.type = type;
-    this.size = 20;
-    this.speed = 1;
+    this.game = game;
+    this.size = game?.level?.config?.powerupSize || 20;
+    this.speed = game?.level?.config?.powerupSpeed || 1;
     this.pulseTimer = 0;
     this.isPortrait = isPortrait;
     
     // Velocity tracking (dx/dy per second)
     this.dx = 0;
     this.dy = 0;
-    this.colors = {
+    this.colors = game?.level?.config?.powerupColors || {
       shield: "#4488ff", // Blue
       mainWeapon: "#44ff44", // green
       sideWeapon: "#44ff44", // green

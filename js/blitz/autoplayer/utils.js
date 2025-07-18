@@ -1,4 +1,4 @@
-import { GAME_CONFIG } from "../constants.js";
+// Removed constants import - using defaults
 
 /**
  * AutoplayerUtils - Common utility functions for the autoplayer system

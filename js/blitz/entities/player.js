@@ -1,15 +1,15 @@
 // Player entity for Rainboids: Blitz
-import { GAME_CONFIG } from "../constants.js";
 import { Autoplayer } from "../autoplayer.js";
 import { Autoaimer } from "../autoaimer.js";
 
 export class Player {
-  constructor(x, y) {
+  constructor(x, y, game = null) {
     this.x = x;
     this.y = y;
-    this.size = GAME_CONFIG.PLAYER_SIZE;
-    this.hitboxSize = GAME_CONFIG.PLAYER_HITBOX;
-    this.speed = GAME_CONFIG.PLAYER_SPEED;
+    this.game = game;
+    this.size = this.getPlayerSize();
+    this.hitboxSize = this.getPlayerHitbox();
+    this.speed = this.getPlayerSpeed();
     this.angle = 0;
     this.shootCooldown = 0;
     this.homingMissileCooldown = 0;
@@ -38,191 +38,6 @@ export class Player {
     // Initialize autoplayer and autoaimer
     this.autoplayer = new Autoplayer(this);
     this.autoaimer = new Autoaimer(this);
-  }
-
-  // Calculate exact intercept solution accounting for all velocity vectors
-  calculateInterceptSolution(
-    playerX,
-    playerY,
-    playerVx,
-    playerVy,
-    targetX,
-    targetY,
-    targetVx,
-    targetVy,
-    bulletSpeed
-  ) {
-    // Relative position and velocity
-    const relativeX = targetX - playerX;
-    const relativeY = targetY - playerY;
-    const relativeVx = targetVx - playerVx;
-    const relativeVy = targetVy - playerVy;
-
-    // Quadratic equation coefficients for intercept calculation
-    // We want to solve: |relative_pos + relative_vel * t| = bullet_speed * t
-    // This gives us: (relativeX + relativeVx*t)² + (relativeY + relativeVy*t)² = (bulletSpeed*t)²
-
-    const a =
-      relativeVx * relativeVx +
-      relativeVy * relativeVy -
-      bulletSpeed * bulletSpeed;
-    const b = 2 * (relativeX * relativeVx + relativeY * relativeVy);
-    const c = relativeX * relativeX + relativeY * relativeY;
-
-    const discriminant = b * b - 4 * a * c;
-
-    // No solution if discriminant is negative
-    if (discriminant < 0) {
-      return null;
-    }
-
-    let interceptTime = 0;
-
-    if (Math.abs(a) < 0.0001) {
-      // Linear case: target and bullet speeds nearly cancel out
-      if (Math.abs(b) > 0.0001) {
-        interceptTime = -c / b;
-      } else {
-        // Target is already at the right position
-        interceptTime = 0;
-      }
-    } else {
-      // Quadratic case: solve for intercept time
-      const sqrtDiscriminant = Math.sqrt(discriminant);
-      const t1 = (-b - sqrtDiscriminant) / (2 * a);
-      const t2 = (-b + sqrtDiscriminant) / (2 * a);
-
-      // Choose the smallest positive time
-      const validTimes = [t1, t2].filter((t) => t > 0.001); // Small epsilon to avoid division issues
-
-      if (validTimes.length === 0) {
-        return null;
-      }
-
-      interceptTime = Math.min(...validTimes);
-    }
-
-    // Calculate intercept position
-    const interceptX = targetX + targetVx * interceptTime;
-    const interceptY = targetY + targetVy * interceptTime;
-
-    return {
-      interceptX,
-      interceptY,
-      interceptTime,
-    };
-  }
-
-  // Simple lead target calculation (fallback method)
-  calculateSimpleLeadTarget(
-    targetX,
-    targetY,
-    targetVx,
-    targetVy,
-    playerX,
-    playerY,
-    bulletSpeed
-  ) {
-    // Simple leading: assume player is stationary, calculate where target will be
-    const distance = Math.sqrt(
-      (targetX - playerX) ** 2 + (targetY - playerY) ** 2
-    );
-
-    if (distance === 0) {
-      return { x: targetX, y: targetY };
-    }
-
-    // Estimate time for bullet to reach target's current position
-    let timeToTarget = distance / bulletSpeed;
-
-    // Iterative improvement for better accuracy (2 iterations usually sufficient)
-    for (let i = 0; i < 3; i++) {
-      const predictedX = targetX + targetVx * timeToTarget;
-      const predictedY = targetY + targetVy * timeToTarget;
-      const newDistance = Math.sqrt(
-        (predictedX - playerX) ** 2 + (predictedY - playerY) ** 2
-      );
-      timeToTarget = newDistance / bulletSpeed;
-    }
-
-    return {
-      x: targetX + targetVx * timeToTarget,
-      y: targetY + targetVy * timeToTarget,
-    };
-  }
-
-  // Calculate how likely we are to hit a target based on its movement pattern
-  calculateTargetHitScore(target, bulletSpeed, distance) {
-    // Get target velocity
-    const targetVx =
-      target.vx !== undefined ? target.vx : (target.dx || 0) / 60;
-    const targetVy =
-      target.vy !== undefined ? target.vy : (target.dy || 0) / 60;
-    const targetSpeed = Math.sqrt(targetVx * targetVx + targetVy * targetVy);
-
-    // Base score starts high
-    let hitScore = 1.0;
-
-    // Penalize fast-moving targets
-    if (targetSpeed > 0) {
-      const relativeSpeed = targetSpeed / bulletSpeed;
-      hitScore *= Math.max(0.1, 1.0 - relativeSpeed * 0.5);
-    }
-
-    // Check if we can calculate a valid intercept
-    const interceptSolution = this.calculateInterceptSolution(
-      this.x,
-      this.y,
-      this.vx || 0,
-      this.vy || 0,
-      target.x,
-      target.y,
-      targetVx,
-      targetVy,
-      bulletSpeed
-    );
-
-    if (!interceptSolution) {
-      hitScore *= 0.2; // Heavy penalty for no intercept solution
-    } else {
-      const { interceptTime } = interceptSolution;
-
-      // Prefer targets that require less lead time
-      if (interceptTime > 0) {
-        hitScore *= Math.max(0.3, 1.0 - interceptTime / 120); // 2 seconds max lead time
-      }
-    }
-
-    // Bonus for stationary or slow targets
-    if (targetSpeed < 1.0) {
-      hitScore *= 1.2; // 20% bonus for nearly stationary targets
-    }
-
-    // Penalty for targets moving perpendicular to our line of sight
-    if (targetSpeed > 0) {
-      const dx = target.x - this.x;
-      const dy = target.y - this.y;
-      const toTargetLength = Math.sqrt(dx * dx + dy * dy);
-
-      if (toTargetLength > 0) {
-        const toTargetX = dx / toTargetLength;
-        const toTargetY = dy / toTargetLength;
-
-        // Dot product of target velocity with direction to target
-        const radialComponent = Math.abs(
-          targetVx * toTargetX + targetVy * toTargetY
-        );
-        const tangentialComponent = targetSpeed - radialComponent;
-
-        // Penalize high tangential movement (harder to hit)
-        hitScore *= Math.max(
-          0.4,
-          1.0 - (tangentialComponent / bulletSpeed) * 0.8
-        );
-      }
-    }
-
-    return Math.max(0.1, Math.min(1.0, hitScore));
   }
 
   update(
@@ -275,8 +90,14 @@ export class Player {
     // Handle movement - autoplay overrides manual input
     if (autoplayEnabled) {
       // Create unified collidables array with consistent interface
-      const collidables = this.createCollidablesArray(enemies, enemyBullets, enemyLasers, asteroids, boss);
-      
+      const collidables = this.createCollidables(
+        enemies,
+        enemyBullets,
+        enemyLasers,
+        asteroids,
+        boss
+      );
+
       // Autoplay: automatically dodge threats and collect powerups
       const dodgeVector = this.autoplayer.calculateDodgeVector(
         collidables,
@@ -315,13 +136,15 @@ export class Player {
     // Autoplay strategic ability usage
     if (autoplayEnabled) {
       // Create unified collidables array with consistent interface
-      const collidables = this.createCollidablesArray(enemies, enemyBullets, enemyLasers, asteroids, boss);
-      
-      this.autoplayer.handleAutoplayAbilities(
-        collidables,
-        keys,
-        powerups
+      const collidables = this.createCollidables(
+        enemies,
+        enemyBullets,
+        enemyLasers,
+        asteroids,
+        boss
       );
+
+      this.autoplayer.handleAutoplayAbilities(collidables, keys, powerups);
     }
 
     // Handle aiming using the Autoaimer class
@@ -362,7 +185,7 @@ export class Player {
     });
   }
 
-  shoot(bullets, BulletClass, LaserClass, HomingMissileClass, isPortrait) {
+  shoot(bullets, missiles, BulletClass, LaserClass, HomingMissileClass, isPortrait) {
     // Cannot shoot while shielding
     if (this.isShielding) {
       return null;
@@ -371,9 +194,9 @@ export class Player {
     if (this.shootCooldown <= 0) {
       // Main weapon - use level 5 laser during rainbow invulnerability
       if (this.mainWeaponLevel >= 5 || this.rainbowInvulnerable) {
-        // Rainbow laser beam
-        bullets.push(new LaserClass(this.x, this.y, this.angle, 50, "rainbow"));
-        this.shootCooldown = 2; // Half the firing rate to reduce damage
+        // Rainbow laser beam - pass player laser speed and game reference
+        bullets.push(new LaserClass(this.x, this.y, this.angle, this.getPlayerLaserSpeed(), "rainbow", this.game, true));
+        this.shootCooldown = this.getPlayerLevel5FireRate();
         return "laser"; // Return laser type for continuous sound
       } else if (this.mainWeaponLevel === 1) {
         bullets.push(
@@ -381,38 +204,40 @@ export class Player {
             this.x,
             this.y,
             this.angle,
-            10,
+            this.getPlayerBulletSize(),
             "#00ff88",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
-            true
+            this.getBulletSpeed(),
+            true,
+            this.game
           ) // Speed 8 (same as level 2)
         ); // Cool green
-        this.shootCooldown = 30; // Half as often as level 2 (0.5 seconds at 60fps)
+        this.shootCooldown = this.getPlayerLevel1FireRate();
       } else if (this.mainWeaponLevel === 2) {
         bullets.push(
           new BulletClass(
             this.x,
             this.y,
             this.angle,
-            10,
+            this.getPlayerBulletSize(),
             "#00ff88",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
-            true
+            this.getBulletSpeed(),
+            true,
+            this.game
           )
         ); // Same green as level 1, same size
-        this.shootCooldown = 15; // Faster
+        this.shootCooldown = this.getPlayerLevel2FireRate();
       } else if (this.mainWeaponLevel === 3) {
         bullets.push(
           new BulletClass(
             this.x,
             this.y,
             this.angle + 0.05,
-            10,
+            this.getPlayerBulletSize(),
             "#00ff88",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
+            this.getBulletSpeed(),
             true
           )
         ); // Green bullets with slight spread
@@ -421,24 +246,24 @@ export class Player {
             this.x,
             this.y,
             this.angle - 0.05,
-            10,
+            this.getPlayerBulletSize(),
             "#00ff88",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
+            this.getBulletSpeed(),
             true
           )
         );
-        this.shootCooldown = 15; // Same as level 2
+        this.shootCooldown = this.getPlayerLevel3FireRate();
       } else if (this.mainWeaponLevel >= 4) {
         bullets.push(
           new BulletClass(
             this.x,
             this.y,
             this.angle,
-            12,
+            this.getPlayerBulletSize() * 1.5,
             "#00ffcc",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
+            this.getBulletSpeed(),
             true
           )
         ); // Teal, 3 bullets
@@ -447,10 +272,10 @@ export class Player {
             this.x,
             this.y,
             this.angle + 0.05,
-            12,
+            this.getPlayerBulletSize() * 1.5,
             "#00ffcc",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
+            this.getBulletSpeed(),
             true
           )
         );
@@ -459,14 +284,14 @@ export class Player {
             this.x,
             this.y,
             this.angle - 0.05,
-            12,
+            this.getPlayerBulletSize() * 1.5,
             "#00ffcc",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
+            this.getBulletSpeed(),
             true
           )
         );
-        this.shootCooldown = 8; // Very fast
+        this.shootCooldown = this.getPlayerLevel4FireRate();
       }
 
       // Secondary weapon system (0-4 levels)
@@ -479,10 +304,10 @@ export class Player {
             this.x,
             this.y,
             this.angle + Math.PI / 4, // 45 degree diagonal
-            8,
+            this.getPlayerBulletSize() * 0.8,
             "#00ccaa",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
+            this.getBulletSpeed(),
             true
           )
         );
@@ -495,10 +320,10 @@ export class Player {
             this.x,
             this.y,
             this.angle - Math.PI / 4, // -45 degree diagonal
-            8,
+            this.getPlayerBulletSize() * 0.8,
             "#00ccaa",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
+            this.getBulletSpeed(),
             true
           )
         );
@@ -507,25 +332,25 @@ export class Player {
       if (this.sideWeaponLevel >= 2) {
         // Level 2: 2 missiles + 2 homing missiles (green, 1.5x larger)
         if (this.homingMissileCooldown <= 0) {
-          bullets.push(
+          missiles.push(
             new HomingMissileClass(
               this.x,
               this.y,
               this.angle + 0.2,
-              9,
+              this.getPlayerBulletSize() * 0.9,
               "#00ff44"
             )
           );
-          bullets.push(
+          missiles.push(
             new HomingMissileClass(
               this.x,
               this.y,
               this.angle - 0.2,
-              9,
+              this.getPlayerBulletSize() * 0.9,
               "#00ff44"
             )
           );
-          this.homingMissileCooldown = 60; // 1 second cooldown
+          this.homingMissileCooldown = this.getPlayerHomingMissileCooldown();
         }
       }
 
@@ -533,21 +358,21 @@ export class Player {
         // Level 3: 2 missiles + 4 homing missiles total
         if (this.homingMissileCooldown <= 0) {
           // Add 2 more homing missiles (total 4)
-          bullets.push(
+          missiles.push(
             new HomingMissileClass(
               this.x,
               this.y,
               this.angle + 0.4,
-              9,
+              this.getPlayerBulletSize() * 0.9,
               "#00ff44"
             )
           );
-          bullets.push(
+          missiles.push(
             new HomingMissileClass(
               this.x,
               this.y,
               this.angle - 0.4,
-              9,
+              this.getPlayerBulletSize() * 0.9,
               "#00ff44"
             )
           );
@@ -562,10 +387,10 @@ export class Player {
             this.x,
             this.y,
             this.angle + Math.PI / 6, // 30 degree
-            8,
+            this.getPlayerBulletSize() * 0.8,
             "#00ccaa",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
+            this.getBulletSpeed(),
             true
           )
         );
@@ -574,31 +399,31 @@ export class Player {
             this.x,
             this.y,
             this.angle - Math.PI / 6, // -30 degree
-            8,
+            this.getPlayerBulletSize() * 0.8,
             "#00ccaa",
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
+            this.getBulletSpeed(),
             true
           )
         );
 
         // Add 2 more homing missiles (total 6)
         if (this.homingMissileCooldown <= 0) {
-          bullets.push(
+          missiles.push(
             new HomingMissileClass(
               this.x,
               this.y,
               this.angle + 0.6,
-              9,
+              this.getPlayerBulletSize() * 0.9,
               "#00ff44"
             )
           );
-          bullets.push(
+          missiles.push(
             new HomingMissileClass(
               this.x,
               this.y,
               this.angle - 0.6,
-              9,
+              this.getPlayerBulletSize() * 0.9,
               "#00ff44"
             )
           );
@@ -613,17 +438,17 @@ export class Player {
             ship.x,
             ship.y,
             ship.initialAngle, // Use initialAngle
-            8,
+            this.getPlayerBulletSize() * 0.8,
             secondShipBulletColor,
             isPortrait,
-            GAME_CONFIG.BULLET_SPEED,
+            this.getBulletSpeed(),
             true
           )
         );
       });
 
-      this.shootCooldown = 10;
-      return "bullet"; // Return bullet type for normal sound
+      this.shootCooldown = this.getPlayerLevel1FireRate();
+      return "bullet"; 
     }
 
     return null; // No shot fired
@@ -805,7 +630,7 @@ export class Player {
   activateShield() {
     if (this.shieldCooldown <= 0 && !this.isShielding) {
       this.isShielding = true;
-      this.shieldFrames = 60;
+      this.shieldFrames = this.getShieldDuration();
       this.shieldCooldown = this.shieldCooldownMax;
       return true;
     }
@@ -818,64 +643,173 @@ export class Player {
   }
 
   // Create unified collidables array with consistent interface
-  createCollidablesArray(enemies, enemyBullets, enemyLasers, asteroids, boss) {
+  createCollidables(enemies, enemyBullets, enemyLasers, asteroids, boss) {
     const collidables = [];
-    
+
     // Add all enemies
     for (const enemy of enemies) {
       collidables.push({
         ...enemy,
-        collidableType: 'enemy',
+        collidableType: "enemy",
         // Ensure consistent velocity interface
         dx: enemy.dx || 0,
-        dy: enemy.dy || 0
+        dy: enemy.dy || 0,
       });
     }
-    
+
     // Add all enemy bullets
     for (const bullet of enemyBullets) {
       collidables.push({
         ...bullet,
-        collidableType: 'enemyBullet',
+        collidableType: "enemyBullet",
         // Ensure consistent velocity interface
         dx: bullet.dx || 0,
-        dy: bullet.dy || 0
+        dy: bullet.dy || 0,
       });
     }
-    
+
     // Add all enemy lasers
     for (const laser of enemyLasers) {
       collidables.push({
         ...laser,
-        collidableType: 'enemyLaser',
+        collidableType: "enemyLaser",
         // Ensure consistent velocity interface
         dx: laser.dx || 0,
-        dy: laser.dy || 0
+        dy: laser.dy || 0,
       });
     }
-    
+
     // Add all asteroids
     for (const asteroid of asteroids) {
       collidables.push({
         ...asteroid,
-        collidableType: 'asteroid',
+        collidableType: "asteroid",
         // Ensure consistent velocity interface
         dx: asteroid.dx || 0,
-        dy: asteroid.dy || 0
+        dy: asteroid.dy || 0,
       });
     }
-    
+
     // Add boss if present
     if (boss && !boss.isDefeated) {
       collidables.push({
         ...boss,
-        collidableType: 'boss',
+        collidableType: "boss",
         // Ensure consistent velocity interface
         dx: boss.dx || 0,
-        dy: boss.dy || 0
+        dy: boss.dy || 0,
       });
     }
-    
+
     return collidables;
+  }
+
+  // Helper methods to get player config values
+  getPlayerSize() {
+    try {
+      return this.game?.level?.config?.playerSize || 10;
+    } catch (e) {
+      return 10;
+    }
+  }
+
+  getPlayerHitbox() {
+    try {
+      return this.game?.level?.config?.playerHitbox || 6;
+    } catch (e) {
+      return 6;
+    }
+  }
+
+  getPlayerSpeed() {
+    try {
+      return this.game?.level?.config?.playerSpeed || 6;
+    } catch (e) {
+      return 6;
+    }
+  }
+
+  getBulletSpeed() {
+    try {
+      return this.game?.level?.config?.bulletSpeed || 8;
+    } catch (e) {
+      return 8;
+    }
+  }
+
+  getPlayerBulletSize() {
+    try {
+      return this.game?.level?.config?.playerBulletSize || 8;
+    } catch (e) {
+      return 8;
+    }
+  }
+
+  getPlayerLaserSize() {
+    try {
+      return this.game?.level?.config?.playerLaserSize || 6;
+    } catch (e) {
+      return 6;
+    }
+  }
+
+  getPlayerLaserSpeed() {
+    try {
+      return this.game?.level?.config?.playerLaserSpeed || 80;
+    } catch (e) {
+      return 80;
+    }
+  }
+
+  getPlayerLevel5FireRate() {
+      return this.game?.level?.config?.playerLevel5FireRate;
+  }
+
+  getPlayerLevel1FireRate() {
+      return this.game?.level?.config?.playerLevel1FireRate;
+  }
+
+  getPlayerLevel2FireRate() {
+      return this.game?.level?.config?.playerLevel2FireRate;
+  }
+
+  getPlayerLevel3FireRate() {
+      return this.game?.level?.config?.playerLevel3FireRate;
+  }
+
+  getPlayerLevel4FireRate() {
+      return this.game?.level?.config?.playerLevel4FireRate;
+  }
+
+  getPlayerHomingMissileCooldown() {
+    try {
+      return this.game?.level?.config?.playerHomingMissileCooldown || 10;
+    } catch (e) {
+      return 10;
+    }
+  }
+
+  getPlayerShieldCooldownMax() {
+    try {
+      return this.game?.level?.config?.playerShieldCooldownMax || 300;
+    } catch (e) {
+      return 300;
+    }
+  }
+
+  getRainbowInvulnerableTime() {
+    try {
+      return this.game?.level?.config?.playerRainbowInvulnerableTime || 360;
+    } catch (e) {
+      return 360;
+    }
+  }
+
+  getShieldDuration() {
+    try {
+      return this.game?.level?.config?.playerShieldDuration || 60;
+    } catch (e) {
+      return 60;
+    }
   }
 }

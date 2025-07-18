@@ -13,20 +13,20 @@ export class DialogManager {
       "Who dares enter my space?!",
       "Prepare to die, humans!",
     ];
-
-    this.setupDialogElements();
   }
 
-  setupDialogElements() {
+  setup() {
     const bossDialog = document.getElementById("boss-dialog");
     const levelCleared = document.getElementById("level-cleared");
 
     if (bossDialog) {
-      this.game.addHandler(bossDialog, () => this.advance());
+      this.game.controls.addHandler(bossDialog, () => this.advance());
     }
 
     if (levelCleared) {
-      this.game.addHandler(levelCleared, () => this.game.restart());
+      this.game.controls.addHandler(levelCleared, () =>
+        this.game.state.restart()
+      );
     }
   }
 
@@ -34,7 +34,7 @@ export class DialogManager {
     this.dialogState = 1;
     this.isActive = true;
     this.timer = 0;
-    this.game.gameState = "BOSS_DIALOG";
+    this.game.state.state = "BOSS_DIALOG";
 
     const dialogElement = document.getElementById("boss-dialog");
     const textElement = document.getElementById("boss-text");
@@ -46,7 +46,7 @@ export class DialogManager {
     if (textElement) {
       textElement.textContent = this.dialogMessages[0];
     }
-    
+
     // Hide game action buttons during dialog
     this.hideGameActionButtons();
   }
@@ -63,7 +63,7 @@ export class DialogManager {
       }
     } else {
       this.hide();
-      this.game.spawnBoss();
+      this.game.entities.spawnBoss();
     }
   }
 
@@ -79,16 +79,16 @@ export class DialogManager {
     // Show game action buttons again
     this.showGameActionButtons();
 
-    this.game.gameState = "PLAYING";
+    this.game.state.state = "PLAYING";
     this.game.gamePhase = 5; // Phase 5: Boss fight phase
   }
 
   update(deltaTime) {
     if (this.isActive) {
       this.timer += deltaTime;
-      
+
       // Auto-advance dialog during autoplay mode (500ms per page)
-      if (this.game.autoplay && this.timer >= 500) {
+      if (this.game.cheats.autoplay && this.timer >= 500) {
         this.advance();
         this.timer = 0; // Reset timer for next page
       }
@@ -113,12 +113,12 @@ export class DialogManager {
   hideGameActionButtons() {
     const buttonIds = [
       "time-slow-button",
-      "pause-button", 
+      "pause-button",
       "shield-button",
-      "bomb-button"
+      "bomb-button",
     ];
-    
-    buttonIds.forEach(id => {
+
+    buttonIds.forEach((id) => {
       const button = document.getElementById(id);
       if (button) {
         button.style.display = "none";
@@ -131,11 +131,11 @@ export class DialogManager {
     const buttonIds = [
       "time-slow-button",
       "pause-button",
-      "shield-button", 
-      "bomb-button"
+      "shield-button",
+      "bomb-button",
     ];
-    
-    buttonIds.forEach(id => {
+
+    buttonIds.forEach((id) => {
       const button = document.getElementById(id);
       if (button) {
         button.style.display = "block";

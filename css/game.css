@@ -39,6 +39,7 @@
   align-items: center;
   color: #fff;
   z-index: 100;
+  cursor: crosshair;
 }
 
 #game-over h1 {

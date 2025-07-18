@@ -1,4 +1,4 @@
-import { GAME_CONFIG } from "./constants.js";
+// Removed constants import - using defaults
 import { ThreatAssessment } from "./autoplayer/threat-assessment.js";
 import { MovementCalculator } from "./autoplayer/movement-calculator.js";
 import { AbilityManager } from "./autoplayer/ability-manager.js";
@@ -332,7 +332,7 @@ export class Autoplayer {
           threat.y + threat.vy * prediction.timeToCollision
         );
         
-        const safeDistance = threat.radius + GAME_CONFIG.PLAYER_HITBOX + 30;
+        const safeDistance = threat.radius + 6 + 30;
         if (futureDistance < safeDistance) {
           const proximityFactor = 1.0 - (futureDistance / safeDistance);
           safetyScore *= (1.0 - proximityFactor * 0.8);
@@ -641,7 +641,7 @@ export class Autoplayer {
    * Get current bullet speed based on weapon level
    */
   getCurrentBulletSpeed(level) {
-    return GAME_CONFIG.BULLET_SPEED * (1 + level * 0.1);
+    return 8 * (1 + level * 0.1);
   }
 
   // COMPATIBILITY METHODS

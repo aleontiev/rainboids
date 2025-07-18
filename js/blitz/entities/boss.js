@@ -1,11 +1,13 @@
-import { BaseEnemy } from "./enemy.js";
+import { MiniBoss } from "./miniboss.js";
 import { ContinuousLaserBeam } from "./continuous-laser-beam.js";
 
-export class Boss extends BaseEnemy {
+export class Boss extends MiniBoss {
   constructor(x, y, isPortrait, canvasWidth, canvasHeight) {
-    super(x, y, isPortrait, 1); // Call BaseEnemy constructor with speed 1
+    super(x, y, isPortrait, canvasWidth); // Call MiniBoss constructor
     this.canvasWidth = canvasWidth;
     this.canvasHeight = canvasHeight;
+    this.type = "boss"; // Override miniboss type
+    this.speed = 1; // Override miniboss speed
     this.size = 120; // Very large boss
     this.maxHealth = 1000; // Main body health
     this.health = this.maxHealth;
@@ -936,5 +938,16 @@ export class Boss extends BaseEnemy {
     
     ctx.restore();
     ctx.restore();
+  }
+}
+
+// Robot Boss implementation - the current boss with articulated arms
+export class RobotBoss extends Boss {
+  constructor(x, y, isPortrait, canvasWidth, canvasHeight) {
+    super(x, y, isPortrait, canvasWidth, canvasHeight);
+    this.type = "robot_boss";
+    
+    // This boss uses the existing robot design and logic
+    // All the robot-specific rendering and behavior is already in the parent Boss class
   }
 }

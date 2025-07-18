@@ -56,7 +56,14 @@ export class HomingMissile {
     this.x += Math.cos(this.angle) * this.speed * slowdownFactor;
     this.y += Math.sin(this.angle) * this.speed * slowdownFactor;
     this.life -= slowdownFactor;
-    return this.life > 0;
+    
+    // Check screen boundaries with 50px buffer
+    const withinBounds = this.x > -50 && 
+                        this.x < window.innerWidth + 50 && 
+                        this.y > -50 && 
+                        this.y < window.innerHeight + 50;
+    
+    return this.life > 0 && withinBounds;
   }
 
   render(ctx) {

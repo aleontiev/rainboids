@@ -1,5 +1,3 @@
-import { GAME_CONFIG } from "../constants.js";
-
 /**
  * ThreatAssessment - Handles all threat detection and analysis for the autoplayer
  */
@@ -123,7 +121,7 @@ export class ThreatAssessment {
       case 'enemyBullet':
         return {
           type: 'bullet',
-          radius: Math.max(collidable.size || GAME_CONFIG.BULLET_SIZE, 6),
+          radius: Math.max(collidable.size || 6, 6),
           priority: 1.0,
           isMoving: true
         };
@@ -131,14 +129,14 @@ export class ThreatAssessment {
       case 'enemyLaser':
         return {
           type: 'laser',
-          radius: Math.max(collidable.size || GAME_CONFIG.BULLET_SIZE, 6),
+          radius: Math.max(collidable.size || 6, 6),
           priority: 1.0,
           isMoving: true
         };
       
       case 'enemy':
         let priority = 0.7;
-        let radius = Math.max(collidable.size || GAME_CONFIG.ENEMY_SIZE, 15);
+        let radius = Math.max(collidable.size || 24, 15);
         
         if (collidable.type === 'dive') {
           priority = 0.9;
@@ -158,7 +156,7 @@ export class ThreatAssessment {
       case 'asteroid':
         return {
           type: 'asteroid',
-          radius: Math.max(collidable.size || GAME_CONFIG.ASTEROID_SIZE, 25),
+          radius: Math.max(collidable.size || 40, 25),
           priority: 0.6,
           isMoving: true
         };
@@ -191,7 +189,7 @@ export class ThreatAssessment {
     const relativeVy = threatVy - playerVy;
     
     const threatData = this.getThreatProperties(threat);
-    const collisionRadius = GAME_CONFIG.PLAYER_HITBOX + threatData.radius;
+    const collisionRadius = 6 + threatData.radius; // Player hitbox size + threat radius
     
     const a = relativeVx * relativeVx + relativeVy * relativeVy;
     const b = 2 * (relativeX * relativeVx + relativeY * relativeVy);

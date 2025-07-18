@@ -1,11 +1,10 @@
-// UI and cooldown management for Rainboids: Blitz
-
-export class UIManager {
+// actions / cooldown management for Rainboids: Blitz
+export class ActionsView {
   constructor(game) {
     this.game = game;
   }
 
-  updateCooldownVisuals() {
+  update() {
     // Update shield button cooldown
     const shieldButton = document.getElementById("shield-button");
     if (shieldButton && this.game.player) {
@@ -15,21 +14,25 @@ export class UIManager {
         const circle = shieldButton.querySelector(".cooldown-circle");
         if (circle) {
           const progress =
-            this.game.player.shieldCooldown / this.game.player.shieldCooldownMax;
+            this.game.player.shieldCooldown /
+            this.game.player.shieldCooldownMax;
           circle.style.strokeDashoffset = (157 * progress).toString();
         }
       } else {
         shieldButton.classList.remove("on-cooldown");
         // Trigger flash when coming off cooldown
         if (wasCooldown && this.game.player.shieldCooldown <= 0) {
-          this.game.shieldFlashTimer = 30; // Flash for 0.5 seconds at 60fps
+          this.game.state.shieldFlashTimer = 30; // Flash for 0.5 seconds at 60fps
         }
       }
 
       // Handle ready ring - bright yellow when shield is ready
       const readyRing = shieldButton.querySelector(".ready-ring circle");
       if (readyRing) {
-        if (this.game.player.shieldCooldown <= 0 && !this.game.player.isShielding) {
+        if (
+          this.game.player.shieldCooldown <= 0 &&
+          !this.game.player.isShielding
+        ) {
           readyRing.style.stroke = "#ffff00"; // Bright yellow
           readyRing.parentElement.style.opacity = "1";
         } else {
@@ -42,16 +45,18 @@ export class UIManager {
       if (cooldownRing) {
         const circle = cooldownRing.querySelector(".cooldown-circle");
         if (circle) {
-          const progress = this.game.player.shieldCooldown / this.game.player.shieldCooldownMax;
+          const progress =
+            this.game.player.shieldCooldown /
+            this.game.player.shieldCooldownMax;
           circle.style.strokeDashoffset = (144 * progress).toString();
         }
       }
 
       // Handle flash effect
-      if (this.game.shieldFlashTimer > 0) {
-        this.game.shieldFlashTimer--;
+      if (this.game.state.shieldFlashTimer > 0) {
+        this.game.state.shieldFlashTimer--;
         const flashIntensity =
-          Math.sin(this.game.shieldFlashTimer * 0.3) * 0.5 + 0.5;
+          Math.sin(this.game.state.shieldFlashTimer * 0.3) * 0.5 + 0.5;
         shieldButton.style.backgroundColor = `rgba(0, 255, 136, ${
           flashIntensity * 0.3
         })`;
@@ -67,27 +72,31 @@ export class UIManager {
     // Update time slow button cooldown
     const timeSlowButton = document.getElementById("time-slow-button");
     if (timeSlowButton) {
-      const wasCooldown = this.game.timeSlowCooldown > 1;
-      if (this.game.timeSlowCooldown > 0) {
+      const wasCooldown = this.game.state.timeSlowCooldown > 1;
+      if (this.game.state.timeSlowCooldown > 0) {
         timeSlowButton.classList.add("on-cooldown");
         const circle = timeSlowButton.querySelector(".cooldown-circle");
         if (circle) {
           const progress =
-            this.game.timeSlowCooldown / this.game.timeSlowCooldownMax;
+            this.game.state.timeSlowCooldown /
+            this.game.state.timeSlowCooldownMax;
           circle.style.strokeDashoffset = (157 * progress).toString();
         }
       } else {
         timeSlowButton.classList.remove("on-cooldown");
         // Trigger flash when coming off cooldown
-        if (wasCooldown && this.game.timeSlowCooldown <= 0) {
-          this.game.timeSlowFlashTimer = 30; // Flash for 0.5 seconds at 60fps
+        if (wasCooldown && this.game.state.timeSlowCooldown <= 0) {
+          this.game.state.timeSlowFlashTimer = 30; // Flash for 0.5 seconds at 60fps
         }
       }
 
       // Handle ready ring - bright green when time slow is ready
       const readyRing = timeSlowButton.querySelector(".ready-ring circle");
       if (readyRing) {
-        if (this.game.timeSlowCooldown <= 0 && !this.game.timeSlowActive) {
+        if (
+          this.game.state.timeSlowCooldown <= 0 &&
+          !this.game.state.timeSlowActive
+        ) {
           readyRing.style.stroke = "#00ff00"; // Bright green
           readyRing.parentElement.style.opacity = "1";
         } else {
@@ -100,16 +109,18 @@ export class UIManager {
       if (cooldownRing) {
         const circle = cooldownRing.querySelector(".cooldown-circle");
         if (circle) {
-          const progress = this.game.timeSlowCooldown / this.game.timeSlowCooldownMax;
+          const progress =
+            this.game.state.timeSlowCooldown /
+            this.game.state.timeSlowCooldownMax;
           circle.style.strokeDashoffset = (144 * progress).toString();
         }
       }
 
       // Handle flash effect
-      if (this.game.timeSlowFlashTimer > 0) {
-        this.game.timeSlowFlashTimer--;
+      if (this.game.state.timeSlowFlashTimer > 0) {
+        this.game.state.timeSlowFlashTimer--;
         const flashIntensity =
-          Math.sin(this.game.timeSlowFlashTimer * 0.3) * 0.5 + 0.5;
+          Math.sin(this.game.state.timeSlowFlashTimer * 0.3) * 0.5 + 0.5;
         timeSlowButton.style.backgroundColor = `rgba(136, 136, 255, ${
           flashIntensity * 0.3
         })`;
@@ -125,7 +136,7 @@ export class UIManager {
     // Update bomb button visibility and count
     const bombButton = document.getElementById("bomb-button");
     if (bombButton) {
-      if (this.game.bombCount > 0) {
+      if (this.game.state.bombs > 0) {
         bombButton.style.display = "flex";
 
         // Handle ready ring - bright red when bomb is available
@@ -137,7 +148,7 @@ export class UIManager {
 
         // Show count if 2 or more bombs
         let countDisplay = bombButton.querySelector(".bomb-count");
-        if (this.game.bombCount >= 2) {
+        if (this.game.state.bombs >= 2) {
           if (!countDisplay) {
             countDisplay = document.createElement("div");
             countDisplay.className = "bomb-count";
@@ -159,7 +170,7 @@ export class UIManager {
             `;
             bombButton.appendChild(countDisplay);
           }
-          countDisplay.textContent = this.game.bombCount.toString();
+          countDisplay.textContent = this.game.state.bombs.toString();
         } else if (countDisplay) {
           countDisplay.remove();
         }
@@ -173,36 +184,25 @@ export class UIManager {
       }
     }
   }
+  hide() {
+    const buttons = ["shield-button", "bomb-button", "time-slow-button"];
 
-  update() {
-    // Update score display - show 0 if cheats were used
-    const scoreElement = document.getElementById("score-value");
-    if (scoreElement) {
-      const displayScore = this.game.cheatsUsed ? 0 : this.game.score;
-      scoreElement.textContent = displayScore.toString();
-    }
+    buttons.forEach((buttonId) => {
+      const button = document.getElementById(buttonId);
+      if (button) {
+        button.style.display = "none";
+      }
+    });
+  }
 
-    // Update timer display
-    const timerElement = document.getElementById("timer-value");
-    if (timerElement) {
-      const totalSeconds = Math.floor(this.game.gameTime);
-      const minutes = Math.floor(totalSeconds / 60);
-      const remainingSeconds = totalSeconds % 60;
-      timerElement.textContent = `${minutes}:${remainingSeconds
-        .toString()
-        .padStart(2, "0")}`;
-    }
+  show() {
+    const buttons = ["shield-button", "bomb-button", "time-slow-button"];
 
-    // Update high score displays
-    const highScoreElement = document.getElementById("high-score-value");
-    if (highScoreElement) {
-      highScoreElement.textContent = this.game.highScore.toString();
-    }
-
-    const finalScoreElement = document.getElementById("final-score-value");
-    if (finalScoreElement) {
-      const displayScore = this.game.cheatsUsed ? 0 : this.game.score;
-      finalScoreElement.textContent = displayScore.toString();
-    }
+    buttons.forEach((buttonId) => {
+      const button = document.getElementById(buttonId);
+      if (button) {
+        button.style.display = "block";
+      }
+    });
   }
 }

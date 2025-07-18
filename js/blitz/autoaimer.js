@@ -1,4 +1,4 @@
-import { GAME_CONFIG } from "./constants.js";
+// Removed constants import - using defaults
 
 /**
  * Autoaimer class - handles all auto-aiming functionality for the player
@@ -9,15 +9,131 @@ export class Autoaimer {
     this.player = player;
   }
 
+  // Calculate intercept solution for ballistics prediction
+  calculateInterceptSolution(
+    playerX,
+    playerY,
+    playerVx,
+    playerVy,
+    targetX,
+    targetY,
+    targetVx,
+    targetVy,
+    bulletSpeed
+  ) {
+    // Relative position and velocity
+    const relativeX = targetX - playerX;
+    const relativeY = targetY - playerY;
+    const relativeVx = targetVx - playerVx;
+    const relativeVy = targetVy - playerVy;
+
+    // Quadratic equation coefficients for intercept calculation
+    // We solve: |relativePos + relativeVel * t| = bulletSpeed * t
+    const a = relativeVx * relativeVx + relativeVy * relativeVy - bulletSpeed * bulletSpeed;
+    const b = 2 * (relativeX * relativeVx + relativeY * relativeVy);
+    const c = relativeX * relativeX + relativeY * relativeY;
+
+    const discriminant = b * b - 4 * a * c;
+
+    // No real solution if discriminant is negative
+    if (discriminant < 0) {
+      return null;
+    }
+
+    // Calculate the two potential solutions
+    const sqrtDiscriminant = Math.sqrt(discriminant);
+    const t1 = (-b - sqrtDiscriminant) / (2 * a);
+    const t2 = (-b + sqrtDiscriminant) / (2 * a);
+
+    // Choose the positive solution with smallest time
+    let interceptTime = null;
+    if (t1 > 0 && t2 > 0) {
+      interceptTime = Math.min(t1, t2);
+    } else if (t1 > 0) {
+      interceptTime = t1;
+    } else if (t2 > 0) {
+      interceptTime = t2;
+    }
+
+    if (interceptTime === null || interceptTime <= 0) {
+      return null;
+    }
+
+    // Calculate intercept position
+    const interceptX = targetX + targetVx * interceptTime;
+    const interceptY = targetY + targetVy * interceptTime;
+
+    // Calculate angle to intercept point
+    const dx = interceptX - playerX;
+    const dy = interceptY - playerY;
+    const angle = Math.atan2(dy, dx);
+
+    return {
+      time: interceptTime,
+      x: interceptX,
+      y: interceptY,
+      angle: angle,
+      distance: Math.sqrt(dx * dx + dy * dy)
+    };
+  }
+
+  // Calculate simple lead target without considering player velocity
+  calculateSimpleLeadTarget(
+    targetX,
+    targetY,
+    targetVx,
+    targetVy,
+    playerX,
+    playerY,
+    bulletSpeed
+  ) {
+    // Calculate relative position
+    const dx = targetX - playerX;
+    const dy = targetY - playerY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // If target is stationary or very close, aim directly at it
+    if (Math.abs(targetVx) < 0.1 && Math.abs(targetVy) < 0.1 || distance < 50) {
+      return {
+        angle: Math.atan2(dy, dx),
+        distance: distance,
+        x: targetX,
+        y: targetY,
+        time: distance / bulletSpeed
+      };
+    }
+
+    // Calculate time to reach target (rough estimate)
+    const targetSpeed = Math.sqrt(targetVx * targetVx + targetVy * targetVy);
+    const timeToReach = distance / bulletSpeed;
+
+    // Predict where target will be
+    const predictedX = targetX + targetVx * timeToReach;
+    const predictedY = targetY + targetVy * timeToReach;
+
+    // Calculate angle to predicted position
+    const leadDx = predictedX - playerX;
+    const leadDy = predictedY - playerY;
+    const leadAngle = Math.atan2(leadDy, leadDx);
+
+    return {
+      angle: leadAngle,
+      distance: Math.sqrt(leadDx * leadDx + leadDy * leadDy),
+      x: predictedX,
+      y: predictedY,
+      time: timeToReach
+    };
+  }
+
   // Calculate the aim angle for the player based on current targets
   calculateAimAngle(
-    enemies, 
-    asteroids, 
-    boss, 
-    keys, 
-    autoaimEnabled, 
-    autoplayEnabled, 
-    mainWeaponLevel, 
+    enemies,
+    asteroids,
+    boss,
+    keys,
+    autoaimEnabled,
+    autoplayEnabled,
+    mainWeaponLevel,
     isPortrait
   ) {
     // Handle manual aiming when autoaim/autoplay is disabled
@@ -36,16 +152,17 @@ export class Autoaimer {
     }
 
     // Build complete target list, filter out invulnerable targets
-    const allTargets = [...enemies, ...asteroids].filter(
-      (target) => {
-        // Check if target is vulnerable to auto-aim
-        if (target.isVulnerableToAutoAim && typeof target.isVulnerableToAutoAim === 'function') {
-          return target.isVulnerableToAutoAim();
-        }
-        // For entities without isVulnerableToAutoAim method (like asteroids), check basic vulnerability
-        return !target.godMode && !target.invulnerable;
+    const allTargets = [...enemies, ...asteroids].filter((target) => {
+      // Check if target is vulnerable to auto-aim
+      if (
+        target.isVulnerableToAutoAim &&
+        typeof target.isVulnerableToAutoAim === "function"
+      ) {
+        return target.isVulnerableToAutoAim();
       }
-    );
+      // For entities without isVulnerableToAutoAim method (like asteroids), check basic vulnerability
+      return !target.godMode && !target.invulnerable;
+    });
 
     // Add boss targetable parts if boss exists
     if (boss && !boss.isDefeated && boss.getTargetableParts) {
@@ -53,13 +170,19 @@ export class Autoaimer {
     }
 
     // Filter out offscreen targets
-    const onScreenTargets = allTargets.filter(target => this.isTargetInViewport(target));
+    const onScreenTargets = allTargets.filter((target) =>
+      this.isTargetInViewport(target)
+    );
 
     if (
       (autoaimEnabled || autoplayEnabled || !keys.mousePosition) &&
       onScreenTargets.length > 0
     ) {
-      const target = this.selectBestTarget(onScreenTargets, enemies, mainWeaponLevel);
+      const target = this.selectBestTarget(
+        onScreenTargets,
+        enemies,
+        mainWeaponLevel
+      );
       if (target) {
         const bulletSpeed = this.getCurrentBulletSpeed(mainWeaponLevel);
         return this.calculatePredictiveAim(target, bulletSpeed);
@@ -75,6 +198,23 @@ export class Autoaimer {
     const bulletSpeed = this.getCurrentBulletSpeed(mainWeaponLevel);
     const shootingEnemyTypes = ["straight", "sine", "zigzag"];
 
+    // Count enemies in viewport and check for minibosses/bosses
+    const enemiesInViewport = enemies.filter((enemy) =>
+      this.isTargetInViewport(enemy)
+    );
+    const hasMinibossOrBoss = allTargets.some(
+      (target) =>
+        target.collidableType === "boss" ||
+        target.maxHealth > 50 || // Miniboss typically has > 50 health
+        (target.type &&
+          (target.type.includes("boss") || target.type.includes("miniboss")))
+    );
+
+    // Special asteroid prioritization condition:
+    // If there are no minibosses/bosses AND fewer than 3 enemies in viewport
+    const shouldPrioritizeAsteroids =
+      !hasMinibossOrBoss && enemiesInViewport.length < 3;
+
     // Priority 1: Very close targets (within 200px) - any enemy or asteroid
     // Enhanced to prefer targets we can actually hit
     let closestNearbyTarget = null;
@@ -82,10 +222,16 @@ export class Autoaimer {
 
     for (const target of allTargets) {
       if (this.isTargetInViewport(target)) {
-        const dist = Math.sqrt((target.x - this.player.x) ** 2 + (target.y - this.player.y) ** 2);
+        const dist = Math.sqrt(
+          (target.x - this.player.x) ** 2 + (target.y - this.player.y) ** 2
+        );
         if (dist < 200) {
           // Calculate hit probability for this target
-          const hitScore = this.calculateTargetHitScore(target, bulletSpeed, dist);
+          const hitScore = this.calculateTargetHitScore(
+            target,
+            bulletSpeed,
+            dist
+          );
           const combinedScore = hitScore * (1.0 - dist / 200); // Closer = better
 
           if (combinedScore > bestNearbyScore) {
@@ -100,7 +246,37 @@ export class Autoaimer {
       return closestNearbyTarget;
     }
 
-    // Priority 2: Shooting enemies (nearby ones first)
+    // Priority 2: Asteroids (when conditions are met)
+    if (shouldPrioritizeAsteroids) {
+      let closestAsteroid = null;
+      let closestAsteroidDistance = Infinity;
+
+      for (const target of allTargets) {
+        // Check if target is an asteroid (either by collidableType or by checking if it's not an enemy)
+        const isAsteroid =
+          target.collidableType === "asteroid" ||
+          (!target.type &&
+            !target.maxHealth &&
+            target.size &&
+            target.vx !== undefined);
+
+        if (isAsteroid && this.isTargetInViewport(target)) {
+          const dist = Math.sqrt(
+            (target.x - this.player.x) ** 2 + (target.y - this.player.y) ** 2
+          );
+          if (dist < closestAsteroidDistance) {
+            closestAsteroidDistance = dist;
+            closestAsteroid = target;
+          }
+        }
+      }
+
+      if (closestAsteroid) {
+        return closestAsteroid;
+      }
+    }
+
+    // Priority 3: Shooting enemies (nearby ones first)
     let closestShootingEnemy = null;
     let closestShootingDistance = Infinity;
 
@@ -123,7 +299,7 @@ export class Autoaimer {
       return closestShootingEnemy;
     }
 
-    // Priority 3: Any enemies (nearby ones first)
+    // Priority 4: Any enemies (nearby ones first)
     let closestEnemy = null;
     let closestEnemyDistance = Infinity;
 
@@ -143,18 +319,25 @@ export class Autoaimer {
       return closestEnemy;
     }
 
-    // Priority 4: Asteroids (if no enemies available)
+    // Priority 5: Asteroids (fallback if no enemies available)
     let closestAsteroid = null;
     let closestAsteroidDistance = Infinity;
 
-    for (const asteroid of allTargets) {
-      if (asteroid.collidableType === 'asteroid' && this.isTargetInViewport(asteroid)) {
+    for (const target of allTargets) {
+      const isAsteroid =
+        target.collidableType === "asteroid" ||
+        (!target.type &&
+          !target.maxHealth &&
+          target.size &&
+          target.vx !== undefined);
+
+      if (isAsteroid && this.isTargetInViewport(target)) {
         const dist = Math.sqrt(
-          (asteroid.x - this.player.x) ** 2 + (asteroid.y - this.player.y) ** 2
+          (target.x - this.player.x) ** 2 + (target.y - this.player.y) ** 2
         );
         if (dist < closestAsteroidDistance) {
           closestAsteroidDistance = dist;
-          closestAsteroid = asteroid;
+          closestAsteroid = target;
         }
       }
     }
@@ -164,14 +347,16 @@ export class Autoaimer {
 
   // Enhanced interceptive targeting that accounts for all velocity vectors
   calculatePredictiveAim(target, bulletSpeed) {
-    if (bulletSpeed === Infinity || bulletSpeed >= GAME_CONFIG.LASER_SPEED) {
+    if (bulletSpeed === Infinity || bulletSpeed >= 80) {
       // For laser, aim directly at target
       return Math.atan2(target.y - this.player.y, target.x - this.player.x);
     }
 
     // Get target velocity (some targets may not have velocity)
-    const targetVx = target.vx !== undefined ? target.vx : (target.dx || 0) / 60;
-    const targetVy = target.vy !== undefined ? target.vy : (target.dy || 0) / 60;
+    const targetVx =
+      target.vx !== undefined ? target.vx : (target.dx || 0) / 60;
+    const targetVy =
+      target.vy !== undefined ? target.vy : (target.dy || 0) / 60;
 
     // Get player velocity
     const playerVx = this.player.vx || 0;
@@ -184,7 +369,7 @@ export class Autoaimer {
     const playerY = this.player.y;
 
     // Calculate intercept solution using proper interceptive targeting math
-    const interceptSolution = this.player.calculateInterceptSolution(
+    const interceptSolution = this.calculateInterceptSolution(
       playerX,
       playerY,
       playerVx,
@@ -216,7 +401,7 @@ export class Autoaimer {
     }
 
     // Fallback: simple leading target (without player velocity consideration)
-    const fallbackSolution = this.player.calculateSimpleLeadTarget(
+    const fallbackSolution = this.calculateSimpleLeadTarget(
       targetX,
       targetY,
       targetVx,
@@ -240,8 +425,10 @@ export class Autoaimer {
   // Calculate how likely we are to hit a target based on its movement pattern
   calculateTargetHitScore(target, bulletSpeed, distance) {
     // Get target velocity
-    const targetVx = target.vx !== undefined ? target.vx : (target.dx || 0) / 60;
-    const targetVy = target.vy !== undefined ? target.vy : (target.dy || 0) / 60;
+    const targetVx =
+      target.vx !== undefined ? target.vx : (target.dx || 0) / 60;
+    const targetVy =
+      target.vy !== undefined ? target.vy : (target.dy || 0) / 60;
     const targetSpeed = Math.sqrt(targetVx * targetVx + targetVy * targetVy);
 
     // Base score starts high
@@ -254,7 +441,7 @@ export class Autoaimer {
     }
 
     // Check if we can calculate a valid intercept
-    const interceptSolution = this.player.calculateInterceptSolution(
+    const interceptSolution = this.calculateInterceptSolution(
       this.player.x,
       this.player.y,
       this.player.vx || 0,
@@ -293,11 +480,16 @@ export class Autoaimer {
         const toTargetY = dy / toTargetLength;
 
         // Dot product of target velocity with direction to target
-        const radialComponent = Math.abs(targetVx * toTargetX + targetVy * toTargetY);
+        const radialComponent = Math.abs(
+          targetVx * toTargetX + targetVy * toTargetY
+        );
         const tangentialComponent = targetSpeed - radialComponent;
 
         // Penalize high tangential movement (harder to hit)
-        hitScore *= Math.max(0.4, 1.0 - (tangentialComponent / bulletSpeed) * 0.8);
+        hitScore *= Math.max(
+          0.4,
+          1.0 - (tangentialComponent / bulletSpeed) * 0.8
+        );
       }
     }
 
@@ -316,8 +508,9 @@ export class Autoaimer {
 
   // Helper function to get current bullet speed based on weapon level
   getCurrentBulletSpeed(level) {
-    if (level === 5) return GAME_CONFIG.LASER_SPEED;
-    if (level === 4) return GAME_CONFIG.FAST_BULLET_SPEED;
-    return GAME_CONFIG.BULLET_SPEED;
+    if (level === 5) return 80;
+    if (level === 4) return 16;
+    return 8;
   }
 }
+

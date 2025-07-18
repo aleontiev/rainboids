@@ -1,15 +1,17 @@
 // Laser entity for Rainboids: Blitz
 
 export class Laser {
-  constructor(x, y, angle, speed, color) {
+  constructor(x, y, angle, speed, color, game = null, isPlayerLaser = false) {
     this.x = x;
     this.y = y;
     this.angle = angle;
-    this.speed = speed || 50; // Use passed speed or default to 50
+    this.speed = speed || game?.level?.config?.laserSpeed || 50; // Use passed speed, level config, or default to 50
     this.color = color;
-    this.width = 8; // Very thin laser for enemy lasers
-    this.length = 100; // Length of laser beam for collision detection
-    this.life = 60; // Longer life (1 second)
+    this.game = game;
+    this.isPlayerLaser = isPlayerLaser; // Flag to distinguish player lasers from enemy lasers
+    this.width = game?.level?.config?.laserWidth || 8; // Very thin laser for enemy lasers
+    this.length = game?.level?.config?.laserLength || 100; // Length of laser beam for collision detection
+    this.life = game?.level?.config?.laserLife || 60; // Longer life (1 second)
     this.colorIndex = 0;
     this.penetrationCount = 0; // Track how many targets this laser has hit
     this.maxPenetration = 3; // Maximum targets before laser is destroyed
@@ -47,7 +49,16 @@ export class Laser {
       this.colorIndex = Math.floor(Math.random() * this.rainbowColors.length);
     }
 
-    return this.life > 0 && this.penetrationCount < this.maxPenetration && this.bounceCount < this.maxBounces;
+    // Check screen boundaries with 50px buffer
+    const withinBounds = this.x > -50 && 
+                        this.x < window.innerWidth + 50 && 
+                        this.y > -50 && 
+                        this.y < window.innerHeight + 50;
+
+    return this.life > 0 && 
+           this.penetrationCount < this.maxPenetration && 
+           this.bounceCount < this.maxBounces && 
+           withinBounds;
   }
 
   // Called when laser hits a target
@@ -88,7 +99,7 @@ export class Laser {
       ctx.lineWidth = this.width * 1.5; // Wider glow
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(200, 0);
+      ctx.lineTo(this.length, 0);
       ctx.stroke();
     }
 
@@ -101,7 +112,7 @@ export class Laser {
     ctx.lineWidth = this.width;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.lineTo(200, 0); // Make it longer
+    ctx.lineTo(this.length, 0); // Use configured laser length
     ctx.stroke();
     ctx.restore();
   }

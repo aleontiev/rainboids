@@ -1,5 +1,4 @@
 // Bullet entity for Rainboids: Blitz
-import { GAME_CONFIG } from "../constants.js";
 
 export class Bullet {
   constructor(
@@ -9,8 +8,10 @@ export class Bullet {
     size,
     color,
     isPortrait,
-    speed = GAME_CONFIG.BULLET_SPEED,
-    isPlayerBullet = false
+    speed = 8, // Default bullet speed
+    isPlayerBullet = false,
+    game = null, // Optional game reference for level manager
+    damage = 1 // Default damage
   ) {
     this.isPlayerBullet = isPlayerBullet;
     this.x = x;
@@ -19,12 +20,24 @@ export class Bullet {
     this.speed = speed; // Use passed speed or default
     this.size = size;
     this.color = color;
-    this.life = 300;
+    this.game = game;
+    this.damage = damage;
+    
+    // Use level manager bullet life if available, otherwise use large default
+    this.life = this.getBulletLife();
     this.isPortrait = isPortrait;
     
     // Velocity tracking (dx/dy per second)
     this.dx = 0;
     this.dy = 0;
+  }
+
+  getBulletLife() {
+    try {
+      return this.game?.level?.config?.bulletLife || 90000; // Default to 25 minutes (effectively unlimited)
+    } catch (e) {
+      return 90000;
+    }
   }
 
   update(slowdownFactor = 1.0) {
@@ -40,12 +53,12 @@ export class Bullet {
     this.dx = (this.x - prevX) * 60;
     this.dy = (this.y - prevY) * 60;
 
-    // Remove if off screen or life expired
-    if (this.isPortrait) {
-      return this.y > -50 && this.y < window.innerHeight + 50 && this.life > 0;
-    } else {
-      return this.x > -50 && this.x < window.innerWidth + 50 && this.life > 0;
-    }
+    // Remove if off screen or life expired - check all boundaries with 50px buffer
+    return this.x > -50 && 
+           this.x < window.innerWidth + 50 && 
+           this.y > -50 && 
+           this.y < window.innerHeight + 50 && 
+           this.life > 0;
   }
 
   render(ctx) {

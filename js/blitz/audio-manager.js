@@ -10,10 +10,22 @@ export class AudioManager {
     this.soundMuted = false;
     this.continuousLaserSound = null;
     this.laserSoundPlaying = false;
-    
   }
 
-  setupControls() {
+  setup() {
+    // Initialize audio
+    this.sounds = {
+      shoot: this.generateSfxrSound("laserShoot"),
+      hit: this.generateSfxrSound("hitHurt"),
+      explosion: this.generateSfxrSound("explosion"),
+      bombExplosion: this.generateSfxrSound("bombExplosion"),
+      enemyExplosion: this.generateSfxrSound("enemyExplosion"),
+      asteroidExplosion: this.generateSfxrSound("asteroidExplosion"),
+      playerExplosion: this.generateSfxrSound("playerExplosion"),
+      shield: this.generateSfxrSound("jump"),
+      powerUp: this.generateSfxrSound("pickupCoin"),
+      continuousLaser: this.generateSfxrSound("continuousLaser"),
+    };
     // Music button (music only)
     const musicButton = document.getElementById("music-btn");
     const volumeButton = document.getElementById("volume-btn");
@@ -57,21 +69,6 @@ export class AudioManager {
       }
       updateVolumeIcon();
     }
-  }
-
-  setup() {
-    // Initialize audio
-    this.sounds = {
-      shoot: this.generateSfxrSound("laserShoot"),
-      hit: this.generateSfxrSound("hitHurt"),
-      explosion: this.generateSfxrSound("explosion"),
-      enemyExplosion: this.generateSfxrSound("enemyExplosion"),
-      asteroidExplosion: this.generateSfxrSound("asteroidExplosion"),
-      playerExplosion: this.generateSfxrSound("playerExplosion"),
-      shield: this.generateSfxrSound("jump"),
-      powerUp: this.generateSfxrSound("pickupCoin"),
-      continuousLaser: this.generateSfxrSound("continuousLaser"),
-    };
   }
   ready() {
     this.audioReady = true;
@@ -150,6 +147,19 @@ export class AudioManager {
         synthdef.p_lpf_freq = 0.8; // Light filtering to smooth harsh edges
         synthdef.sound_vol = 0.06; // Audible but not overwhelming
         break;
+      case "bombExplosion":
+        // Dramatic bomb explosion - bigger, louder, more impactful
+        synthdef = params.explosion();
+        synthdef.sound_vol = 0.25; // Louder for dramatic effect
+        synthdef.p_env_sustain = 0.15; // Longer duration
+        synthdef.p_env_decay = 0.25; // Slower decay for lasting impact
+        synthdef.p_base_freq = 0.3; // Lower frequency for deeper boom
+        synthdef.p_freq_ramp = -0.3; // Deeper downward sweep
+        synthdef.p_lpf_freq = 0.7; // More filtering for smoother sound
+        synthdef.p_hpf_freq = 0.05; // Keep some low end
+        synthdef.p_pha_offset = 0.2; // Add some phaser for richness
+        synthdef.p_pha_ramp = -0.1; // Phaser sweep
+        break;
       default:
         synthdef = params.explosion();
         synthdef.sound_vol = 0.2;
@@ -200,7 +210,11 @@ export class AudioManager {
   }
 
   resumeBackgroundMusic() {
-    if (this.backgroundMusic && this.backgroundMusic.paused && !this.backgroundMusic.muted) {
+    if (
+      this.backgroundMusic &&
+      this.backgroundMusic.paused &&
+      !this.backgroundMusic.muted
+    ) {
       this.backgroundMusic
         .play()
         .catch((e) => console.log("Background: audio resume failed:", e));
@@ -218,7 +232,7 @@ export class AudioManager {
     }
   }
 
-  playSound(sound) {
+  play(sound) {
     if (!this.soundMuted && sound && sound.play) {
       sound.play();
     }
@@ -237,7 +251,7 @@ export class AudioManager {
 
   continuousLaserLoop() {
     if (this.laserSoundPlaying && !this.soundMuted) {
-      this.playSound(this.sounds.continuousLaser);
+      this.play(this.sounds.continuousLaser);
       // Schedule next laser sound to create continuous effect
       setTimeout(() => {
         this.continuousLaserLoop();

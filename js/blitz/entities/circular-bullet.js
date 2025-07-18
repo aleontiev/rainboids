@@ -1,4 +1,4 @@
-import { GAME_CONFIG } from "../constants.js";
+// Circular bullet entity
 
 export class CircularBullet {
   constructor(
@@ -8,7 +8,7 @@ export class CircularBullet {
     size,
     color,
     isPortrait,
-    speed = GAME_CONFIG.BULLET_SPEED
+    speed = 8 // Default bullet speed
   ) {
     this.x = x;
     this.y = y;
@@ -37,12 +37,12 @@ export class CircularBullet {
     this.dx = (this.x - prevX) * 60;
     this.dy = (this.y - prevY) * 60;
 
-    // Remove if off screen or life expired
-    if (this.isPortrait) {
-      return this.y > -50 && this.y < window.innerHeight + 50 && this.life > 0;
-    } else {
-      return this.x > -50 && this.x < window.innerWidth + 50 && this.life > 0;
-    }
+    // Remove if off screen or life expired - check all boundaries with 50px buffer
+    return this.x > -50 && 
+           this.x < window.innerWidth + 50 && 
+           this.y > -50 && 
+           this.y < window.innerHeight + 50 && 
+           this.life > 0;
   }
 
   render(ctx) {

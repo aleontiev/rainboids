@@ -1,5 +1,5 @@
 // Effects and explosion system for Rainboids: Blitz
-import { Debris, RainbowParticle } from "./entities/particle.js";
+import { Debris, RainbowParticle, GrayParticle } from "./entities/particle.js";
 import { RainbowExplosion } from "./entities/explosion.js";
 
 export class EffectsManager {
@@ -8,46 +8,50 @@ export class EffectsManager {
   }
 
   createChainExplosion() {
-    // Create expanding wave of explosions across the screen
+    // Create expanding wave of rainbow explosions across the screen
     const centerX = this.game.player.x;
     const centerY = this.game.player.y;
     const maxRadius = Math.max(this.game.canvas.width, this.game.canvas.height);
 
-    for (let wave = 0; wave < 8; wave++) {
+    for (let wave = 0; wave < 10; wave++) {
       setTimeout(() => {
-        const waveRadius = (wave + 1) * (maxRadius / 8);
-        const explosionsInWave = Math.min(24, 8 + wave * 2);
+        const waveRadius = (wave + 1) * (maxRadius / 10);
+        const explosionsInWave = Math.min(24, 8 + wave * 3);
 
         for (let i = 0; i < explosionsInWave; i++) {
-          const angle = (i / explosionsInWave) * Math.PI * 2 + wave * 0.3;
-          const radius = waveRadius * (0.8 + Math.random() * 0.4);
+          const angle = (i / explosionsInWave) * Math.PI * 2 + wave * 0.4;
+          const radius = waveRadius * (0.6 + Math.random() * 0.8);
           const x = centerX + Math.cos(angle) * radius;
           const y = centerY + Math.sin(angle) * radius;
 
-          // Create explosion if on screen
+          // Create explosion if on screen (with larger buffer for dramatic effect)
           if (
-            x >= -100 &&
-            x <= this.game.canvas.width + 100 &&
-            y >= -100 &&
-            y <= this.game.canvas.height + 100
+            x >= -250 &&
+            x <= this.game.canvas.width + 250 &&
+            y >= -250 &&
+            y <= this.game.canvas.height + 250
           ) {
-            const explosionSize = 150 + Math.random() * 100;
+            // Varied explosion sizes for more dramatic effect
+            const explosionSize = 70 + Math.random() * 80;
             this.createRainbowExplosion(x, y, explosionSize);
           }
         }
 
-        // Play additional explosion sounds for dramatic effect
-        if (wave < 4) {
-          this.game.audio.playSound(this.game.audio.sounds.explosion);
+        // Play improved explosion sound for more waves
+        if (wave < 5) {
+          this.game.audio.play(this.game.audio.sounds.bombExplosion);
         }
-      }, wave * 120); // 120ms between each wave
+      }, wave * 100); // Slightly longer timing for more dramatic buildup
     }
+
+    // Create central mega explosion for dramatic effect
+    this.createRainbowExplosion(centerX, centerY, 200);
   }
 
   createDebris(x, y) {
     // Create debris particles with physics
     for (let i = 0; i < 8; i++) {
-      this.game.particles.push(new Debris(x, y));
+      this.game.entities.particles.push(new Debris(x, y));
     }
   }
 
@@ -88,8 +92,8 @@ export class EffectsManager {
     });
   }
 
-  createRainbowExplosion(x, y) {
-    this.game.explosions.push(new RainbowExplosion(x, y));
+  createRainbowExplosion(x, y, size) {
+    this.game.explosions.push(new RainbowExplosion(x, y, size));
   }
 
   createParticleExplosion(x, y) {
@@ -102,7 +106,7 @@ export class EffectsManager {
       const particleY = y + Math.sin(angle) * distance;
 
       // Create rainbow debris particles
-      this.game.particles.push(new RainbowParticle(particleX, particleY));
+      this.game.entities.particles.push(new RainbowParticle(particleX, particleY));
     }
   }
 
@@ -115,7 +119,20 @@ export class EffectsManager {
       const particleY = y + Math.sin(angle) * distance;
 
       // Create rainbow debris particles
-      this.game.particles.push(new RainbowParticle(particleX, particleY));
+      this.game.entities.particles.push(new RainbowParticle(particleX, particleY));
+    }
+  }
+
+  createAsteroidHitEffect(x, y, size = 30) {
+    // Create a gray explosion effect for asteroid hits
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const distance = 30 + Math.random() * 10;
+      const particleX = x + Math.cos(angle) * distance;
+      const particleY = y + Math.sin(angle) * distance;
+
+      // Create gray debris particles
+      this.game.entities.particles.push(new GrayParticle(particleX, particleY));
     }
   }
 
@@ -123,11 +140,18 @@ export class EffectsManager {
     this.createExplosion(x, y);
   }
 
-  updateExplosions() {
+  updateExplosions(slowdownFactor = 1.0) {
     // Update explosion animations
     for (let i = this.game.explosions.length - 1; i >= 0; i--) {
       const explosion = this.game.explosions[i];
-      explosion.life--;
+      
+      // Call the explosion's update method if it exists
+      if (explosion.update) {
+        explosion.update(slowdownFactor);
+      } else {
+        // Fallback for simple explosions
+        explosion.life--;
+      }
 
       if (explosion.life <= 0) {
         this.game.explosions.splice(i, 1);

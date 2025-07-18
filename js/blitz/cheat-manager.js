@@ -1,6 +1,9 @@
 export class CheatManager {
   constructor(game) {
     this.game = game;
+    this.autoaim = false; // Default off
+    this.autoplay = false; // Default off
+    this.used = false; // Track if cheats have been used this session
   }
   setup() {
     // Godmode button with touch support
@@ -8,7 +11,7 @@ export class CheatManager {
     const toggleGodmode = () => {
       this.game.player.godMode = !this.game.player.godMode;
       if (this.game.player.godMode) {
-        this.game.cheatsUsed = true; // Mark cheats as used
+        this.used = true; // Mark cheats as used
       }
       this.update();
     };
@@ -23,12 +26,12 @@ export class CheatManager {
     // All upgrades toggle button with touch support
     const allUpgradesBtn = document.getElementById("all-upgrades-btn");
     const toggleAllUpgrades = () => {
-      if (this.game.allUpgradesState === null) {
+      if (this.allUprades === null) {
         // Mark cheats as used when activating all upgrades
-        this.game.cheatsUsed = true;
+        this.used = true;
         
         // Save current state and apply all upgrades
-        this.game.allUpgradesState = {
+        this.allUprades = {
           shield: this.game.player.shield,
           mainWeaponLevel: this.game.player.mainWeaponLevel,
           sideWeaponLevel: this.game.player.sideWeaponLevel,
@@ -77,18 +80,18 @@ export class CheatManager {
         }
       } else {
         // Restore previous state
-        this.game.player.shield = this.game.allUpgradesState.shield;
+        this.game.player.shield = this.allUprades.shield;
         this.game.player.mainWeaponLevel =
-          this.game.allUpgradesState.mainWeaponLevel;
+          this.allUprades.mainWeaponLevel;
         this.game.player.sideWeaponLevel =
-          this.game.allUpgradesState.sideWeaponLevel;
+          this.allUprades.sideWeaponLevel;
         this.game.player.secondShip = [
-          ...this.game.allUpgradesState.secondShip,
+          ...this.allUprades.secondShip,
         ];
-        this.game.allUpgradesState = null;
+        this.allUprades = null;
       }
 
-      this.game.ui.update();
+      this.game.actions.update();
       this.update();
     };
     if (allUpgradesBtn) {
@@ -102,9 +105,9 @@ export class CheatManager {
     // Autoaim toggle button with touch support
     const autoaimBtn = document.getElementById("autoaim-btn");
     const toggleAutoaim = () => {
-      this.game.autoaim = !this.game.autoaim;
-      if (this.game.autoaim) {
-        this.game.cheatsUsed = true; // Mark cheats as used
+      this.autoaim = !this.autoaim;
+      if (this.autoaim) {
+        this.used = true; // Mark cheats as used
       }
       this.update();
     };
@@ -119,10 +122,10 @@ export class CheatManager {
     // Autoplay toggle button with touch support
     const autoplayBtn = document.getElementById("autoplay-btn");
     const toggleAutoplay = () => {
-      this.game.autoplay = !this.game.autoplay;
-      if (this.game.autoplay) {
-        this.game.autoaim = true; // Enable autoaim when autoplay is on
-        this.game.cheatsUsed = true; // Mark cheats as used
+      this.autoplay = !this.autoplay;
+      if (this.autoplay) {
+        this.autoaim = true; // Enable autoaim when autoplay is on
+        this.used = true; // Mark cheats as used
       }
       this.update();
     };
@@ -147,25 +150,25 @@ export class CheatManager {
     if (allUpgradesBtn) {
       allUpgradesBtn.classList.toggle(
         "active",
-        this.game.allUpgradesState !== null
+        this.allUprades !== null
       );
     }
 
     // Autoaim button
     const autoaimBtn = document.getElementById("autoaim-btn");
     if (autoaimBtn) {
-      autoaimBtn.classList.toggle("active", this.game.autoaim);
+      autoaimBtn.classList.toggle("active", this.autoaim);
     }
 
     // Autoplay button
     const autoplayBtn = document.getElementById("autoplay-btn");
     if (autoplayBtn) {
-      autoplayBtn.classList.toggle("active", this.game.autoplay);
+      autoplayBtn.classList.toggle("active", this.autoplay);
     }
 
     // Hide cursor when autoaim or autoplay is enabled (only during gameplay)
-    if (this.game.gameState === "PLAYING") {
-      if (this.game.autoaim || this.game.autoplay) {
+    if (this.game.state.state === "PLAYING") {
+      if (this.autoaim || this.autoplay) {
         document.body.style.cursor = "none";
         document.body.classList.remove("custom-cursor");
       } else {
@@ -183,11 +186,11 @@ export class CheatManager {
     }
     
     // Reset autoaim and autoplay
-    this.game.autoaim = false;
-    this.game.autoplay = false;
+    this.autoaim = false;
+    this.autoplay = false;
     
     // Reset all upgrades state
-    this.game.allUpgradesState = null;
+    this.allUprades = null;
     
     // Update UI to reflect reset states
     this.update();

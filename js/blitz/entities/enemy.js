@@ -1,23 +1,23 @@
 // Enemy entities for Rainboids: Blitz - Refactored with inheritance
-import { GAME_CONFIG, COLORS, ENEMY_TYPES } from "../constants.js";
 import { Bullet } from "./bullet.js";
 import { Laser } from "./laser.js";
 import { CircularBullet } from "./circular-bullet.js";
 import { SpreadingBullet } from "./spreading-bullet.js";
 
 // Base Enemy Class
-export class BaseEnemy {
+export class Enemy {
   constructor(
     x,
     y,
     isPortrait,
-    speed = GAME_CONFIG.ENEMY_SPEED,
-    isClone = false
+    speed = null,
+    isClone = false,
+    game = null
   ) {
     this.x = x;
     this.y = y;
-    this.size = GAME_CONFIG.ENEMY_SIZE;
-    this.speed = speed;
+    this.size = this.getEnemySize();
+    this.speed = speed || this.getEnemySpeed();
     this.angle = isPortrait ? Math.PI / 2 : Math.PI; // Face down or left
     this.health = 1;
     this.shootCooldown = 0;
@@ -25,16 +25,14 @@ export class BaseEnemy {
     this.initialX = x;
     this.initialY = y;
     this.isPortrait = isPortrait;
+    this.game = game;
 
     // Assign random color to each enemy
-    this.color =
-      COLORS.ENEMY_RANDOM_COLORS[
-        Math.floor(Math.random() * COLORS.ENEMY_RANDOM_COLORS.length)
-      ];
+    this.color = this.getRandomEnemyColor();
 
     // Handle clone fade-in effect
     this.isClone = isClone;
-    this.fadeInTimer = isClone ? 0 : 60; // Clones start invisible and fade in over 1 second
+    this.fadeInTimer = isClone ? 0 : this.getEnemyFadeInTime(); // Clones start invisible and fade in over 1 second
     this.opacity = isClone ? 0 : 1.0;
     
     // Vulnerability properties (used for auto-aim filtering)
@@ -52,6 +50,47 @@ export class BaseEnemy {
     return !this.invulnerable;
   }
 
+  // Get enemy fade-in time from game config
+  getEnemyFadeInTime() {
+    // Try to access the game config, fall back to default if not available
+    try {
+      return this.game?.level?.config?.enemyFadeInTime || 60;
+    } catch (e) {
+      return 60;
+    }
+  }
+
+  // Get enemy size from game config
+  getEnemySize() {
+    try {
+      return this.game?.level?.config?.enemySize || 24;
+    } catch (e) {
+      return 24;
+    }
+  }
+
+  // Get enemy speed from game config
+  getEnemySpeed() {
+    try {
+      return this.game?.level?.config?.enemySpeed || 2;
+    } catch (e) {
+      return 2;
+    }
+  }
+
+  // Get random enemy color from game config
+  getRandomEnemyColor() {
+    try {
+      const colors = this.game?.level?.config?.enemyRandomColors || [
+        '#ffffff', '#ff0000', '#800080', '#ff8800', '#ffff00'
+      ];
+      return colors[Math.floor(Math.random() * colors.length)];
+    } catch (e) {
+      const colors = ['#ffffff', '#ff0000', '#800080', '#ff8800', '#ffff00'];
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+  }
+
   update(
     playerX,
     playerY,
@@ -63,9 +102,10 @@ export class BaseEnemy {
     this.time += slowdownFactor;
 
     // Handle fade-in for clones
-    if (this.isClone && this.fadeInTimer < 60) {
+    const fadeInTime = this.getEnemyFadeInTime();
+    if (this.isClone && this.fadeInTimer < fadeInTime) {
       this.fadeInTimer += slowdownFactor;
-      this.opacity = Math.min(1.0, this.fadeInTimer / 60);
+      this.opacity = Math.min(1.0, this.fadeInTimer / fadeInTime);
     }
 
     // Make enemies face the player
@@ -133,7 +173,8 @@ export class BaseEnemy {
           this.color,
           this.isPortrait,
           3, // Decreased speed
-          false
+          false,
+          this.game
         )
       );
     }
@@ -168,7 +209,7 @@ export class BaseEnemy {
 }
 
 // Straight Enemy
-export class StraightEnemy extends BaseEnemy {
+export class StraightEnemy extends Enemy {
   constructor(x, y, isPortrait, speed, isClone) {
     super(x, y, isPortrait, speed, isClone);
     this.type = "straight";
@@ -176,7 +217,7 @@ export class StraightEnemy extends BaseEnemy {
 }
 
 // Sine Enemy
-export class SineEnemy extends BaseEnemy {
+export class SineEnemy extends Enemy {
   constructor(x, y, isPortrait, speed, isClone) {
     super(x, y, isPortrait, speed, isClone);
     this.type = "sine";
@@ -264,7 +305,7 @@ export class SineEnemy extends BaseEnemy {
 }
 
 // Zigzag Enemy
-export class ZigzagEnemy extends BaseEnemy {
+export class ZigzagEnemy extends Enemy {
   constructor(x, y, isPortrait, speed, isClone) {
     super(x, y, isPortrait, speed, isClone);
     this.type = "zigzag";
@@ -315,7 +356,9 @@ export class ZigzagEnemy extends BaseEnemy {
           15, // Large initial size
           this.color,
           this.isPortrait,
-          2 // Slow speed
+          2, // Slow speed
+          120, // Default explosion time
+          this.game
         )
       );
     }
@@ -323,7 +366,7 @@ export class ZigzagEnemy extends BaseEnemy {
 }
 
 // Circle Enemy
-export class CircleEnemy extends BaseEnemy {
+export class CircleEnemy extends Enemy {
   constructor(x, y, isPortrait, speed, isClone, generation = 0) {
     super(x, y, isPortrait, speed, isClone);
     this.type = "circle";
@@ -374,6 +417,7 @@ export class CircleEnemy extends BaseEnemy {
       this.clonesCreated < this.maxClones &&
       this.isOnScreen()
     ) {
+      console.log(`CircleEnemy cloning: timer=${this.cloneTimer}/${this.cloneInterval}, created=${this.clonesCreated}/${this.maxClones}, generation=${this.generation}`);
       this.cloneTimer = 0; // Reset timer to clone again in 5 seconds
       this.clonesCreated++; // Increment clone counter
 
@@ -393,6 +437,7 @@ export class CircleEnemy extends BaseEnemy {
       );
       clone.color = this.color; // Clone inherits parent's color
       addEnemyCallback(clone);
+      console.log(`CircleEnemy clone created at (${cloneX.toFixed(1)}, ${cloneY.toFixed(1)}) from parent at (${this.x.toFixed(1)}, ${this.y.toFixed(1)})`);
     }
   }
 
@@ -451,7 +496,7 @@ export class CircleEnemy extends BaseEnemy {
 }
 
 // Dive Enemy
-export class DiveEnemy extends BaseEnemy {
+export class DiveEnemy extends Enemy {
   constructor(x, y, isPortrait, speed, isClone) {
     super(x, y, isPortrait, speed, isClone);
     this.type = "dive";
@@ -519,7 +564,7 @@ export class DiveEnemy extends BaseEnemy {
 }
 
 // Laser Enemy
-export class LaserEnemy extends BaseEnemy {
+export class LaserEnemy extends Enemy {
   constructor(x, y, isPortrait, speed, isClone) {
     super(x, y, isPortrait, speed, isClone);
     this.type = "laser";
@@ -592,7 +637,8 @@ export class LaserEnemy extends BaseEnemy {
               this.y,
               this.laserAngle,
               this.laserSpeed,
-              this.color
+              this.color,
+              this.game
             )
           );
         }
@@ -626,14 +672,14 @@ export class LaserEnemy extends BaseEnemy {
       const dy = this.targetY - this.y;
       const angle = Math.atan2(dy, dx);
       
-      // Extend line to screen edges
+      // Extend line from enemy towards target and beyond to screen edge
       const screenDiagonal = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight);
-      const startX = this.x - Math.cos(angle) * screenDiagonal;
-      const startY = this.y - Math.sin(angle) * screenDiagonal;
-      const endX = this.x + Math.cos(angle) * screenDiagonal;
-      const endY = this.y + Math.sin(angle) * screenDiagonal;
+      const startX = this.x; // Start at enemy position
+      const startY = this.y; // Start at enemy position
+      const endX = this.x + Math.cos(angle) * screenDiagonal; // Extend only forward
+      const endY = this.y + Math.sin(angle) * screenDiagonal; // Extend only forward
       
-      // Draw full trajectory warning line across screen
+      // Draw trajectory warning line from enemy towards target
       ctx.strokeStyle = `rgba(255, 0, 0, ${pulseIntensity * 0.8})`;
       ctx.lineWidth = 3;
       ctx.setLineDash([12, 6]); // Larger dashed line for better visibility
@@ -718,7 +764,7 @@ export class LaserEnemy extends BaseEnemy {
 }
 
 // Pulse Enemy
-export class PulseEnemy extends BaseEnemy {
+export class PulseEnemy extends Enemy {
   constructor(x, y, isPortrait, speed, isClone) {
     super(x, y, isPortrait, speed, isClone);
     this.type = "pulse";
@@ -830,7 +876,7 @@ export class PulseEnemy extends BaseEnemy {
 }
 
 // Square Enemy
-export class SquareEnemy extends BaseEnemy {
+export class SquareEnemy extends Enemy {
   constructor(x, y, isPortrait, speed, isClone) {
     super(x, y, isPortrait, speed, isClone);
     this.type = "square";
@@ -979,7 +1025,7 @@ export function createEnemy(type, x, y, isPortrait, speed, isClone = false) {
 }
 
 // Legacy Enemy class for backward compatibility
-export class Enemy extends BaseEnemy {
+export class LegacyEnemy extends Enemy {
   constructor(
     x,
     y,
