@@ -10,22 +10,29 @@ export class ContinuousLaserBeam {
     // Screen orientation
     this.isPortrait = isPortrait;
     
-    // Movement pattern properties - smooth left/right sweep
-    this.sweepDirection = 1; // 1 for right, -1 for left
-    this.minAngle = isPortrait ? -Math.PI/3 : -Math.PI/4; // Left boundary
-    this.maxAngle = isPortrait ? Math.PI/3 : Math.PI/4; // Right boundary  
-    this.angle = this.minAngle; // Start at left
-    this.rotationSpeed = 0.01; // Smooth, continuous rotation
+    // Movement pattern properties - counterclockwise sweep
+    this.sweepDirection = -1; // Always counterclockwise (-1)
+    this.startAngle = isPortrait ? 0 : Math.PI/2; // Start pointing right (portrait) or down (landscape)
+    this.endAngle = isPortrait ? Math.PI : -Math.PI/2; // End pointing left (portrait) or up (landscape)
+    this.angle = this.startAngle; // Start at initial angle
+    this.rotationSpeed = 0.008; // Slower sweep speed
+    this.totalSweepAngle = isPortrait ? Math.PI : Math.PI; // 180 degree sweep
+    this.sweepProgress = 0; // 0 to 1 progress through sweep
     
-    // Periodic on/off pattern (in degrees)
+    // Periodic on/off pattern (in degrees) - more frequent cycling for better gameplay
     this.firePattern = [
-      { type: "on", degrees: 15 },
-      { type: "off", degrees: 10 },
-      { type: "on", degrees: 35 },
+      { type: "on", degrees: 12 },
       { type: "off", degrees: 8 },
-      { type: "on", degrees: 20 },
-      { type: "off", degrees: 12 },
-      { type: "on", degrees: 25 }
+      { type: "on", degrees: 15 },
+      { type: "off", degrees: 6 },
+      { type: "on", degrees: 10 },
+      { type: "off", degrees: 10 },
+      { type: "on", degrees: 18 },
+      { type: "off", degrees: 7 },
+      { type: "on", degrees: 14 },
+      { type: "off", degrees: 9 },
+      { type: "on", degrees: 16 },
+      { type: "off", degrees: 5 }
     ];
     this.currentPatternIndex = 0;
     this.degreesInCurrentSegment = 0;
@@ -93,22 +100,34 @@ export class ContinuousLaserBeam {
         break;
         
       case "sweeping":
-        // Smooth continuous rotation
+        // Smooth counterclockwise rotation
         const rotationThisFrame = this.rotationSpeed * this.sweepDirection * slowdownFactor;
         this.angle += rotationThisFrame;
+        
+        // Update sweep progress (0 to 1)
+        const angleDiff = this.isPortrait ? 
+          (this.angle - this.startAngle) : 
+          (this.angle - this.startAngle);
+        this.sweepProgress = Math.abs(angleDiff) / this.totalSweepAngle;
         
         // Convert rotation to degrees for pattern tracking
         const degreesThisFrame = Math.abs(rotationThisFrame) * (180 / Math.PI);
         this.degreesInCurrentSegment += degreesThisFrame;
         this.totalDegreesSinceStart += degreesThisFrame;
         
-        // Check if we need to reverse direction at boundaries
-        if (this.angle >= this.maxAngle) {
-          this.angle = this.maxAngle;
-          this.sweepDirection = -1;
-        } else if (this.angle <= this.minAngle) {
-          this.angle = this.minAngle;
-          this.sweepDirection = 1;
+        // Check if sweep is complete (reached end angle)
+        let sweepComplete = false;
+        if (this.isPortrait) {
+          // Portrait: sweep from 0 (right) to π (left)
+          sweepComplete = this.angle >= this.endAngle;
+        } else {
+          // Landscape: sweep from π/2 (down) to -π/2 (up)
+          sweepComplete = this.angle <= this.endAngle;
+        }
+        
+        if (sweepComplete) {
+          // Sweep is done, laser should expire
+          return false; // Signal that laser should be removed
         }
         
         // Update pattern state

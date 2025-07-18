@@ -402,6 +402,26 @@ export class EntityManager {
     this.updateAllEnemiesList();
   }
 
+  spawnSingleMiniBoss() {
+    const canvas = this.game.canvas;
+
+    // Spawn only Alpha miniboss for single miniboss encounters
+    const alphaX = this.game.isPortrait
+      ? canvas.width / 2
+      : canvas.width - 150;
+    const alphaY = this.game.isPortrait ? 150 : canvas.height / 2;
+    const alphaMiniBoss = new AlphaMiniBoss(
+      alphaX,
+      alphaY,
+      this.game.isPortrait,
+      canvas.width,
+      this.game
+    );
+    this.miniBosses.push(alphaMiniBoss);
+
+    this.updateAllEnemiesList();
+  }
+
   spawnBoss() {
     const canvas = this.game.canvas;
     const bossX = this.game.isPortrait ? canvas.width / 2 : canvas.width - 200;

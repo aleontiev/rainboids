@@ -53,13 +53,13 @@ export class Boss extends MiniBoss {
       invulnerable: false,
       // Sweeping laser properties
       sweepState: "inactive", // inactive, charging, sweeping
-      sweepAngle: -Math.PI / 2, // Start pointing up
-      sweepDirection: 1, // 1 = clockwise, -1 = counterclockwise
-      sweepSpeed: 0.02, // Radians per frame (slow sweep)
+      sweepAngle: 0, // Will be set when laser starts
+      sweepDirection: -1, // Always counterclockwise
+      sweepSpeed: 0.008, // Slower radians per frame
       sweepChargeTime: 0,
       sweepMaxChargeTime: 120, // 2 seconds charge time
       sweepDuration: 0,
-      sweepMaxDuration: 360, // 6 seconds of sweeping
+      sweepMaxDuration: 480, // 8 seconds of sweeping (slower speed)
       activeLaser: null, // Current laser beam
       isVulnerableToAutoAim: function() { return !this.destroyed && !this.invulnerable; }
     };
@@ -397,15 +397,14 @@ export class Boss extends MiniBoss {
         if (this.leftArm.cooldown <= 0) {
           this.leftArm.sweepState = "charging";
           this.leftArm.sweepChargeTime = 0;
-          // Calculate angle from arm to player as the starting point
-          const angleToPlayer = Math.atan2(playerY - this.leftArm.y, playerX - this.leftArm.x);
-          this.leftArm.sweepAngle = angleToPlayer;
+          // Set initial angle for counterclockwise sweep
+          this.leftArm.sweepAngle = this.isPortrait ? 0 : Math.PI/2; // Right (portrait) or Down (landscape)
           
           // Create new continuous laser beam
           this.leftArm.activeLaser = new ContinuousLaserBeam(
             this.leftArm.x,
             this.leftArm.y,
-            0, // Initial angle (will be set by laser)
+            this.leftArm.sweepAngle,
             this.isPortrait
           );
         }

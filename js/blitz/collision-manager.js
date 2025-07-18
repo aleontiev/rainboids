@@ -448,7 +448,7 @@ export class CollisionManager {
         if (isCollision) {
           // Handle hit
           const result = enemy.takeDamage
-            ? enemy.takeDamage(bullet.damage)
+            ? enemy.takeDamage(bullet.damage, bullet.x, bullet.y)
             : "destroyed";
 
           if (result === "destroyed") {
