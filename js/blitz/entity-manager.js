@@ -805,8 +805,8 @@ export class EntityManager {
       );
     });
 
-    // Update continuous laser beam if active
-    if (boss.leftArm && boss.leftArm.activeLaser) {
+    // Update continuous laser beam if active and arm is not destroyed
+    if (boss.leftArm && boss.leftArm.activeLaser && !boss.leftArm.destroyed) {
       // Keep laser aligned with cannon position
       boss.leftArm.activeLaser.updateOrigin(boss.leftArm.x, boss.leftArm.y);
 
@@ -819,6 +819,9 @@ export class EntityManager {
       if (!stillActive) {
         boss.leftArm.activeLaser = null;
       }
+    } else if (boss.leftArm && boss.leftArm.activeLaser && boss.leftArm.destroyed) {
+      // Clean up laser if arm was destroyed
+      boss.leftArm.activeLaser = null;
     }
 
     // Fire right arm bullets

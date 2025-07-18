@@ -10,16 +10,18 @@ export class ContinuousLaserBeam {
     // Screen orientation
     this.isPortrait = isPortrait;
     
-    // Movement pattern properties - counterclockwise sweep
-    this.sweepDirection = -1; // Always counterclockwise (-1)
+    // Movement pattern properties - clockwise bi-directional sweep
+    this.sweepDirection = 1; // Start clockwise (+1)
     this.startAngle = isPortrait ? 0 : Math.PI/2; // Start pointing right (portrait) or down (landscape)
     this.endAngle = isPortrait ? Math.PI : -Math.PI/2; // End pointing left (portrait) or up (landscape)
     this.angle = this.startAngle; // Start at initial angle
-    this.rotationSpeed = 0.008; // Slower sweep speed
+    this.rotationSpeed = 0.008; // Sweep speed
     this.totalSweepAngle = isPortrait ? Math.PI : Math.PI; // 180 degree sweep
-    this.sweepProgress = 0; // 0 to 1 progress through sweep
+    this.sweepProgress = 0; // 0 to 1 progress through current sweep
+    this.currentSweep = 1; // Track which sweep we're on (1 or 2)
+    this.maxSweeps = 2; // Total number of sweeps before ending
     
-    // Periodic on/off pattern (in degrees) - more frequent cycling for better gameplay
+    // Periodic on/off pattern (in degrees) - longer pattern for bi-directional sweep
     this.firePattern = [
       { type: "on", degrees: 12 },
       { type: "off", degrees: 8 },
@@ -32,7 +34,19 @@ export class ContinuousLaserBeam {
       { type: "on", degrees: 14 },
       { type: "off", degrees: 9 },
       { type: "on", degrees: 16 },
-      { type: "off", degrees: 5 }
+      { type: "off", degrees: 5 },
+      { type: "on", degrees: 20 },
+      { type: "off", degrees: 8 },
+      { type: "on", degrees: 12 },
+      { type: "off", degrees: 6 },
+      { type: "on", degrees: 15 },
+      { type: "off", degrees: 10 },
+      { type: "on", degrees: 18 },
+      { type: "off", degrees: 7 },
+      { type: "on", degrees: 14 },
+      { type: "off", degrees: 5 },
+      { type: "on", degrees: 22 },
+      { type: "off", degrees: 9 }
     ];
     this.currentPatternIndex = 0;
     this.degreesInCurrentSegment = 0;
@@ -100,34 +114,57 @@ export class ContinuousLaserBeam {
         break;
         
       case "sweeping":
-        // Smooth counterclockwise rotation
+        // Smooth bi-directional rotation
         const rotationThisFrame = this.rotationSpeed * this.sweepDirection * slowdownFactor;
         this.angle += rotationThisFrame;
-        
-        // Update sweep progress (0 to 1)
-        const angleDiff = this.isPortrait ? 
-          (this.angle - this.startAngle) : 
-          (this.angle - this.startAngle);
-        this.sweepProgress = Math.abs(angleDiff) / this.totalSweepAngle;
         
         // Convert rotation to degrees for pattern tracking
         const degreesThisFrame = Math.abs(rotationThisFrame) * (180 / Math.PI);
         this.degreesInCurrentSegment += degreesThisFrame;
         this.totalDegreesSinceStart += degreesThisFrame;
         
-        // Check if sweep is complete (reached end angle)
-        let sweepComplete = false;
-        if (this.isPortrait) {
-          // Portrait: sweep from 0 (right) to π (left)
-          sweepComplete = this.angle >= this.endAngle;
+        // Check if we've reached the boundary of current sweep
+        let reachedBoundary = false;
+        
+        if (this.sweepDirection === 1) {
+          // Moving clockwise - check if we've reached the end
+          if (this.isPortrait) {
+            // Portrait: clockwise from 0 (right) to π (left)
+            reachedBoundary = this.angle >= this.endAngle;
+          } else {
+            // Landscape: clockwise from π/2 (down) through 0 to -π/2 (up)
+            // Since we cross from positive to negative, check if angle has wrapped around
+            reachedBoundary = this.angle <= this.endAngle && this.angle < this.startAngle;
+          }
         } else {
-          // Landscape: sweep from π/2 (down) to -π/2 (up)
-          sweepComplete = this.angle <= this.endAngle;
+          // Moving counter-clockwise - check if we've reached the start
+          if (this.isPortrait) {
+            // Portrait: counter-clockwise from π (left) back to 0 (right)
+            reachedBoundary = this.angle <= this.startAngle;
+          } else {
+            // Landscape: counter-clockwise from -π/2 (up) through 0 back to π/2 (down)
+            reachedBoundary = this.angle >= this.startAngle;
+          }
         }
         
-        if (sweepComplete) {
-          // Sweep is done, laser should expire
-          return false; // Signal that laser should be removed
+        if (reachedBoundary) {
+          // Clamp angle to boundary
+          if (this.sweepDirection === 1) {
+            this.angle = this.endAngle;
+          } else {
+            this.angle = this.startAngle;
+          }
+          
+          // Check if we've completed all sweeps
+          if (this.currentSweep >= this.maxSweeps) {
+            // All sweeps complete, laser should expire
+            return false;
+          } else {
+            // Reverse direction for next sweep
+            this.sweepDirection *= -1;
+            this.currentSweep++;
+            console.log(`Boss laser starting sweep ${this.currentSweep} of ${this.maxSweeps}, direction: ${this.sweepDirection > 0 ? 'clockwise' : 'counter-clockwise'}`);
+          }
         }
         
         // Update pattern state

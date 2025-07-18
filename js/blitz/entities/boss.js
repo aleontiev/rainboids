@@ -54,12 +54,12 @@ export class Boss extends MiniBoss {
       // Sweeping laser properties
       sweepState: "inactive", // inactive, charging, sweeping
       sweepAngle: 0, // Will be set when laser starts
-      sweepDirection: -1, // Always counterclockwise
+      sweepDirection: 1, // Start clockwise
       sweepSpeed: 0.008, // Slower radians per frame
       sweepChargeTime: 0,
       sweepMaxChargeTime: 120, // 2 seconds charge time
       sweepDuration: 0,
-      sweepMaxDuration: 480, // 8 seconds of sweeping (slower speed)
+      sweepMaxDuration: 720, // 12 seconds for bi-directional sweep (2 full sweeps)
       activeLaser: null, // Current laser beam
       isVulnerableToAutoAim: function() { return !this.destroyed && !this.invulnerable; }
     };
@@ -350,6 +350,13 @@ export class Boss extends MiniBoss {
       if (this.leftArm.health <= 0) {
         this.leftArm.destroyed = true;
         this.leftArm.health = 0;
+        // Clean up active laser when arm is destroyed
+        if (this.leftArm.activeLaser) {
+          this.leftArm.activeLaser = null;
+        }
+        // Reset sweep state
+        this.leftArm.sweepState = "inactive";
+        console.log("Boss left arm destroyed - laser disabled");
       }
       return true;
     } else if (hitPart === 'rightArm' && !this.rightArm.destroyed) {
@@ -411,6 +418,13 @@ export class Boss extends MiniBoss {
         break;
         
       case "charging":
+        // Check if arm was destroyed during charging
+        if (this.leftArm.destroyed) {
+          this.leftArm.sweepState = "inactive";
+          this.leftArm.activeLaser = null;
+          return [];
+        }
+        
         this.leftArm.sweepChargeTime++;
         // Update arm angle to point at current sweep target
         this.leftArm.coreAngle = this.leftArm.sweepAngle;
@@ -424,6 +438,13 @@ export class Boss extends MiniBoss {
         break;
         
       case "sweeping":
+        // Check if arm was destroyed during sweeping
+        if (this.leftArm.destroyed) {
+          this.leftArm.sweepState = "inactive";
+          this.leftArm.activeLaser = null;
+          return [];
+        }
+        
         this.leftArm.sweepDuration++;
         
         // Update arm angle to match laser angle
@@ -605,8 +626,8 @@ export class Boss extends MiniBoss {
       this.drawNewArm(ctx, this.rightArm, "#ff0000");
     }
 
-    // Draw continuous laser beam if active
-    if (this.leftArm.activeLaser) {
+    // Draw continuous laser beam if active and arm is not destroyed
+    if (this.leftArm.activeLaser && !this.leftArm.destroyed) {
       this.leftArm.activeLaser.render(ctx);
     }
 

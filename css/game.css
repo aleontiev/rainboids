@@ -1,7 +1,7 @@
 /* Game-specific UI elements */
 
 /* Main UI overlay */
-#ui {
+#progress-view {
   position: absolute;
   top: 20px;
   left: 20px;
@@ -11,11 +11,18 @@
   z-index: 10;
 }
 
+#level-phase {
+  margin-bottom: 15px;
+  font-size: 12px;
+  color: #ffcc00;
+  text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.8);
+}
+
 #timer {
   margin-top: 10px;
 }
 
-#ui i {
+#progress-view i {
   width: 16px;
   height: 16px;
   stroke: white;

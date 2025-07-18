@@ -3,9 +3,16 @@
 export class ProgressView {
   constructor(game) {
     this.game = game;
+    this.levelPhaseElement = document.getElementById('level-phase-value');
+    this.currentLevel = 1;
+    this.currentPhase = 1;
+    this.currentPhaseName = "";
   }
 
   update() {
+    // Update level and phase display
+    this.updateLevelPhase();
+
     // Update score display - show 0 if cheats were used
     const scoreElement = this.game.elements.score;
     if (scoreElement) {
@@ -34,6 +41,23 @@ export class ProgressView {
     if (finalScoreElement) {
       const displayScore = this.game.cheats.used ? 0 : this.game.state.score;
       finalScoreElement.textContent = displayScore.toString();
+    }
+  }
+
+  updateLevelPhase() {
+    if (this.game.level && this.game.level.getCurrentPhase) {
+      const phaseConfig = this.game.level.getCurrentPhase();
+      const newPhase = phaseConfig.id;
+      const newPhaseName = phaseConfig.name;
+      
+      if (newPhase !== this.currentPhase || newPhaseName !== this.currentPhaseName) {
+        this.currentPhase = newPhase;
+        this.currentPhaseName = newPhaseName;
+        
+        if (this.levelPhaseElement) {
+          this.levelPhaseElement.textContent = `Level ${this.currentLevel}: Phase ${this.currentPhase} (${this.currentPhaseName})`;
+        }
+      }
     }
   }
 }
