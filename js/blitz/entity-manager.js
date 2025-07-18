@@ -45,8 +45,7 @@ export class EntityManager {
     this.powerupTimer = 0;
     this.metalTimer = 0;
 
-    // State tracking
-    this.miniBossesDefeated = false;
+    // State tracking (removed miniBossesDefeated - now determined dynamically)
 
     // SVG asset loader
     this.svgAssets = {};
@@ -120,8 +119,7 @@ export class EntityManager {
     this.powerupTimer = 0;
     this.metalTimer = 0;
 
-    // Reset state
-    this.miniBossesDefeated = false;
+    // Reset state (removed miniBossesDefeated - now determined dynamically)
 
     // SVG assets are preserved across resets
   }
@@ -662,10 +660,7 @@ export class EntityManager {
         this.miniBosses.splice(i, 1);
         this.updateAllEnemiesList();
 
-        // Check if all minibosses are defeated
-        if (this.miniBosses.length === 0) {
-          this.miniBossesDefeated = true;
-        }
+        // Miniboss defeat state is now determined dynamically by checking this.miniBosses.length
       } else if (result === "rain_explosion") {
         this.game.effects.createExplosion(
           miniBoss.x + (Math.random() - 0.5) * miniBoss.size,
@@ -961,10 +956,7 @@ export class EntityManager {
       this.miniBosses.splice(miniBossIndex, 1);
       removed = true;
 
-      // Check if all minibosses defeated
-      if (this.miniBosses.length === 0) {
-        this.miniBossesDefeated = true;
-      }
+      // Miniboss defeat state is now determined dynamically by checking this.miniBosses.length
     }
 
     // Check if it's the boss

@@ -134,8 +134,7 @@ class BlitzGame {
     this.explosions = [];
     this.textParticles = []; // For score popups
 
-    // New game phase system
-    this.entities.miniBossesDefeated = false;
+    // New game phase system (miniBossesDefeated removed - now determined dynamically)
     this.miniBossGodModeTimer = 0;
     this.cleanupPhaseTimer = 0;
     this.cleanupPowerupsSpawned = false;

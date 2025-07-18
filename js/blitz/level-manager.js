@@ -531,12 +531,12 @@ export class LevelManager {
     
     switch (event.type) {
       case "spawn_single_miniboss":
-        if (this.game.entities.getMiniBossCount() === 0 && !this.game.entities.miniBossesDefeated) {
+        if (this.game.entities.getMiniBossCount() === 0) {
           this.game.entities.spawnSingleMiniBoss();
         }
         break;
       case "spawn_miniboss":
-        if (this.game.entities.getMiniBossCount() === 0 && !this.game.entities.miniBossesDefeated) {
+        if (this.game.entities.getMiniBossCount() === 0) {
           this.game.entities.spawnMiniBosses();
         }
         break;
@@ -632,7 +632,7 @@ export class LevelManager {
         shouldTransition = this.game.entities.getEnemyCount() === 0;
         break;
       case "miniboss_defeated":
-        shouldTransition = this.game.entities.miniBossesDefeated;
+        shouldTransition = this.game.entities.getMiniBossCount() === 0;
         break;
       case "boss_defeated":
         shouldTransition = this.game.entities.boss && this.game.entities.boss.health <= 0;
