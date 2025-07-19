@@ -632,7 +632,10 @@ export class LevelManager {
         shouldTransition = this.game.entities.getEnemyCount() === 0;
         break;
       case "miniboss_defeated":
-        shouldTransition = this.game.entities.getMiniBossCount() === 0;
+        // Add 1 second cooldown before checking miniboss defeat to allow time for spawning
+        if (this.phaseTimer >= 1000) {
+          shouldTransition = this.game.entities.getMiniBossCount() === 0;
+        }
         break;
       case "boss_defeated":
         shouldTransition = this.game.entities.boss && this.game.entities.boss.health <= 0;

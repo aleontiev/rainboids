@@ -983,23 +983,6 @@ export class CollisionManager {
     return t >= 0 && t <= 1 && u >= 0 && u <= 1;
   }
 
-  // BOUNCE CALCULATION METHODS (kept for backward compatibility)
-
-  calculateBulletBounceDirection(bullet, metal) {
-    // Simplified bounce calculation - reverse appropriate component
-    const dx = bullet.x - metal.x;
-    const dy = bullet.y - metal.y;
-
-    // Determine which side of the metal the bullet hit
-    if (Math.abs(dx) > Math.abs(dy)) {
-      // Hit left or right side - reverse x component
-      return Math.atan2(bullet.vy, -bullet.vx);
-    } else {
-      // Hit top or bottom - reverse y component
-      return Math.atan2(-bullet.vy, bullet.vx);
-    }
-  }
-
   calculateLaserBounceDirection(laser, metal) {
     // Similar to bullet bounce
     const dx = laser.x - metal.x;

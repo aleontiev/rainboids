@@ -355,10 +355,27 @@ export class EntityManager {
       spawnY = Math.random() * (canvas.height - 100) + 50;
     }
 
+    // Randomly select metal type with weighted distribution
+    const metalTypes = ["l", "L", "T"];
+    const metalWeights = [50, 30, 20]; // l is most common, T is rarest
+    
+    const totalWeight = metalWeights.reduce((sum, weight) => sum + weight, 0);
+    const random = Math.random() * totalWeight;
+    let currentWeight = 0;
+    let selectedType = "l"; // Default fallback
+    
+    for (let i = 0; i < metalTypes.length; i++) {
+      currentWeight += metalWeights[i];
+      if (random <= currentWeight) {
+        selectedType = metalTypes[i];
+        break;
+      }
+    }
+
     const metal = new Metal(
       spawnX,
       spawnY,
-      "l",
+      selectedType,
       this.game.isPortrait,
       this.game
     );
