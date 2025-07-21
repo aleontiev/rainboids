@@ -177,8 +177,8 @@ export class Asteroid {
         }
     }
 
-    // Check if this asteroid can be targeted by auto-aim
-    isVulnerableToAutoAim() {
+    // Check if this asteroid is vulnerable
+    isVulnerable() {
         return !this.invulnerable;
     }
     

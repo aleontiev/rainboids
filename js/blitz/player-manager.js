@@ -96,6 +96,8 @@ export class PlayerManager {
         this.game.audio.startContinuousLaser();
       } else if (weaponType === "bullet") {
         this.game.audio.play(this.game.audio.sounds.shoot);
+        // Stop laser sound immediately if we switched from laser to bullet
+        this.game.audio.stopContinuousLaser();
       }
     } else {
       // Stop continuous laser sound when not firing

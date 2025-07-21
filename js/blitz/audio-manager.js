@@ -22,9 +22,14 @@ export class AudioManager {
       enemyExplosion: this.generateSfxrSound("enemyExplosion"),
       asteroidExplosion: this.generateSfxrSound("asteroidExplosion"),
       playerExplosion: this.generateSfxrSound("playerExplosion"),
-      shield: this.generateSfxrSound("jump"),
+      shield: this.generateSfxrSound("laserShield"),
+      timeSlow: this.generateSfxrSound("timeSlow"),
       powerUp: this.generateSfxrSound("pickupCoin"),
       continuousLaser: this.generateSfxrSound("continuousLaser"),
+      miniBossExplosion: this.generateSfxrSound("miniBossExplosion"),
+      bossExplosion: this.generateSfxrSound("bossExplosion"),
+      megaExplosion: this.generateSfxrSound("megaExplosion"),
+      megaBossExplosion: this.generateSfxrSound("megaBossExplosion"),
     };
     // Music button (music only)
     const musicButton = document.getElementById("music-btn");
@@ -86,9 +91,17 @@ export class AudioManager {
         synthdef.sound_vol = 0.05; // More audible
         break;
       case "hitHurt":
-        synthdef = params.hitHurt();
-        synthdef.sound_vol = 0.2; // Reduced volume
-        synthdef.p_env_sustain = 0.1; // Shorter duration
+        // Similar to asteroid explosion but with more emphasis and metallic quality
+        synthdef = params.explosion();
+        synthdef.p_base_freq = 0.15 + Math.random() * 0.05; // Lower than asteroid for more impact
+        synthdef.p_env_sustain = 0.06 + Math.random() * 0.04; // Shorter than asteroid for punch
+        synthdef.p_env_decay = 0.12 + Math.random() * 0.08; // Quicker decay
+        synthdef.p_lpf_freq = 0.6 + Math.random() * 0.2; // Smoother filtering like asteroid
+        synthdef.p_hpf_freq = 0.08; // Slight high-pass to clean up
+        synthdef.p_repeat_speed = 0.4; // Faster repeat for metallic texture
+        synthdef.p_pha_offset = 0.2; // Add phaser for metallic quality
+        synthdef.p_pha_ramp = -0.1; // Phaser sweep
+        synthdef.sound_vol = 0.14; // Louder than asteroid hit for emphasis
         break;
       case "explosion":
         synthdef = params.explosion();
@@ -159,6 +172,96 @@ export class AudioManager {
         synthdef.p_hpf_freq = 0.05; // Keep some low end
         synthdef.p_pha_offset = 0.2; // Add some phaser for richness
         synthdef.p_pha_ramp = -0.1; // Phaser sweep
+        break;
+      case "miniBossExplosion":
+        // Enhanced miniboss explosion - more dramatic than regular enemies
+        synthdef = params.explosion();
+        synthdef.sound_vol = 0.18; // Moderate volume for cascading effect
+        synthdef.p_env_sustain = 0.12; // Medium duration
+        synthdef.p_env_decay = 0.2; // Good decay for impact
+        synthdef.p_base_freq = 0.25 + Math.random() * 0.1; // Varied frequency
+        synthdef.p_freq_ramp = -0.25; // Downward sweep
+        synthdef.p_lpf_freq = 0.65; // Smooth filtering
+        synthdef.p_hpf_freq = 0.03; // Some low end
+        synthdef.p_repeat_speed = 0.05 + Math.random() * 0.03; // Slight variation
+        break;
+      case "bossExplosion":
+        // Boss explosion - deeper and more powerful than miniboss
+        synthdef = params.explosion();
+        synthdef.sound_vol = 0.22; // Higher volume for boss
+        synthdef.p_env_sustain = 0.18; // Longer duration
+        synthdef.p_env_decay = 0.3; // Extended decay
+        synthdef.p_base_freq = 0.2 + Math.random() * 0.08; // Lower, varied frequency
+        synthdef.p_freq_ramp = -0.35; // Deeper downward sweep
+        synthdef.p_lpf_freq = 0.6; // More filtering for smoothness
+        synthdef.p_hpf_freq = 0.02; // Keep low end for power
+        synthdef.p_pha_offset = 0.15 + Math.random() * 0.1; // Varied phaser
+        synthdef.p_pha_ramp = -0.08; // Phaser sweep
+        break;
+      case "megaExplosion":
+        // Mega explosion for final miniboss death
+        synthdef = params.explosion();
+        synthdef.sound_vol = 0.35; // Very loud
+        synthdef.p_env_sustain = 0.25; // Long duration
+        synthdef.p_env_decay = 0.4; // Very long decay
+        synthdef.p_base_freq = 0.15; // Very low frequency
+        synthdef.p_freq_ramp = -0.4; // Deep downward sweep
+        synthdef.p_lpf_freq = 0.5; // Heavy filtering
+        synthdef.p_hpf_freq = 0.01; // Keep all low end
+        synthdef.p_pha_offset = 0.3; // Strong phaser effect
+        synthdef.p_pha_ramp = -0.15; // Long phaser sweep
+        synthdef.p_repeat_speed = 0.02; // Very slow repeat for rumble
+        break;
+      case "megaBossExplosion":
+        // Ultimate boss explosion - the most dramatic
+        synthdef = params.explosion();
+        synthdef.sound_vol = 0.4; // Maximum volume
+        synthdef.p_env_sustain = 0.3; // Very long duration
+        synthdef.p_env_decay = 0.5; // Extremely long decay
+        synthdef.p_base_freq = 0.12; // Extremely low frequency
+        synthdef.p_freq_ramp = -0.45; // Massive downward sweep
+        synthdef.p_lpf_freq = 0.45; // Heavy low-pass filtering
+        synthdef.p_hpf_freq = 0.005; // Keep all the bass
+        synthdef.p_pha_offset = 0.35; // Maximum phaser effect
+        synthdef.p_pha_ramp = -0.2; // Very long phaser sweep
+        synthdef.p_repeat_speed = 0.015; // Slowest repeat for deep rumble
+        synthdef.p_arp_speed = 0.1; // Add arpeggio for complexity
+        break;
+      case "laserShield":
+        // Crisp laser shield activation - "shiiiiiing" sound
+        synthdef = new Params(); // Start fresh for custom shield sound
+        synthdef.wave_type = 2; // SINE wave for clean, crisp sound
+        synthdef.p_base_freq = 0.8; // High frequency for crisp start
+        synthdef.p_env_attack = 0.001; // Instant attack for crisp activation
+        synthdef.p_env_sustain = 0.15; // Medium sustain for the "shiiiing"
+        synthdef.p_env_decay = 0.4; // Long decay for trailing off
+        synthdef.p_freq_ramp = -0.3; // Downward frequency sweep for "shiiiing" effect
+        synthdef.p_lpf_freq = 0.9; // High-pass most frequencies for clarity
+        synthdef.p_lpf_resonance = 0.4; // Some resonance for metallic quality
+        synthdef.p_hpf_freq = 0.2; // Cut low frequencies for crispness
+        synthdef.p_vib_strength = 0.1; // Slight vibrato for laser quality
+        synthdef.p_vib_speed = 0.8; // Fast vibrato
+        synthdef.sound_vol = 0.18; // Clear but not overwhelming
+        break;
+      case "timeSlow":
+        // Deep boom effect that slows down - sudden impact transitioning to slow motion
+        synthdef = new Params(); // Start fresh for custom time slow sound
+        synthdef.wave_type = 0; // SQUARE wave for punchy boom start
+        synthdef.p_base_freq = 0.3; // Lower frequency for deeper boom
+        synthdef.p_env_attack = 0.01; // Very quick attack for sudden boom
+        synthdef.p_env_sustain = 0.2; // Short sustain for initial boom
+        synthdef.p_env_decay = 0.9; // Very long decay for slow-down effect
+        synthdef.p_freq_ramp = -0.7; // Strong downward frequency sweep for dramatic slowing
+        synthdef.p_freq_dramp = -0.3; // Additional frequency drop acceleration
+        synthdef.p_lpf_freq = 0.8; // Start with less filtering for initial boom clarity
+        synthdef.p_lpf_ramp = -0.5; // Strong filter sweep down for muffling effect
+        synthdef.p_hpf_freq = 0.05; // Minimal high-pass to keep the deep bass
+        synthdef.p_vib_strength = 0.2; // More vibrato for texture
+        synthdef.p_vib_speed = 0.8; // Start with faster vibrato that slows with frequency
+        synthdef.p_pha_offset = 0.4; // Strong phaser for spatial/time effect
+        synthdef.p_pha_ramp = -0.25; // Phaser sweep for warping effect
+        synthdef.p_repeat_speed = 0.1; // Slight repeat for rumble texture
+        synthdef.sound_vol = 0.2; // Louder for more impact
         break;
       default:
         synthdef = params.explosion();

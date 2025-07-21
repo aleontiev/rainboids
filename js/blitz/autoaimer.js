@@ -153,14 +153,14 @@ export class Autoaimer {
 
     // Build complete target list, filter out invulnerable targets
     const allTargets = [...enemies, ...asteroids].filter((target) => {
-      // Check if target is vulnerable to auto-aim
+      // Check if target is vulnerable
       if (
-        target.isVulnerableToAutoAim &&
-        typeof target.isVulnerableToAutoAim === "function"
+        target.isVulnerable &&
+        typeof target.isVulnerable === "function"
       ) {
-        return target.isVulnerableToAutoAim();
+        return target.isVulnerable();
       }
-      // For entities without isVulnerableToAutoAim method (like asteroids), check basic vulnerability
+      // For entities without isVulnerable method, check basic vulnerability
       return !target.godMode && !target.invulnerable;
     });
 
@@ -193,161 +193,379 @@ export class Autoaimer {
     return isPortrait ? -Math.PI / 2 : 0;
   }
 
-  // Select the best target using priority system
+  // Enhanced target selection with threat prioritization
   selectBestTarget(allTargets, enemies, mainWeaponLevel) {
     const bulletSpeed = this.getCurrentBulletSpeed(mainWeaponLevel);
-    const shootingEnemyTypes = ["straight", "sine", "zigzag"];
+    
+    // Get metal objects for bouncing calculations
+    const metals = this.player.game?.entities?.metals || [];
 
-    // Count enemies in viewport and check for minibosses/bosses
-    const enemiesInViewport = enemies.filter((enemy) =>
-      this.isTargetInViewport(enemy)
-    );
-    const hasMinibossOrBoss = allTargets.some(
-      (target) =>
-        target.collidableType === "boss" ||
-        target.maxHealth > 50 || // Miniboss typically has > 50 health
-        (target.type &&
-          (target.type.includes("boss") || target.type.includes("miniboss")))
-    );
+    // Analyze all targets for threat levels
+    const threatAnalysis = this.analyzeThreatLevels(allTargets, enemies, metals, bulletSpeed);
 
-    // Special asteroid prioritization condition:
-    // If there are no minibosses/bosses AND fewer than 3 enemies in viewport
-    const shouldPrioritizeAsteroids =
-      !hasMinibossOrBoss && enemiesInViewport.length < 3;
+    // Priority 1: Collision threats - enemies about to collide with player
+    const collisionThreats = threatAnalysis.filter(t => t.threatType === 'collision');
+    if (collisionThreats.length > 0) {
+      // Sort by time to collision (most urgent first)
+      collisionThreats.sort((a, b) => a.timeToCollision - b.timeToCollision);
+      return collisionThreats[0].target;
+    }
 
-    // Priority 1: Very close targets (within 200px) - any enemy or asteroid
-    // Enhanced to prefer targets we can actually hit
-    let closestNearbyTarget = null;
-    let bestNearbyScore = -1;
+    // Priority 2: Laser threats - enemies shooting lasers at player
+    const laserThreats = threatAnalysis.filter(t => t.threatType === 'laser');
+    if (laserThreats.length > 0) {
+      // Sort by distance (closer threats first)
+      laserThreats.sort((a, b) => a.distance - b.distance);
+      return laserThreats[0].target;
+    }
+
+    // Priority 3: Bullet threats - enemies shooting bullets, prioritized by distance
+    const bulletThreats = threatAnalysis.filter(t => t.threatType === 'bullet');
+    if (bulletThreats.length > 0) {
+      // Sort by distance (closer threats first)
+      bulletThreats.sort((a, b) => a.distance - b.distance);
+      return bulletThreats[0].target;
+    }
+
+    // Priority 4: Best hittable target considering bouncing trajectories
+    const hittableTargets = threatAnalysis.filter(t => t.canHit);
+    if (hittableTargets.length > 0) {
+      // Sort by hit score (considering trajectory difficulty, metal bouncing, etc.)
+      hittableTargets.sort((a, b) => b.hitScore - a.hitScore);
+      return hittableTargets[0].target;
+    }
+
+    // Priority 5: Fallback to closest target
+    let closestTarget = null;
+    let closestDistance = Infinity;
 
     for (const target of allTargets) {
       if (this.isTargetInViewport(target)) {
         const dist = Math.sqrt(
           (target.x - this.player.x) ** 2 + (target.y - this.player.y) ** 2
         );
-        if (dist < 200) {
-          // Calculate hit probability for this target
-          const hitScore = this.calculateTargetHitScore(
-            target,
-            bulletSpeed,
-            dist
-          );
-          const combinedScore = hitScore * (1.0 - dist / 200); // Closer = better
-
-          if (combinedScore > bestNearbyScore) {
-            bestNearbyScore = combinedScore;
-            closestNearbyTarget = target;
-          }
+        if (dist < closestDistance) {
+          closestDistance = dist;
+          closestTarget = target;
         }
       }
     }
 
-    if (closestNearbyTarget) {
-      return closestNearbyTarget;
-    }
+    return closestTarget;
+  }
 
-    // Priority 2: Asteroids (when conditions are met)
-    if (shouldPrioritizeAsteroids) {
-      let closestAsteroid = null;
-      let closestAsteroidDistance = Infinity;
-
-      for (const target of allTargets) {
-        // Check if target is an asteroid (either by collidableType or by checking if it's not an enemy)
-        const isAsteroid =
-          target.collidableType === "asteroid" ||
-          (!target.type &&
-            !target.maxHealth &&
-            target.size &&
-            target.vx !== undefined);
-
-        if (isAsteroid && this.isTargetInViewport(target)) {
-          const dist = Math.sqrt(
-            (target.x - this.player.x) ** 2 + (target.y - this.player.y) ** 2
-          );
-          if (dist < closestAsteroidDistance) {
-            closestAsteroidDistance = dist;
-            closestAsteroid = target;
-          }
-        }
-      }
-
-      if (closestAsteroid) {
-        return closestAsteroid;
-      }
-    }
-
-    // Priority 3: Shooting enemies (nearby ones first)
-    let closestShootingEnemy = null;
-    let closestShootingDistance = Infinity;
-
-    for (const enemy of enemies) {
-      if (
-        shootingEnemyTypes.includes(enemy.type) &&
-        this.isTargetInViewport(enemy)
-      ) {
-        const dist = Math.sqrt(
-          (enemy.x - this.player.x) ** 2 + (enemy.y - this.player.y) ** 2
-        );
-        if (dist < closestShootingDistance) {
-          closestShootingDistance = dist;
-          closestShootingEnemy = enemy;
-        }
-      }
-    }
-
-    if (closestShootingEnemy) {
-      return closestShootingEnemy;
-    }
-
-    // Priority 4: Any enemies (nearby ones first)
-    let closestEnemy = null;
-    let closestEnemyDistance = Infinity;
-
-    for (const enemy of enemies) {
-      if (this.isTargetInViewport(enemy)) {
-        const dist = Math.sqrt(
-          (enemy.x - this.player.x) ** 2 + (enemy.y - this.player.y) ** 2
-        );
-        if (dist < closestEnemyDistance) {
-          closestEnemyDistance = dist;
-          closestEnemy = enemy;
-        }
-      }
-    }
-
-    if (closestEnemy) {
-      return closestEnemy;
-    }
-
-    // Priority 5: Asteroids (fallback if no enemies available)
-    let closestAsteroid = null;
-    let closestAsteroidDistance = Infinity;
+  // Analyze threat levels for all targets
+  analyzeThreatLevels(allTargets, enemies, metals, bulletSpeed) {
+    const analysis = [];
 
     for (const target of allTargets) {
-      const isAsteroid =
-        target.collidableType === "asteroid" ||
-        (!target.type &&
-          !target.maxHealth &&
-          target.size &&
-          target.vx !== undefined);
+      if (!this.isTargetInViewport(target)) continue;
 
-      if (isAsteroid && this.isTargetInViewport(target)) {
-        const dist = Math.sqrt(
-          (target.x - this.player.x) ** 2 + (target.y - this.player.y) ** 2
+      const distance = Math.sqrt(
+        (target.x - this.player.x) ** 2 + (target.y - this.player.y) ** 2
+      );
+
+      const threatInfo = {
+        target: target,
+        distance: distance,
+        threatType: 'none',
+        timeToCollision: Infinity,
+        canHit: false,
+        hitScore: 0,
+        trajectoryData: null
+      };
+
+      // Determine threat type based on enemy behavior
+      if (target.collidableType === 'enemy' || enemies.includes(target)) {
+        threatInfo.threatType = this.classifyEnemyThreat(target);
+        threatInfo.timeToCollision = this.calculateTimeToCollision(target);
+      }
+
+      // Calculate if we can hit this target (including bouncing trajectories)
+      const trajectoryAnalysis = this.analyzeTrajectoryToTarget(target, metals, bulletSpeed);
+      threatInfo.canHit = trajectoryAnalysis.canHit;
+      threatInfo.hitScore = trajectoryAnalysis.hitScore;
+      threatInfo.trajectoryData = trajectoryAnalysis;
+
+      analysis.push(threatInfo);
+    }
+
+    return analysis;
+  }
+
+  // Classify enemy threat type based on behavior
+  classifyEnemyThreat(enemy) {
+    // Check if enemy is on collision course
+    const timeToCollision = this.calculateTimeToCollision(enemy);
+    if (timeToCollision < 120) { // 2 seconds at 60fps
+      return 'collision';
+    }
+
+    // Check enemy type for shooting behavior
+    if (enemy.type === 'laser') {
+      return 'laser';
+    }
+
+    // Check if enemy shoots bullets
+    const shootingTypes = ['straight', 'sine', 'zigzag', 'circle', 'square', 'pulse'];
+    if (shootingTypes.includes(enemy.type)) {
+      return 'bullet';
+    }
+
+    return 'passive';
+  }
+
+  // Calculate time until enemy collides with player
+  calculateTimeToCollision(enemy) {
+    const enemyVx = enemy.vx !== undefined ? enemy.vx : (enemy.dx || 0) / 60;
+    const enemyVy = enemy.vy !== undefined ? enemy.vy : (enemy.dy || 0) / 60;
+
+    // If enemy isn't moving toward player, no collision threat
+    const dx = this.player.x - enemy.x;
+    const dy = this.player.y - enemy.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance === 0) return 0;
+
+    // Check if enemy is moving toward player
+    const relativeVx = enemyVx - (this.player.vx || 0);
+    const relativeVy = enemyVy - (this.player.vy || 0);
+    
+    // Dot product to see if enemy is approaching
+    const approachRate = (dx * relativeVx + dy * relativeVy) / distance;
+    
+    if (approachRate <= 0) return Infinity; // Not approaching
+
+    // Calculate collision time with hitbox consideration
+    const collisionDistance = distance - (enemy.size || 20) - (this.player.hitboxSize || 6);
+    return Math.max(0, collisionDistance / approachRate);
+  }
+
+  // Analyze trajectory to target including metal bouncing
+  analyzeTrajectoryToTarget(target, metals, bulletSpeed) {
+    const directTrajectory = this.analyzeDirectTrajectory(target, bulletSpeed);
+    
+    // If direct shot works and no metals in the way, prefer it
+    if (directTrajectory.canHit && !this.hasMetalObstruction(this.player, target, metals)) {
+      return {
+        canHit: true,
+        hitScore: directTrajectory.hitScore * 1.2, // Bonus for direct shots
+        bounceCount: 0,
+        trajectory: directTrajectory
+      };
+    }
+
+    // Try bouncing trajectories if direct shot is blocked
+    const bounceTrajectories = this.calculateBounceTrajectories(target, metals, bulletSpeed);
+    
+    if (bounceTrajectories.length > 0) {
+      // Sort by hit score and choose best
+      bounceTrajectories.sort((a, b) => b.hitScore - a.hitScore);
+      const best = bounceTrajectories[0];
+      
+      return {
+        canHit: true,
+        hitScore: best.hitScore * (1.0 - best.bounceCount * 0.1), // Penalty for bounces
+        bounceCount: best.bounceCount,
+        trajectory: best
+      };
+    }
+
+    return {
+      canHit: directTrajectory.canHit,
+      hitScore: directTrajectory.hitScore * 0.5, // Penalty for blocked shots
+      bounceCount: 0,
+      trajectory: directTrajectory
+    };
+  }
+
+  // Analyze direct trajectory to target
+  analyzeDirectTrajectory(target, bulletSpeed) {
+    const interceptSolution = this.calculateInterceptSolution(
+      this.player.x,
+      this.player.y,
+      this.player.vx || 0,
+      this.player.vy || 0,
+      target.x,
+      target.y,
+      target.vx !== undefined ? target.vx : (target.dx || 0) / 60,
+      target.vy !== undefined ? target.vy : (target.dy || 0) / 60,
+      bulletSpeed
+    );
+
+    if (!interceptSolution) {
+      return { canHit: false, hitScore: 0 };
+    }
+
+    const hitScore = this.calculateTargetHitScore(target, bulletSpeed, interceptSolution.distance);
+    
+    return {
+      canHit: true,
+      hitScore: hitScore,
+      interceptPoint: { x: interceptSolution.x, y: interceptSolution.y },
+      angle: interceptSolution.angle,
+      time: interceptSolution.time
+    };
+  }
+
+  // Check if metal objects obstruct line of sight
+  hasMetalObstruction(from, to, metals) {
+    for (const metal of metals) {
+      const segments = metal.getRotatedSegments();
+      
+      for (const segment of segments) {
+        if (this.lineIntersectsSegment(from.x, from.y, to.x, to.y, segment)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Check if line intersects with metal segment
+  lineIntersectsSegment(x1, y1, x2, y2, segment) {
+    const { x1: sx1, y1: sy1, x2: sx2, y2: sy2 } = segment;
+    
+    const denom = (x1 - x2) * (sy1 - sy2) - (y1 - y2) * (sx1 - sx2);
+    if (Math.abs(denom) < 1e-10) return false; // Parallel lines
+    
+    const t = ((x1 - sx1) * (sy1 - sy2) - (y1 - sy1) * (sx1 - sx2)) / denom;
+    const u = -((x1 - x2) * (y1 - sy1) - (y1 - y2) * (x1 - sx1)) / denom;
+    
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+  }
+
+  // Calculate possible bouncing trajectories
+  calculateBounceTrajectories(target, metals, bulletSpeed, maxBounces = 2) {
+    const trajectories = [];
+    
+    // For each metal object, try bouncing off it to reach the target
+    for (const metal of metals) {
+      const segments = metal.getRotatedSegments();
+      
+      for (const segment of segments) {
+        const bounceTrajectory = this.calculateSingleBounceTrajectory(
+          this.player, target, segment, bulletSpeed
         );
-        if (dist < closestAsteroidDistance) {
-          closestAsteroidDistance = dist;
-          closestAsteroid = target;
+        
+        if (bounceTrajectory && bounceTrajectory.canHit) {
+          trajectories.push({
+            ...bounceTrajectory,
+            bounceCount: 1,
+            bouncePoint: bounceTrajectory.bouncePoint
+          });
         }
       }
     }
 
-    return closestAsteroid;
+    // TODO: For maxBounces > 1, calculate multi-bounce trajectories
+    // This would involve recursive calculation of bounce points
+    
+    return trajectories;
+  }
+
+  // Calculate trajectory that bounces off one metal segment
+  calculateSingleBounceTrajectory(player, target, segment, bulletSpeed) {
+    // Try different points along the metal segment as potential bounce points
+    const numTestPoints = 10;
+    let bestTrajectory = null;
+    let bestScore = 0;
+
+    for (let i = 0; i <= numTestPoints; i++) {
+      const t = i / numTestPoints;
+      const bounceX = segment.x1 + t * (segment.x2 - segment.x1);
+      const bounceY = segment.y1 + t * (segment.y2 - segment.y1);
+
+      // Calculate angle from player to bounce point
+      const toBounceAngle = Math.atan2(bounceY - player.y, bounceX - player.x);
+      
+      // Simulate bullet hitting metal and bouncing
+      const incomingVx = Math.cos(toBounceAngle) * bulletSpeed;
+      const incomingVy = Math.sin(toBounceAngle) * bulletSpeed;
+      
+      // Calculate bounce direction using metal's bounce calculation
+      const bounceResult = this.calculateBounceFromSegment(
+        { vx: incomingVx, vy: incomingVy }, segment
+      );
+      
+      if (!bounceResult) continue;
+
+      // Check if bounced bullet can reach target
+      const bounceToTargetTime = this.calculateInterceptTimeFromBounce(
+        bounceX, bounceY, bounceResult.vx, bounceResult.vy, target
+      );
+
+      if (bounceToTargetTime > 0) {
+        const totalDistance = 
+          Math.sqrt((bounceX - player.x) ** 2 + (bounceY - player.y) ** 2) +
+          Math.sqrt((target.x - bounceX) ** 2 + (target.y - bounceY) ** 2);
+        
+        const score = 1.0 / (1.0 + totalDistance / 200); // Shorter paths are better
+        
+        if (score > bestScore) {
+          bestScore = score;
+          bestTrajectory = {
+            canHit: true,
+            hitScore: score,
+            bouncePoint: { x: bounceX, y: bounceY },
+            initialAngle: toBounceAngle,
+            bounceAngle: Math.atan2(bounceResult.vy, bounceResult.vx),
+            totalTime: bounceToTargetTime
+          };
+        }
+      }
+    }
+
+    return bestTrajectory;
+  }
+
+  // Calculate bounce direction from a segment (simplified metal bounce logic)
+  calculateBounceFromSegment(velocity, segment) {
+    const { x1, y1, x2, y2 } = segment;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    
+    if (length === 0) return { vx: -velocity.vx, vy: -velocity.vy };
+    
+    // Normal vector to the line (perpendicular)
+    const nx = -dy / length;
+    const ny = dx / length;
+    
+    // Reflect the velocity
+    const dot = velocity.vx * nx + velocity.vy * ny;
+    const reflectedVx = velocity.vx - 2 * dot * nx;
+    const reflectedVy = velocity.vy - 2 * dot * ny;
+    
+    return { vx: reflectedVx, vy: reflectedVy };
+  }
+
+  // Calculate if bounced bullet can intercept target
+  calculateInterceptTimeFromBounce(bounceX, bounceY, bounceVx, bounceVy, target) {
+    const targetVx = target.vx !== undefined ? target.vx : (target.dx || 0) / 60;
+    const targetVy = target.vy !== undefined ? target.vy : (target.dy || 0) / 60;
+    
+    // Solve for when bullet reaches target position
+    // bounceX + bounceVx * t = target.x + targetVx * t
+    // bounceY + bounceVy * t = target.y + targetVy * t
+    
+    const relativeVx = bounceVx - targetVx;
+    const relativeVy = bounceVy - targetVy;
+    const relativeDx = target.x - bounceX;
+    const relativeDy = target.y - bounceY;
+    
+    // For this simplified version, use distance-based approximation
+    const distance = Math.sqrt(relativeDx * relativeDx + relativeDy * relativeDy);
+    const relativeSpeed = Math.sqrt(relativeVx * relativeVx + relativeVy * relativeVy);
+    
+    return relativeSpeed > 0 ? distance / relativeSpeed : -1;
   }
 
   // Enhanced interceptive targeting that accounts for all velocity vectors
   calculatePredictiveAim(target, bulletSpeed) {
-    if (bulletSpeed === Infinity || bulletSpeed >= 80) {
+    // For very fast projectiles (lasers), aim directly at target since lead time is minimal
+    const laserSpeed = this.player.getPlayerLaserSpeed();
+    if (bulletSpeed === Infinity || bulletSpeed >= laserSpeed) {
       // For laser, aim directly at target
       return Math.atan2(target.y - this.player.y, target.x - this.player.x);
     }
@@ -508,9 +726,13 @@ export class Autoaimer {
 
   // Helper function to get current bullet speed based on weapon level
   getCurrentBulletSpeed(level) {
-    if (level === 5) return 80;
-    if (level === 4) return 16;
-    return 8;
+    // Level 5 uses laser which is much faster
+    if (level >= 5 || this.player.rainbowInvulnerable) {
+      return this.player.getPlayerLaserSpeed(); // Usually 80
+    }
+    
+    // Levels 1-4 use regular bullets
+    return this.player.getBulletSpeed(); // Usually 8
   }
 }
 

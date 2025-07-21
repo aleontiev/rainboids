@@ -1,7 +1,7 @@
 // HomingMissile entity for Rainboids: Blitz
 
 export class HomingMissile {
-  constructor(x, y, angle, speed, color) {
+  constructor(x, y, angle, speed, color, isPlayerMissile = false) {
     this.x = x;
     this.y = y;
     this.angle = angle;
@@ -11,6 +11,7 @@ export class HomingMissile {
     this.turnSpeed = 0.05;
     this.life = 200;
     this.target = null;
+    this.isPlayerMissile = isPlayerMissile; // Flag to identify player missiles
   }
 
   update(enemies, slowdownFactor = 1.0) {

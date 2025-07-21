@@ -3,6 +3,10 @@ export class BackgroundManager {
   constructor(game) {
     this.game = game;
     this.stars = [];
+    
+    // Configurable star parameters
+    this.starBrightness = 1.0; // 0.0 to 2.0 multiplier for opacity
+    this.starSize = 1.0; // 0.0 to 2.0 multiplier for size
   }
   update() {
     this.stars.forEach((star) => {
@@ -60,30 +64,32 @@ export class BackgroundManager {
       ctx.translate(star.x, star.y);
 
       const twinkleOpacity =
-        star.opacity * (0.5 + 0.5 * Math.sin(star.twinkle));
-      ctx.globalAlpha = twinkleOpacity;
+        star.opacity * (0.5 + 0.5 * Math.sin(star.twinkle)) * this.starBrightness;
+      ctx.globalAlpha = Math.min(1.0, twinkleOpacity);
 
+      const effectiveSize = star.size * this.starSize;
+      
       if (star.shape === "point") {
         ctx.fillStyle = star.color;
-        ctx.fillRect(-star.size / 2, -star.size / 2, star.size, star.size);
+        ctx.fillRect(-effectiveSize / 2, -effectiveSize / 2, effectiveSize, effectiveSize);
       } else if (star.shape === "diamond") {
         ctx.strokeStyle = star.color;
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(0, -star.size);
-        ctx.lineTo(star.size, 0);
-        ctx.lineTo(0, star.size);
-        ctx.lineTo(-star.size, 0);
+        ctx.moveTo(0, -effectiveSize);
+        ctx.lineTo(effectiveSize, 0);
+        ctx.lineTo(0, effectiveSize);
+        ctx.lineTo(-effectiveSize, 0);
         ctx.closePath();
         ctx.stroke();
       } else if (star.shape === "plus") {
         ctx.strokeStyle = star.color;
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(0, -star.size);
-        ctx.lineTo(0, star.size);
-        ctx.moveTo(-star.size, 0);
-        ctx.lineTo(star.size, 0);
+        ctx.moveTo(0, -effectiveSize);
+        ctx.lineTo(0, effectiveSize);
+        ctx.moveTo(-effectiveSize, 0);
+        ctx.lineTo(effectiveSize, 0);
         ctx.stroke();
       } else if (star.shape === "star4") {
         ctx.strokeStyle = star.color;
@@ -91,7 +97,7 @@ export class BackgroundManager {
         ctx.beginPath();
         for (let i = 0; i < 8; i++) {
           const a = (i * Math.PI) / 4;
-          const r = i % 2 === 0 ? star.size : star.size * 0.4;
+          const r = i % 2 === 0 ? effectiveSize : effectiveSize * 0.4;
           if (i === 0) {
             ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
           } else {
@@ -106,7 +112,7 @@ export class BackgroundManager {
         ctx.beginPath();
         for (let i = 0; i < 16; i++) {
           const a = (i * Math.PI) / 8;
-          const r = i % 2 === 0 ? star.size : star.size * 0.6;
+          const r = i % 2 === 0 ? effectiveSize : effectiveSize * 0.6;
           if (i === 0) {
             ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
           } else {
@@ -120,10 +126,10 @@ export class BackgroundManager {
         ctx.strokeStyle = star.color;
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(-star.size, -star.size);
-        ctx.lineTo(star.size, star.size);
-        ctx.moveTo(star.size, -star.size);
-        ctx.lineTo(-star.size, star.size);
+        ctx.moveTo(-effectiveSize, -effectiveSize);
+        ctx.lineTo(effectiveSize, effectiveSize);
+        ctx.moveTo(effectiveSize, -effectiveSize);
+        ctx.lineTo(-effectiveSize, effectiveSize);
         ctx.stroke();
       }
 

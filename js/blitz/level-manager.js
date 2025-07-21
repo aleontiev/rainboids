@@ -1,4 +1,6 @@
 // Level- Handles game phases, spawning, and level progression
+import level1Config from './levels/level1-config.js';
+
 export class LevelManager {
   constructor(game) {
     this.game = game;
@@ -9,6 +11,11 @@ export class LevelManager {
     this.phaseTimer = 0;
     this.executedEvents = new Set(); // Track which events have been executed
 
+    // Enhanced phase tracking for enemy management
+    this.phaseEnemyTracking = new Map(); // Track enemies spawned and killed per phase
+    this.totalEnemiesSpawned = 0;
+    this.totalEnemiesKilled = 0;
+
     // Legacy cleanup phase tracking (for compatibility)
     this.cleanupPhaseTimer = 0;
     this.cleanupEnemiesExploded = false;
@@ -17,437 +24,8 @@ export class LevelManager {
     this.powerupSpawnTimer = 0;
     this.metalSpawnTimer = 0;
 
-    // Game constants - configurable for dynamic difficulty
-    this.config = {
-      // Player settings
-      dashDistance: 150,
-      dashFrames: 40,
-
-      // Enemy settings
-      enemySpawnRate: 0.02,
-      enemySpeed: 2,
-      enemySize: 24,
-
-      // Bullet settings
-      fastBulletSpeed: 16,
-      bulletSpeed: 8,
-      laserSpeed: 80,
-      bulletSize: 6,
-      playerBulletSize: 15,
-      playerLaserSize: 10,
-      playerLaserSpeed: 80,
-      playerSpeed: 6,
-      playerSize: 10,
-      playerHitbox: 6,
-
-      // Laser entity settings
-      laserWidth: 8,
-      laserLength: 100,
-      laserLife: 600,
-
-      // Explosion settings
-      explosionParticles: 12,
-      explosionSpeed: 4,
-      explosionLife: 80,
-      enemyExplosionScale: 3,
-
-      // Asteroid settings
-      asteroidSpawnRate: 0.01,
-      asteroidSpeed: 1,
-      asteroidSize: 40,
-
-      // Powerup settings
-      powerupSize: 25,
-      powerupSpeed: 1,
-
-      // Metal settings
-      metalSize: 60,
-      metalThickness: 6,
-      metalSpeed: 0.5,
-
-      // Audio settings
-      audioVolume: 0.1,
-      musicVolume: 0.3,
-
-      // Colors
-      starColors: [
-        "#a6b3ff",
-        "#c3a6ff",
-        "#f3a6ff",
-        "#ffa6f8",
-        "#ffa6c7",
-        "#ff528e",
-        "#d98cff",
-        "#ff8c00",
-        "#ffffff",
-        "#ffff88",
-      ],
-      enemyRandomColors: [
-        "#ffffff", // White
-        "#ff0000", // Red
-        "#800080", // Purple
-        "#ff8800", // Orange
-        "#ffff00", // Yellow
-      ],
-      powerupColors: {
-        shield: "#00aaff",
-        mainWeapon: "#8844ff",
-        sideWeapon: "#00ccaa",
-        secondShip: "#44ff44",
-        bomb: "#ff4444",
-      },
-
-      // Enemy and powerup types
-      enemyTypes: ["straight", "sine", "zigzag", "circle", "dive", "laser"],
-      powerupTypes: [
-        "shield",
-        "mainWeapon",
-        "sideWeapon",
-        "secondShip",
-        "bomb",
-        "rainbowStar"
-      ],
-      // Spawn rates and timers
-      powerupSpawnRate: 1000,
-      powerupSpawnVariance: 1800,
-      metalSpawnRate: 1800,
-      metalSpawnVariance: 2400,
-
-      // Player weapon cooldowns
-      playerHomingMissileCooldown: 60,
-      playerShieldCooldownMax: 300,
-
-      // Player weapon firing rates by level
-      playerLevel1FireRate: 15,
-      playerLevel2FireRate: 10,
-      playerLevel3FireRate: 7,
-      playerLevel4FireRate: 5,
-      playerLevel5FireRate: 3,
-      playerRainbowInvulnerableTime: 360,
-      playerShieldDuration: 60,
-
-      // Enemy shooting cooldowns
-      enemyShootCooldown: 60,
-      enemyLaserCooldown: 60,
-      enemyCircleShootCooldown: 600,
-      enemySquareCornerCooldown: 60,
-      enemyZigzagShootCooldown: 180,
-
-      // Enemy movement timers
-      enemyZigzagTimer: 30,
-      enemyFadeInTime: 60,
-      enemyCloneInterval: 150,
-      enemyDiveLockDuration: 60,
-      enemyLaserChargeTime: 60,
-      enemyLaserPreviewTime: 90,
-      enemyLaserFiringTime: 60,
-      enemyPulseInterval: 240,
-      enemyPulseVariance: 120,
-
-      // MiniBoss cooldowns
-      miniBossPrimaryWeaponCooldown: 60,
-      miniBossSecondaryWeaponCooldown: 90,
-      miniBossCircularWeaponCooldown: 120,
-      miniBossBurstWeaponCooldown: 90,
-      miniBossEnemySpawnCooldown: 200,
-      miniBossInvulnerableDuration: 180,
-      miniBossDeathDuration: 30,
-      miniBossDeathExplosionInterval: 3,
-      miniBossSize: 90,
-      miniBossMaxHealth: 100,
-      miniBossShield: 50,
-      miniBossMaxShield: 50,
-      miniBossPatrolRange: 150,
-      miniBossTargetYPortrait: 150,
-      miniBossTargetXLandscape: 150,
-      miniBossSecondaryWeaponChargeTime: 60,
-
-      // Boss cooldowns
-      bossEnemySpawnCooldown: 180,
-      bossLeftArmCooldown: 120,
-      bossRightArmCooldown: 90,
-      bossMouthTimer: 60,
-      bossLaserChargeTime: 60,
-      bossLaserPreviewTime: 90,
-      bossLaserSweepDuration: 360,
-      bossSize: 120,
-      bossPatrolRange: 150,
-      bossLaserSweepMaxChargeTime: 120,
-      bossCoreLength: 60,
-
-      // State management timers
-      timeSlowDuration: 300,
-      timeSlowCooldownMax: 900,
-      shieldFlashDuration: 30,
-      timeSlowFlashDuration: 30,
-      rainbowInvulnerableTime: 0,
-
-      // Cleanup phase timers
-      cleanupPhaseMinTime: 5000,
-      cleanupPhaseMaxTime: 6000,
-
-      // Autoplayer timers
-      autoplayShieldTimer: 180,
-      autoplaySlowTimer: 240,
-      autoplayBombTimer: 180,
-      autoplayShieldTimerBoss: 120,
-      autoplaySlowTimerBoss: 180,
-
-      // Death animation timers
-      deathAnimationDuration: 240,
-      deathFadeOutTime: 60,
-
-      // Continuous laser beam timers
-      laserWarningTime: 0,
-
-      // Entity lifetimes and animation
-      particleLife: 60,
-      particleMaxLife: 60,
-      floatingTextLife: 60,
-      bulletLife: 2000,
-
-      // Entity sizes and physics
-      barWidth: 60,
-
-      // Configurable game phases
-      phases: [
-        {
-          // Phase 1: Early game - basic enemies and asteroids
-          id: 1,
-          type: "basic",
-          name: "Initial Assault",
-          
-          transitionCondition: "time",
-          transitionValue: 20000, // 20 seconds
-          
-          enemySpawnRate: {
-            base: 150,
-            variance: 30,
-            timeModifier: {
-              enabled: true,
-              startTime: 0,
-              endTime: 20000,
-              startRate: 150,
-              endRate: 90
-            }
-          },
-          asteroidSpawnRate: 120,
-          powerupSpawnRate: 500,
-          metalSpawnRate: 1800,
-          
-          enemyTypes: ["straight", "sine", "zigzag", "dive"],
-          asteroidTypes: ["small", "medium", "large"],
-          powerupEnabled: true,
-          metalEnabled: true,
-          
-          events: []
-        },
-        {
-          // Phase 2: First miniboss - single miniboss encounter
-          id: 2,
-          type: "basic",
-          name: "First Guardian",
-          
-          transitionCondition: "miniboss_defeated",
-          transitionValue: null,
-          
-          enemySpawnRate: {
-            base: 400, // Slower enemy spawns during miniboss
-            variance: 50
-          },
-          asteroidSpawnRate: 200,
-          powerupSpawnRate: 300,
-          metalSpawnRate: 1800,
-          
-          enemyTypes: ["straight", "sine", "zigzag"],
-          asteroidTypes: ["small", "medium", "large"],
-          powerupEnabled: true,
-          metalEnabled: true,
-          
-          events: [
-            {
-              type: "spawn_single_miniboss",
-              condition: "time",
-              value: 3000, // 3 seconds into phase
-              onlyOnce: true
-            }
-          ]
-        },
-        {
-          // Phase 3: Asteroid storm - lots of asteroids, no enemies
-          id: 3,
-          type: "basic",
-          name: "Asteroid Storm",
-          
-          transitionCondition: "time",
-          transitionValue: 15000, // 15 seconds of asteroid storm
-          
-          enemySpawnRate: {
-            base: 999999 // No enemies
-          },
-          asteroidSpawnRate: 40, // Very fast asteroid spawning
-          powerupSpawnRate: 200,
-          metalSpawnRate: 999999,
-          
-          enemyTypes: [],
-          asteroidTypes: ["small", "medium", "large"],
-          powerupEnabled: true,
-          metalEnabled: false,
-          
-          events: []
-        },
-        {
-          // Phase 4: Dual minibosses - both minibosses spawn
-          id: 4,
-          type: "basic",
-          name: "Twin Guardians",
-          
-          transitionCondition: "miniboss_defeated",
-          transitionValue: null,
-          
-          enemySpawnRate: {
-            base: 500, // Very slow enemy spawns during dual miniboss fight
-            variance: 100
-          },
-          asteroidSpawnRate: 300,
-          powerupSpawnRate: 250,
-          metalSpawnRate: 2000,
-          
-          enemyTypes: ["straight", "circle"],
-          asteroidTypes: ["small", "medium"],
-          powerupEnabled: true,
-          metalEnabled: true,
-          
-          events: [
-            {
-              type: "spawn_miniboss",
-              condition: "time",
-              value: 3000, // 3 seconds into phase
-              onlyOnce: true
-            }
-          ]
-        },
-        {
-          // Phase 5: Second asteroid storm
-          id: 5,
-          type: "basic",
-          name: "Final Storm",
-          
-          transitionCondition: "time",
-          transitionValue: 12000, // 12 seconds of final asteroid storm
-          
-          enemySpawnRate: {
-            base: 999999 // No enemies
-          },
-          asteroidSpawnRate: 35, // Even faster asteroids
-          powerupSpawnRate: 150,
-          metalSpawnRate: 999999,
-          
-          enemyTypes: [],
-          asteroidTypes: ["small", "medium", "large"],
-          powerupEnabled: true,
-          metalEnabled: false,
-          
-          events: []
-        },
-        {
-          // Phase 6: Cleanup phase
-          id: 6,
-          type: "cleanup", 
-          name: "Preparation",
-          
-          transitionCondition: "time",
-          transitionValue: 6000,
-          
-          enemySpawnRate: {
-            base: 999999
-          },
-          asteroidSpawnRate: 999999, // No asteroids during cleanup
-          powerupSpawnRate: 100,
-          metalSpawnRate: 999999,
-          
-          enemyTypes: [],
-          asteroidTypes: [],
-          powerupEnabled: true,
-          metalEnabled: false,
-          
-          events: [
-            {
-              type: "explode_remaining_enemies",
-              condition: "phase_start",
-              value: 0,
-              onlyOnce: true
-            },
-            {
-              type: "spawn_powerups",
-              condition: "time",
-              value: 2000,
-              onlyOnce: true
-            }
-          ]
-        },
-        {
-          // Phase 7: Boss dialog
-          id: 7,
-          type: "dialog",
-          name: "Boss Approaches",
-          
-          transitionCondition: "dialog_complete",
-          transitionValue: null,
-          
-          enemySpawnRate: {
-            base: 999999
-          },
-          asteroidSpawnRate: 999999,
-          powerupSpawnRate: 999999,
-          metalSpawnRate: 999999,
-          
-          enemyTypes: [],
-          asteroidTypes: [],
-          powerupEnabled: false,
-          metalEnabled: false,
-          
-          events: [
-            {
-              type: "trigger_dialog",
-              condition: "enemies_cleared",
-              value: 0,
-              onlyOnce: true
-            }
-          ]
-        },
-        {
-          // Phase 8: Boss fight
-          id: 8,
-          type: "boss",
-          name: "Final Confrontation",
-          
-          transitionCondition: "boss_defeated",
-          transitionValue: null,
-          
-          enemySpawnRate: {
-            base: 999999
-          },
-          asteroidSpawnRate: 999999,
-          powerupSpawnRate: 200,
-          metalSpawnRate: 999999,
-          
-          enemyTypes: [],
-          asteroidTypes: [],
-          powerupEnabled: true,
-          metalEnabled: false,
-          
-          events: [
-            {
-              type: "spawn_boss",
-              condition: "phase_start",
-              value: 0,
-              onlyOnce: true
-            }
-          ]
-        }
-      ],
-    };
+    // Load level configuration
+    this.config = level1Config;
   }
 
   reset() {
@@ -456,10 +34,81 @@ export class LevelManager {
     this.phaseTimer = 0;
     this.executedEvents.clear();
     
+    // Reset enemy tracking
+    this.phaseEnemyTracking.clear();
+    this.totalEnemiesSpawned = 0;
+    this.totalEnemiesKilled = 0;
+    this.initializePhaseTracking();
+    
     // Legacy compatibility
     this.cleanupPhaseTimer = 0;
     this.cleanupEnemiesExploded = false;
     this.cleanupPowerupsSpawned = false;
+  }
+
+  // Initialize tracking for all phases
+  initializePhaseTracking() {
+    for (let i = 0; i < this.config.phases.length; i++) {
+      this.phaseEnemyTracking.set(i, {
+        enemiesSpawned: 0,
+        enemiesKilled: 0,
+        minibossesSpawned: 0,
+        minibossesKilled: 0
+      });
+    }
+  }
+
+  // Get enemy configuration with defaults merged in
+  getEnemyConfig(enemyName) {
+    const baseConfig = this.config.enemies[enemyName];
+    if (!baseConfig) return null;
+    
+    // Merge with defaults
+    return {
+      ...this.config.enemies.defaults,
+      ...baseConfig
+    };
+  }
+
+  // Get player weapon configuration for a specific level
+  getPlayerWeaponConfig(level) {
+    // Clamp level between 1 and max available levels
+    const clampedLevel = Math.max(1, Math.min(level, this.config.player.levels.length));
+    const levelConfig = this.config.player.levels[clampedLevel - 1]; // Convert to 0-based index
+    
+    if (!levelConfig) {
+      console.warn(`No weapon config found for level ${level}, using level 1`);
+      return this.config.player.levels[0];
+    }
+    
+    return levelConfig;
+  }
+
+  // Get player bullet speed for current weapon level (used by autoaimer)
+  getPlayerBulletSpeed(level) {
+    const weaponConfig = this.getPlayerWeaponConfig(level);
+    const firstProjectile = weaponConfig.projectiles[0];
+    return firstProjectile ? firstProjectile.speed : this.config.player.bulletSpeed;
+  }
+
+  // Get player fire rate for current weapon level
+  getPlayerFireRate(level) {
+    const weaponConfig = this.getPlayerWeaponConfig(level);
+    return weaponConfig.fireRate || 15;
+  }
+
+  // Get player secondary weapon configuration for a specific level
+  getPlayerSecondaryWeaponConfig(level) {
+    // Clamp level between 0 and max available secondary levels
+    const clampedLevel = Math.max(0, Math.min(level, this.config.player.secondaryLevels.length - 1));
+    const levelConfig = this.config.player.secondaryLevels[clampedLevel]; // Already 0-based index
+    
+    if (!levelConfig) {
+      console.warn(`No secondary weapon config found for level ${level}, using level 0`);
+      return this.config.player.secondaryLevels[0];
+    }
+    
+    return levelConfig;
   }
 
   // Get current phase configuration
@@ -470,6 +119,97 @@ export class LevelManager {
   // Get current phase number (1-based for compatibility)
   get phase() {
     return this.getCurrentPhase().id;
+  }
+
+  // Track enemy spawning
+  trackEnemySpawned(enemyType) {
+    const phaseTracking = this.phaseEnemyTracking.get(this.currentPhaseIndex);
+    if (phaseTracking) {
+      if (enemyType && (enemyType.includes('boss') || enemyType.includes('miniboss'))) {
+        phaseTracking.minibossesSpawned++;
+      } else {
+        phaseTracking.enemiesSpawned++;
+      }
+    }
+    this.totalEnemiesSpawned++;
+  }
+
+  // Track enemy death
+  trackEnemyKilled(enemyType) {
+    const phaseTracking = this.phaseEnemyTracking.get(this.currentPhaseIndex);
+    if (phaseTracking) {
+      if (enemyType && (enemyType.includes('boss') || enemyType.includes('miniboss'))) {
+        phaseTracking.minibossesKilled++;
+      } else {
+        phaseTracking.enemiesKilled++;
+      }
+    }
+    this.totalEnemiesKilled++;
+  }
+
+  // Check if all enemies in current phase are cleared
+  areEnemiesClearedForPhase() {
+    const currentEnemyCount = this.game.entities.getEnemyCount();
+    const currentMinibossCount = this.game.entities.getMiniBossCount();
+    const phaseTracking = this.phaseEnemyTracking.get(this.currentPhaseIndex);
+    const currentPhase = this.getCurrentPhase();
+    
+    // No enemies currently alive
+    const noEnemiesAlive = currentEnemyCount === 0 && currentMinibossCount === 0;
+    
+    // Check if this phase is supposed to spawn enemies
+    const phaseHasEnemies = Object.keys(currentPhase.enemies || {}).length > 0 || 
+                           currentPhase.events.some(event => event.type === 'spawn_enemy');
+    
+    if (!phaseHasEnemies) {
+      // Phase with no enemies - consider cleared if no enemies alive from previous phases
+      return noEnemiesAlive;
+    }
+    
+    // At least some enemies were spawned in this phase
+    const enemiesWereSpawned = phaseTracking && 
+      (phaseTracking.enemiesSpawned > 0 || phaseTracking.minibossesSpawned > 0);
+    
+    // No future enemy spawn events pending
+    const noFutureSpawns = this.noFutureEnemySpawnsRemaining();
+    
+    return noEnemiesAlive && enemiesWereSpawned && noFutureSpawns;
+  }
+
+  // Check if there are any future enemy spawn events still to execute
+  noFutureEnemySpawnsRemaining() {
+    const currentPhase = this.getCurrentPhase();
+    
+    for (const event of currentPhase.events) {
+      // Skip if already executed and marked as onlyOnce
+      const eventKey = `${this.currentPhaseIndex}-${event.type}-${event.condition}-${event.value}-${event.enemyId || ''}`;
+      if (event.onlyOnce && this.executedEvents.has(eventKey)) {
+        continue;
+      }
+
+      // Check if this is a future enemy spawn event
+      if (event.type === 'spawn_enemy') {
+        let willExecute = false;
+        
+        switch (event.condition) {
+          case "phase_start":
+            willExecute = this.phaseTimer < event.value;
+            break;
+          case "time":
+            willExecute = this.phaseTimer < event.value;
+            break;
+          case "enemies_cleared":
+            // This type of event won't spawn enemies, so skip
+            break;
+        }
+        
+        if (willExecute) {
+          return false; // Future enemy spawn found
+        }
+      }
+    }
+    
+    return true; // No future enemy spawns
   }
 
   update(deltaTime) {
@@ -494,7 +234,7 @@ export class LevelManager {
     const currentPhase = this.getCurrentPhase();
     
     for (const event of currentPhase.events) {
-      const eventKey = `${this.currentPhaseIndex}-${event.type}-${event.condition}-${event.value}`;
+      const eventKey = `${this.currentPhaseIndex}-${event.type}-${event.condition}-${event.value}-${event.enemyId || ''}`;
       
       // Skip if already executed and marked as onlyOnce
       if (event.onlyOnce && this.executedEvents.has(eventKey)) {
@@ -511,7 +251,7 @@ export class LevelManager {
           shouldExecute = this.phaseTimer >= event.value;
           break;
         case "enemies_cleared":
-          shouldExecute = this.game.entities.getEnemyCount() === 0 &&
+          shouldExecute = this.areEnemiesClearedForPhase() &&
                          this.game.entities.enemyBullets.length === 0 &&
                          this.game.entities.enemyLasers.length === 0;
           break;
@@ -530,14 +270,10 @@ export class LevelManager {
     console.log(`Executing event: ${event.type} in phase ${this.phase}`);
     
     switch (event.type) {
-      case "spawn_single_miniboss":
-        if (this.game.entities.getMiniBossCount() === 0) {
-          this.game.entities.spawnSingleMiniBoss();
-        }
-        break;
-      case "spawn_miniboss":
-        if (this.game.entities.getMiniBossCount() === 0) {
-          this.game.entities.spawnMiniBosses();
+      case "spawn_enemy":
+        if (event.enemyId) {
+          this.game.entities.spawnCustomEnemy(event.enemyId, this.config.enemies[event.enemyId]);
+          this.trackEnemySpawned(event.enemyId);
         }
         break;
       case "explode_remaining_enemies":
@@ -549,9 +285,6 @@ export class LevelManager {
       case "trigger_dialog":
         this.game.dialog.show();
         break;
-      case "spawn_boss":
-        this.game.entities.spawnBoss();
-        break;
     }
   }
 
@@ -561,7 +294,7 @@ export class LevelManager {
     // Spawn powerups
     if (currentPhase.powerupEnabled) {
       this.powerupSpawnTimer++;
-      if (this.powerupSpawnTimer > currentPhase.powerupSpawnRate + Math.random() * this.config.powerupSpawnVariance) {
+      if (this.powerupSpawnTimer > currentPhase.powerupSpawnRate + Math.random() * this.config.world.powerupSpawnVariance) {
         this.game.entities.spawnPowerup();
         this.powerupSpawnTimer = 0;
       }
@@ -570,7 +303,7 @@ export class LevelManager {
     // Spawn metals
     if (currentPhase.metalEnabled) {
       this.metalSpawnTimer++;
-      if (this.metalSpawnTimer > currentPhase.metalSpawnRate + Math.random() * this.config.metalSpawnVariance) {
+      if (this.metalSpawnTimer > currentPhase.metalSpawnRate + Math.random() * this.config.world.metalSpawnVariance) {
         this.game.entities.spawnMetal();
         this.metalSpawnTimer = 0;
       }
@@ -587,16 +320,57 @@ export class LevelManager {
       }
     }
 
-    // Spawn enemies
-    if (currentPhase.enemyTypes.length > 0) {
-      this.game.enemySpawnTimer++;
-      const enemySpawnRate = this.calculateEnemySpawnRate();
-      if (this.game.enemySpawnTimer > enemySpawnRate) {
-        console.log(`Spawning enemy: phase=${this.phase}, timer=${this.game.enemySpawnTimer}, rate=${enemySpawnRate}`);
-        this.game.entities.spawnEnemy();
-        this.game.enemySpawnTimer = 0;
+    // Spawn enemies using new phase-specific enemy configuration
+    this.handlePhaseEnemySpawning(currentPhase);
+  }
+
+  // Handle enemy spawning using phase-specific configurations
+  handlePhaseEnemySpawning(currentPhase) {
+    const phaseEnemies = Object.keys(currentPhase.enemies);
+    if (phaseEnemies.length === 0) return;
+
+    // Check each enemy type for spawning
+    for (const enemyName of phaseEnemies) {
+      const phaseEnemyConfig = currentPhase.enemies[enemyName];
+      const spawnRate = this.calculatePhaseEnemySpawnRate(phaseEnemyConfig);
+      
+      if (!this.game[`${enemyName}SpawnTimer`]) {
+        this.game[`${enemyName}SpawnTimer`] = 0;
+      }
+      
+      this.game[`${enemyName}SpawnTimer`]++;
+      
+      if (this.game[`${enemyName}SpawnTimer`] > spawnRate) {
+        // Check weight-based probability
+        if (Math.random() < (phaseEnemyConfig.weight || 1.0)) {
+          console.log(`Spawning phase enemy: ${enemyName}, timer=${this.game[`${enemyName}SpawnTimer`]}, rate=${spawnRate}`);
+          this.trackEnemySpawned(enemyName);
+          this.game.entities.spawnCustomEnemy(enemyName, this.getEnemyConfig(enemyName));
+          this.game[`${enemyName}SpawnTimer`] = 0;
+        }
       }
     }
+  }
+
+  calculatePhaseEnemySpawnRate(phaseEnemyConfig) {
+    const spawnConfig = phaseEnemyConfig.spawnRate;
+    if (!spawnConfig) return 150; // Default spawn rate
+    
+    let rate = spawnConfig.base;
+    
+    // Apply variance
+    if (spawnConfig.variance) {
+      rate += (Math.random() - 0.5) * spawnConfig.variance * 2;
+    }
+    
+    // Apply time modifier
+    if (spawnConfig.timeModifier && spawnConfig.timeModifier.enabled) {
+      const tm = spawnConfig.timeModifier;
+      const progress = Math.min(1, this.phaseTimer / (tm.endTime - tm.startTime));
+      rate = tm.startRate + (tm.endRate - tm.startRate) * progress;
+    }
+    
+    return Math.max(1, Math.floor(rate));
   }
 
   calculateEnemySpawnRate() {
@@ -629,16 +403,15 @@ export class LevelManager {
         shouldTransition = this.phaseTimer >= currentPhase.transitionValue;
         break;
       case "enemies_cleared":
-        shouldTransition = this.game.entities.getEnemyCount() === 0;
+        shouldTransition = this.areEnemiesClearedForPhase();
         break;
       case "miniboss_defeated":
-        // Add 1 second cooldown before checking miniboss defeat to allow time for spawning
-        if (this.phaseTimer >= 1000) {
-          shouldTransition = this.game.entities.getMiniBossCount() === 0;
-        }
+        // Use the same consolidated logic as enemies_cleared
+        // This consolidates both miniboss_defeated and enemies_cleared conditions
+        shouldTransition = this.areEnemiesClearedForPhase();
         break;
       case "boss_defeated":
-        shouldTransition = this.game.entities.boss && this.game.entities.boss.health <= 0;
+        shouldTransition = this.game.entities.boss && this.game.entities.boss.isDefeated;
         break;
       case "dialog_complete":
         shouldTransition = this.game.dialog && !this.game.dialog.isActive;

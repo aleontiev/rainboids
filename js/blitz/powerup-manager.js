@@ -15,7 +15,7 @@ export class PowerupManager {
       case "mainWeapon":
         this.game.player.mainWeaponLevel = Math.min(
           this.game.player.mainWeaponLevel + 1,
-          3
+          5
         );
         this.game.audio.play(this.game.audio.sounds.powerup);
         this.game.state.addScore(50);

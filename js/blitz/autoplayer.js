@@ -37,11 +37,7 @@ export class Autoplayer {
   get autoplayBombTimer() { return this.abilityManager.autoplayBombTimer; }
   set autoplayBombTimer(value) { this.abilityManager.autoplayBombTimer = value; }
   
-  get lastBossPhase() { return this.abilityManager.lastBossPhase; }
-  set lastBossPhase(value) { this.abilityManager.lastBossPhase = value; }
   
-  get lastBossArmsDestroyed() { return this.abilityManager.lastBossArmsDestroyed; }
-  set lastBossArmsDestroyed(value) { this.abilityManager.lastBossArmsDestroyed = value; }
   
   get currentMovementGoal() { return this.movementCalculator.currentMovementGoal; }
   set currentMovementGoal(value) { this.movementCalculator.currentMovementGoal = value; }
@@ -332,7 +328,7 @@ export class Autoplayer {
           threat.y + threat.vy * prediction.timeToCollision
         );
         
-        const safeDistance = threat.radius + 6 + 30;
+        const safeDistance = threat.radius + 9 + 30; // Using enhanced safety buffer (1.5x hitbox)
         if (futureDistance < safeDistance) {
           const proximityFactor = 1.0 - (futureDistance / safeDistance);
           safetyScore *= (1.0 - proximityFactor * 0.8);
@@ -653,12 +649,6 @@ export class Autoplayer {
     return this.threatAssessment.countNearbyProjectiles(enemyBullets, enemyLasers, radius);
   }
 
-  /**
-   * Detect boss phase changes
-   */
-  detectBossPhaseChange(boss) {
-    return this.abilityManager.detectBossPhaseChange(boss);
-  }
 
   /**
    * Get ability timers
@@ -672,7 +662,6 @@ export class Autoplayer {
    */
   reset() {
     this.abilityManager.resetAbilityTimers();
-    this.abilityManager.resetBossPhaseTracking();
     this.movementCalculator.currentMovementGoal = null;
     this.movementCalculator.goalTimer = 0;
     this.autoplayMovementTimer = 0;

@@ -103,12 +103,10 @@ export class Bullet {
 
     ctx.fill();
     
-    // Add white stroke for enemy bullets
-    if (!this.isPlayerBullet) {
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
+    // Add white stroke for all bullets
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1;
+    ctx.stroke();
     
     ctx.restore();
   }

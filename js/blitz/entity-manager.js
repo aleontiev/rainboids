@@ -2,14 +2,19 @@
 
 import {
   Enemy,
+  createEnemyFromConfig,
+  createEnemy,
+  // Legacy exports for backward compatibility
   StraightEnemy,
   SineEnemy,
   ZigzagEnemy,
   CircleEnemy,
   DiveEnemy,
   LaserEnemy,
+  PulseEnemy,
+  SquareEnemy,
 } from "./entities/enemy.js";
-import { MiniBoss, AlphaMiniBoss, BetaMiniBoss } from "./entities/miniboss.js";
+import { MiniBoss } from "./entities/miniboss.js";
 import { Boss } from "./entities/boss.js";
 import { Asteroid } from "./entities/asteroid.js";
 import { Metal } from "./entities/metal.js";
@@ -186,6 +191,10 @@ export class EntityManager {
     return asteroid;
   }
 
+  createEnemyFromConfig(configName, x, y, isClone = false, generation = 0) {
+    return createEnemyFromConfig(configName, x, y, this.game.isPortrait, this.game, isClone, generation);
+  }
+
   spawnEnemy() {
     const canvas = this.game.canvas;
     let spawnX, spawnY;
@@ -198,99 +207,55 @@ export class EntityManager {
       spawnY = Math.random() * canvas.height;
     }
 
-    const enemyTypes = [
-      "straight",
-      "sine",
-      "zigzag",
-      "circle",
-      "dive",
-      "laser",
-    ];
-    const randomType =
-      enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-
-    // Create the appropriate enemy type
-    let enemy;
-    switch (randomType) {
-      case "straight":
-        enemy = new StraightEnemy(
-          spawnX,
-          spawnY,
-          this.game.isPortrait,
-          null,
-          false,
-          this.game
-        );
-        break;
-      case "sine":
-        enemy = new SineEnemy(
-          spawnX,
-          spawnY,
-          this.game.isPortrait,
-          null,
-          false,
-          this.game
-        );
-        break;
-      case "zigzag":
-        enemy = new ZigzagEnemy(
-          spawnX,
-          spawnY,
-          this.game.isPortrait,
-          null,
-          false,
-          this.game
-        );
-        break;
-      case "circle":
-        enemy = new CircleEnemy(
-          spawnX,
-          spawnY,
-          this.game.isPortrait,
-          null,
-          false,
-          this.game
-        );
-        break;
-      case "dive":
-        enemy = new DiveEnemy(
-          spawnX,
-          spawnY,
-          this.game.isPortrait,
-          null,
-          false,
-          this.game
-        );
-        break;
-      case "laser":
-        enemy = new LaserEnemy(
-          spawnX,
-          spawnY,
-          this.game.isPortrait,
-          null,
-          false,
-          this.game
-        );
-        break;
-      default:
-        enemy = new StraightEnemy(
-          spawnX,
-          spawnY,
-          this.game.isPortrait,
-          null,
-          false,
-          this.game
-        );
-        break;
+    // Get basic enemy config names (filter out minibosses and bosses)
+    const enemyConfigs = this.game?.level?.config?.enemies;
+    if (!enemyConfigs) {
+      console.warn("No enemy configs found, falling back to default spawning");
+      // Fallback using legacy createEnemy function
+      const enemyTypes = ["straight", "sine", "zigzag", "circle", "dive", "laser"];
+      const randomType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+      
+      const enemy = createEnemy(randomType, spawnX, spawnY, this.game.isPortrait, null, false, this.game);
+      
+      if (enemy) {
+        console.log(`Spawned fallback enemy: ${randomType}`);
+        this.enemies.push(enemy);
+        this.updateAllEnemiesList();
+      }
+      return enemy;
     }
-
-    console.log(
-      `Spawned enemy type: ${randomType}, class: ${
-        enemy.constructor.name
-      }, has shoot method: ${typeof enemy.shoot === "function"}`
+    
+    const basicEnemyConfigs = Object.keys(enemyConfigs).filter(
+      name => {
+        const config = enemyConfigs[name];
+        return config !== enemyConfigs.defaults && !config.type?.includes("boss");
+      }
     );
-    this.enemies.push(enemy);
-    this.updateAllEnemiesList();
+    
+    if (basicEnemyConfigs.length === 0) {
+      console.warn("No basic enemy configs found, using straightBasic");
+      const enemy = this.createEnemyFromConfig("straightBasic", spawnX, spawnY);
+      if (enemy) {
+        this.enemies.push(enemy);
+        this.updateAllEnemiesList();
+      }
+      return enemy;
+    }
+    
+    const randomConfigName = basicEnemyConfigs[Math.floor(Math.random() * basicEnemyConfigs.length)];
+
+    // Create enemy using config system
+    const enemy = this.createEnemyFromConfig(randomConfigName, spawnX, spawnY);
+
+    if (enemy) {
+      console.log(
+        `Spawned enemy config: ${randomConfigName}, movement: ${enemy.config?.movementPattern}, attack: ${enemy.config?.attackPattern}`
+      );
+      this.enemies.push(enemy);
+      this.updateAllEnemiesList();
+    } else {
+      console.warn(`Failed to create enemy from config: ${randomConfigName}`);
+    }
     return enemy;
   }
 
@@ -383,58 +348,110 @@ export class EntityManager {
     return metal;
   }
 
-  spawnMiniBosses() {
+  spawnCustomEnemy(enemyId, enemyDef) {
+    if (!enemyDef) {
+      console.error(`Enemy definition not found for ${enemyId}`);
+      return;
+    }
+
     const canvas = this.game.canvas;
-
-    // Spawn Alpha miniboss
-    const alphaX = this.game.isPortrait
-      ? canvas.width / 2 - 100
-      : canvas.width - 150;
-    const alphaY = this.game.isPortrait ? 150 : canvas.height / 2 - 100;
-    const alphaMiniBoss = new AlphaMiniBoss(
-      alphaX,
-      alphaY,
-      this.game.isPortrait,
-      canvas.width,
-      this.game
-    );
-    this.miniBosses.push(alphaMiniBoss);
-
-    // Spawn Beta miniboss
-    const betaX = this.game.isPortrait
-      ? canvas.width / 2 + 100
-      : canvas.width - 150;
-    const betaY = this.game.isPortrait ? 150 : canvas.height / 2 + 100;
-    const betaMiniBoss = new BetaMiniBoss(
-      betaX,
-      betaY,
-      this.game.isPortrait,
-      canvas.width,
-      this.game
-    );
-    this.miniBosses.push(betaMiniBoss);
-
+    
+    // Calculate spawn position based on enemy type and count
+    let x, y;
+    
+    if (enemyDef.type === "miniboss") {
+      // For minibosses, offset based on current miniboss count
+      const minibossCount = this.getMiniBossCount();
+      if (this.game.isPortrait) {
+        x = canvas.width / 2 + (minibossCount % 2 === 0 ? -100 : 100);
+        y = 150 + Math.floor(minibossCount / 2) * 100;
+      } else {
+        x = canvas.width - 150;
+        y = canvas.height / 2 + (minibossCount % 2 === 0 ? -100 : 100);
+      }
+      
+      // Create miniboss with configuration
+      const miniBoss = new MiniBoss(x, y, this.game.isPortrait, canvas.width, this.game);
+      
+      // Apply enemy definition properties
+      if (enemyDef.health) miniBoss.health = enemyDef.health;
+      if (enemyDef.maxHealth) miniBoss.maxHealth = enemyDef.maxHealth;
+      if (enemyDef.shield) miniBoss.shield = enemyDef.shield;
+      if (enemyDef.maxShield) miniBoss.maxShield = enemyDef.maxShield;
+      if (enemyDef.speed) miniBoss.speed = enemyDef.speed;
+      if (enemyDef.size) miniBoss.size = enemyDef.size;
+      
+      // Set sprite if defined
+      if (enemyDef.sprite) {
+        miniBoss.setCustomSVGSprite(
+          enemyDef.sprite,
+          enemyDef.spriteScale || 1,
+          enemyDef.spriteColor || "#ff4444"
+        );
+        if (enemyDef.spriteRotation) {
+          miniBoss.spriteRotation = enemyDef.spriteRotation;
+        }
+      }
+      
+      // Configure weapons
+      if (enemyDef.weapons) {
+        this.configureMiniBossWeapons(miniBoss, enemyDef.weapons);
+      }
+      
+      this.miniBosses.push(miniBoss);
+      
+    } else if (enemyDef.type === "boss") {
+      // Spawn boss (reuse existing logic)
+      if (this.boss) {
+        console.warn("Boss already exists");
+        return;
+      }
+      this.spawnBoss();
+      
+    } else {
+      // Handle regular enemy types
+      this.spawnEnemyWithConfig(enemyDef);
+    }
+    
     this.updateAllEnemiesList();
   }
 
-  spawnSingleMiniBoss() {
+  // Spawn regular enemy with configuration  
+  spawnEnemyWithConfig(enemyDef) {
     const canvas = this.game.canvas;
+    
+    // Calculate spawn position
+    let x, y;
+    if (this.game.isPortrait) {
+      x = Math.random() * (canvas.width - 100) + 50;
+      y = -50;
+    } else {
+      x = canvas.width + 50;
+      y = Math.random() * (canvas.height - 100) + 50;
+    }
 
-    // Spawn only Alpha miniboss for single miniboss encounters
-    const alphaX = this.game.isPortrait
-      ? canvas.width / 2
-      : canvas.width - 150;
-    const alphaY = this.game.isPortrait ? 150 : canvas.height / 2;
-    const alphaMiniBoss = new AlphaMiniBoss(
-      alphaX,
-      alphaY,
-      this.game.isPortrait,
-      canvas.width,
-      this.game
-    );
-    this.miniBosses.push(alphaMiniBoss);
+    // Create enemy using new data-driven system
+    const enemy = new Enemy(x, y, this.game.isPortrait, enemyDef, false, 0, this.game);
 
-    this.updateAllEnemiesList();
+    if (enemy) {
+      this.enemies.push(enemy);
+    }
+  }
+  
+  configureMiniBossWeapons(miniBoss, weapons) {
+    // Override the default weapon firing methods based on configuration
+    weapons.forEach((weapon, index) => {
+      miniBoss.addAttack(weapon.name || `weapon_${index}`, weapon);
+      
+      // Update cooldowns if specified
+      if (weapon.name === "primary" && weapon.cooldown) {
+        miniBoss.primaryWeaponCooldown = weapon.cooldown;
+      } else if (weapon.name === "secondary" && weapon.cooldown) {
+        miniBoss.secondaryWeaponCooldown = weapon.cooldown;
+      } else if (weapon.name === "circular" && weapon.cooldown) {
+        miniBoss.circularWeaponCooldown = weapon.cooldown;
+      }
+    });
   }
 
   spawnBoss() {
@@ -447,7 +464,8 @@ export class EntityManager {
       bossY,
       this.game.isPortrait,
       canvas.width,
-      canvas.height
+      canvas.height,
+      this.game
     );
     this.updateAllEnemiesList();
     return this.boss;
@@ -806,71 +824,69 @@ export class EntityManager {
   }
 
   handleBossWeapons(boss) {
-    // Fire left arm lasers (now handles continuous laser beam)
-    const leftArmLasers = boss.fireLeftArm(
-      this.game.player.x,
-      this.game.player.y
-    );
-    leftArmLasers.forEach((data) => {
-      this.enemyLasers.push(
-        new Laser(data.x, data.y, data.angle, data.speed, data.color, this.game)
-      );
-    });
-
-    // Update continuous laser beam if active and arm is not destroyed
-    if (boss.leftArm && boss.leftArm.activeLaser && !boss.leftArm.destroyed) {
-      // Keep laser aligned with cannon position
-      boss.leftArm.activeLaser.updateOrigin(boss.leftArm.x, boss.leftArm.y);
-
-      const stillActive = boss.leftArm.activeLaser.update(
-        1.0,
-        this.metals,
-        this.game.player.x,
-        this.game.player.y
-      );
-      if (!stillActive) {
-        boss.leftArm.activeLaser = null;
+    // Fire weapons for all enabled parts
+    for (const part of boss.parts.values()) {
+      if (!part.enabled || part.destroyed || part.cooldown > 0 || !part.canAttack) continue;
+      
+      const weaponData = boss.firePartWeapon(part.id, this.game.player.x, this.game.player.y);
+      
+      // Handle projectiles
+      if (weaponData.projectiles) {
+        weaponData.projectiles.forEach((bulletData) => {
+          this.createEnemyBullet(bulletData);
+        });
       }
-    } else if (boss.leftArm && boss.leftArm.activeLaser && boss.leftArm.destroyed) {
-      // Clean up laser if arm was destroyed
-      boss.leftArm.activeLaser = null;
+      
+      // Handle lasers
+      if (weaponData.lasers) {
+        weaponData.lasers.forEach((data) => {
+          this.enemyLasers.push(
+            new Laser(data.x, data.y, data.angle, data.speed, data.color, this.game)
+          );
+        });
+      }
+      
+      // Handle enemy spawns
+      if (weaponData.enemies) {
+        weaponData.enemies.forEach((enemyData) => {
+          this.enemies.push(
+            new Enemy(
+              enemyData.x,
+              enemyData.y,
+              enemyData.type,
+              this.game.isPortrait,
+              null,
+              false,
+              this.game
+            )
+          );
+        });
+        
+        if (weaponData.enemies.length > 0) {
+          this.updateAllEnemiesList();
+        }
+      }
     }
-
-    // Fire right arm bullets
-    const rightArmBullets = boss.fireRightArm(
-      this.game.player.x,
-      this.game.player.y
-    );
-    rightArmBullets.forEach((bulletData) => {
-      this.createEnemyBullet(bulletData);
-    });
-
-    // Fire final phase attacks
-    const finalPhaseData = boss.fireFinalPhase(
-      this.game.player.x,
-      this.game.player.y
-    );
-    finalPhaseData.bullets.forEach((bulletData) => {
-      this.createEnemyBullet(bulletData);
-    });
-
-    // Spawn enemies in final phase
-    finalPhaseData.enemies.forEach((enemyData) => {
-      this.enemies.push(
-        new Enemy(
-          enemyData.x,
-          enemyData.y,
-          enemyData.type,
-          this.game.isPortrait,
-          null,
-          false,
-          this.game
-        )
-      );
-    });
-
-    if (finalPhaseData.enemies.length > 0) {
-      this.updateAllEnemiesList();
+    
+    // Update continuous laser beams for all parts
+    for (const part of boss.parts.values()) {
+      if (part.activeLaser && !part.destroyed) {
+        // Keep laser aligned with part position
+        part.activeLaser.updateOrigin(part.x, part.y);
+        
+        const stillActive = part.activeLaser.update(
+          1.0,
+          this.metals,
+          this.game.player.x,
+          this.game.player.y
+        );
+        if (!stillActive) {
+          part.activeLaser = null;
+        }
+      } else if (part.activeLaser && part.destroyed) {
+        // Clean up laser if part was destroyed
+        part.activeLaser = null;
+      }
     }
   }
 
@@ -940,13 +956,15 @@ export class EntityManager {
     // Normal enemies use the shoot method
     if (enemy && typeof enemy.shoot === "function") {
       const bulletCountBefore = this.enemyBullets.length;
-      enemy.shoot(this.enemyBullets, this.game.player);
+      const laserCountBefore = this.enemyLasers.length;
+      enemy.shoot(this.enemyBullets, this.enemyLasers, this.game.player);
       const bulletCountAfter = this.enemyBullets.length;
-      if (bulletCountAfter > bulletCountBefore) {
+      const laserCountAfter = this.enemyLasers.length;
+      if (bulletCountAfter > bulletCountBefore || laserCountAfter > laserCountBefore) {
         console.log(
-          `Enemy ${enemy.type} shot ${
+          `Enemy ${enemy.config?.movementPattern || 'unknown'} shot ${
             bulletCountAfter - bulletCountBefore
-          } bullets`
+          } bullets and ${laserCountAfter - laserCountBefore} lasers`
         );
       }
     } else {
@@ -959,12 +977,14 @@ export class EntityManager {
   removeDestroyedEnemy(enemy) {
     // Remove from appropriate array
     let removed = false;
+    let enemyType = 'regular';
 
     // Check enemies array
     const enemyIndex = this.enemies.indexOf(enemy);
     if (enemyIndex !== -1) {
       this.enemies.splice(enemyIndex, 1);
       removed = true;
+      enemyType = enemy.type || 'regular';
     }
 
     // Check minibosses array
@@ -972,6 +992,7 @@ export class EntityManager {
     if (miniBossIndex !== -1) {
       this.miniBosses.splice(miniBossIndex, 1);
       removed = true;
+      enemyType = 'miniboss';
 
       // Miniboss defeat state is now determined dynamically by checking this.miniBosses.length
     }
@@ -980,9 +1001,14 @@ export class EntityManager {
     if (this.boss === enemy) {
       this.boss = null;
       removed = true;
+      enemyType = 'boss';
     }
 
     if (removed) {
+      // Track enemy destruction in level manager
+      if (this.game.level) {
+        this.game.level.trackEnemyKilled(enemyType);
+      }
       this.updateAllEnemiesList();
     }
 

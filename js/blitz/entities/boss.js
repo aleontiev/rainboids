@@ -2,8 +2,8 @@ import { MiniBoss } from "./miniboss.js";
 import { ContinuousLaserBeam } from "./continuous-laser-beam.js";
 
 export class Boss extends MiniBoss {
-  constructor(x, y, isPortrait, canvasWidth, canvasHeight) {
-    super(x, y, isPortrait, canvasWidth); // Call MiniBoss constructor
+  constructor(x, y, isPortrait, canvasWidth, canvasHeight, game = null) {
+    super(x, y, isPortrait, canvasWidth, game); // Call MiniBoss constructor with game
     this.canvasWidth = canvasWidth;
     this.canvasHeight = canvasHeight;
     this.type = "boss"; // Override miniboss type
@@ -43,10 +43,22 @@ export class Boss extends MiniBoss {
     this.bodyAngle = 0; // Initialize body angle
     this.invulnerable = false; // For consistency with base enemy class
 
-    // Death sequence
+    // Enhanced death sequence
     this.isDefeated = false;
     this.deathTimer = 0;
+    this.deathDuration = 400; // 6.67 seconds - longer than miniboss
     this.explosionTimer = 0;
+    this.deathExplosionInterval = 5; // Very frequent explosions
+    this.deathBlinkTimer = 0;
+    this.deathBlinkInterval = 3; // Very rapid blinking
+    this.showRedFlash = false;
+    this.opacity = 1.0;
+    this.fadeOutStarted = false;
+    this.deathSoundTimer = 0;
+    this.deathSoundInterval = 25; // More frequent sounds than miniboss
+    this.deathExplosionCount = 0;
+    this.maxDeathExplosions = 35; // Many more explosions for boss
+    this.finalExplosionTriggered = false;
 
     // Initialize configuration
     this.initializeConfig();
@@ -67,32 +79,36 @@ export class Boss extends MiniBoss {
           endValue: null,
           
           // Parts active in this phase
-          activeParts: ["leftArm", "rightArm"],
+          activeParts: ["leftArm", "rightArm", "body"],
           
           // Part configurations for this phase
           partConfigs: {
             leftArm: {
               invulnerable: false,
               invulnerabilityDuration: 0,
-              enabled: true
+              enabled: true,
+              canAttack: true // Arms can attack in phase 1
             },
             rightArm: {
               invulnerable: false, 
               invulnerabilityDuration: 0,
-              enabled: true
+              enabled: true,
+              canAttack: true // Arms can attack in phase 1
             },
             body: {
               invulnerable: true, // Body is invulnerable in phase 1
               invulnerabilityDuration: 0,
-              enabled: false
+              enabled: true, // Body is visible in phase 1
+              canAttack: false // Body cannot attack in phase 1
             }
           },
           
           // Phase-specific behavior
-          behaviorConfig: {
-            leftArmAttackRate: 120, // 2 seconds
-            rightArmAttackRate: 90,  // 1.5 seconds
-            bodyAttackRate: null,    // No body attacks in phase 1
+          behavior: {
+            partAttackRates: {
+              leftArm: 120,   // 2 seconds
+              rightArm: 90    // 1.5 seconds
+            },
             enemySpawnRate: null     // No enemy spawning in phase 1
           }
         },
@@ -114,9 +130,9 @@ export class Boss extends MiniBoss {
             }
           },
           
-          behaviorConfig: {
+          behavior: {
             dialogText: "YOU DARE DESTROY MY ARMS?! I'LL CRUSH YOU WITH MY BARE HANDS!",
-            bodyAttackRate: null,
+            partAttackRates: {},
             enemySpawnRate: null
           }
         },
@@ -135,13 +151,16 @@ export class Boss extends MiniBoss {
               invulnerable: false, // Body becomes vulnerable
               invulnerabilityDuration: 0,
               enabled: true,
+              canAttack: true, // Body can attack in phase 3
               hasShield: true,
               maxShield: 1000
             }
           },
           
-          behaviorConfig: {
-            bodyAttackRate: 3, // Very fast rainbow spiral attacks
+          behavior: {
+            partAttackRates: {
+              body: 3  // Very fast rainbow spiral attacks
+            },
             enemySpawnRate: 180, // Spawn enemies every 3 seconds
             enraged: true
           }
@@ -269,21 +288,20 @@ export class Boss extends MiniBoss {
           enraged: false
         }),
         
-        // Method to check if part can be targeted by auto-aim
-        isVulnerableToAutoAim: function() {
+        // Method to check if part is vulnerable
+        isVulnerable: function() {
           return this.enabled && !this.destroyed && !this.invulnerable;
         }
       };
       
       this.parts.set(partId, part);
+      console.log(`Initialized boss part ${partId}: health=${part.health}, maxHealth=${part.maxHealth}`);
     }
 
-    // Set up legacy properties for backward compatibility
-    this.leftArm = this.parts.get("leftArm");
-    this.rightArm = this.parts.get("rightArm");
-    this.bodyPart = this.parts.get("body");
-    this.health = this.bodyPart.health;
-    this.maxHealth = this.bodyPart.maxHealth;
+    // Set up health tracking from body part
+    const bodyPart = this.parts.get("body");
+    this.health = bodyPart.health;
+    this.maxHealth = bodyPart.maxHealth;
 
     // Initialize first phase
     this.transitionToPhase(0);
@@ -330,6 +348,9 @@ export class Boss extends MiniBoss {
       part.enabled = partConfig.enabled;
       part.invulnerable = partConfig.invulnerable;
       part.invulnerabilityTimer = partConfig.invulnerabilityDuration || 0;
+      part.canAttack = partConfig.canAttack !== false; // Default to true if not specified
+      
+      console.log(`Configured part ${partId}: enabled=${part.enabled}, invulnerable=${part.invulnerable}, canAttack=${part.canAttack}, health=${part.health}`);
       
       // Special configurations
       if (partConfig.hasShield && part.type === "core") {
@@ -339,23 +360,34 @@ export class Boss extends MiniBoss {
     }
     
     // Apply behavior config
-    const behaviorConfig = phase.behaviorConfig;
-    if (behaviorConfig) {
-      // Update part cooldowns
-      if (behaviorConfig.leftArmAttackRate && this.leftArm) {
-        this.leftArm.maxCooldown = behaviorConfig.leftArmAttackRate;
+    const behavior = phase.behavior;
+    if (behavior) {
+      // Update part attack rates
+      if (behavior.partAttackRates) {
+        for (const [partId, attackRate] of Object.entries(behavior.partAttackRates)) {
+          const part = this.parts.get(partId);
+          if (part) {
+            part.maxCooldown = attackRate;
+          }
+        }
       }
-      if (behaviorConfig.rightArmAttackRate && this.rightArm) {
-        this.rightArm.maxCooldown = behaviorConfig.rightArmAttackRate;
+      
+      // Update enemy spawn rate for core parts
+      if (behavior.enemySpawnRate) {
+        for (const part of this.parts.values()) {
+          if (part.type === "core") {
+            part.enemySpawnCooldown = behavior.enemySpawnRate;
+          }
+        }
       }
-      if (behaviorConfig.bodyAttackRate && this.bodyPart) {
-        this.bodyPart.maxCooldown = behaviorConfig.bodyAttackRate;
-      }
-      if (behaviorConfig.enemySpawnRate && this.bodyPart) {
-        this.bodyPart.enemySpawnCooldown = behaviorConfig.enemySpawnRate;
-      }
-      if (behaviorConfig.enraged && this.bodyPart) {
-        this.bodyPart.enraged = behaviorConfig.enraged;
+      
+      // Update enraged status for core parts
+      if (behavior.enraged !== undefined) {
+        for (const part of this.parts.values()) {
+          if (part.type === "core") {
+            part.enraged = behavior.enraged;
+          }
+        }
       }
     }
   }
@@ -373,7 +405,7 @@ export class Boss extends MiniBoss {
         const activeParts = currentPhase.activeParts
           .map(partId => this.parts.get(partId))
           .filter(part => part && part.enabled && !part.invulnerable);
-        shouldTransition = activeParts.every(part => part.destroyed || part.health <= 0);
+        shouldTransition = activeParts.every(part => part.destroyed || part.health <= 0.01);
         break;
       case "health_threshold":
         shouldTransition = this.health <= currentPhase.endValue;
@@ -385,10 +417,11 @@ export class Boss extends MiniBoss {
     }
   }
 
-  // Check if this boss can be targeted by auto-aim
-  isVulnerableToAutoAim() {
+  // Check if this boss is vulnerable
+  isVulnerable() {
     // Body is only vulnerable if enabled and not invulnerable
-    return this.bodyPart.enabled && !this.bodyPart.invulnerable && !this.bodyPart.destroyed;
+    const bodyPart = this.parts.get("body");
+    return bodyPart && bodyPart.enabled && !bodyPart.invulnerable && !bodyPart.destroyed;
   }
 
   // Get all targetable parts for auto-aim
@@ -396,7 +429,7 @@ export class Boss extends MiniBoss {
     const targets = [];
     
     for (const part of this.parts.values()) {
-      if (!part.isVulnerableToAutoAim()) continue;
+      if (!part.isVulnerable()) continue;
       
       let targetType, armType;
       switch (part.type) {
@@ -437,7 +470,90 @@ export class Boss extends MiniBoss {
     
     if (this.isDefeated) {
       this.deathTimer++;
-      return;
+      this.explosionTimer++;
+      this.deathBlinkTimer++;
+      this.deathSoundTimer++;
+
+      // Handle rapid red blinking effect
+      if (this.deathBlinkTimer >= this.deathBlinkInterval) {
+        this.deathBlinkTimer = 0;
+        this.showRedFlash = !this.showRedFlash;
+      }
+
+      // Start fade out in the last third of death sequence
+      if (this.deathTimer >= this.deathDuration * 0.66 && !this.fadeOutStarted) {
+        this.fadeOutStarted = true;
+      }
+
+      // Fade out gradually
+      if (this.fadeOutStarted) {
+        const fadeProgress = (this.deathTimer - this.deathDuration * 0.66) / (this.deathDuration * 0.34);
+        this.opacity = Math.max(0, 1 - fadeProgress);
+      }
+
+      // Play cascading boss death sounds
+      if (this.deathSoundTimer >= this.deathSoundInterval && this.deathExplosionCount < this.maxDeathExplosions) {
+        this.deathSoundTimer = 0;
+        return {
+          type: "death_sound",
+          soundType: "bossExplosion"
+        };
+      }
+
+      // Trigger massive final explosion when death timer is complete
+      if (
+        this.deathTimer >= this.deathDuration &&
+        !this.finalExplosionTriggered
+      ) {
+        this.finalExplosionTriggered = true;
+        return {
+          type: "final_boss_explosion",
+          x: this.x,
+          y: this.y,
+          size: this.size * 4, // Massive final explosion
+          soundType: "megaBossExplosion"
+        };
+      }
+
+      // Create intense explosion pattern around the boss
+      if (this.explosionTimer >= this.deathExplosionInterval && this.deathExplosionCount < this.maxDeathExplosions) {
+        this.explosionTimer = 0;
+        this.deathExplosionCount++;
+        
+        // Create escalating explosion pattern with multiple explosions per cycle
+        const explosionsThisCycle = Math.min(3, Math.floor(1 + this.deathExplosionCount / 10)); // More explosions as death progresses
+        const explosions = [];
+        
+        for (let i = 0; i < explosionsThisCycle; i++) {
+          const explosionAngle = Math.random() * Math.PI * 2;
+          const baseDistance = this.size * 0.3;
+          const maxDistance = this.size * 2.0;
+          const progressFactor = this.deathExplosionCount / this.maxDeathExplosions;
+          const explosionDistance = baseDistance + (maxDistance - baseDistance) * progressFactor * Math.random();
+          
+          const explosionX = this.x + Math.cos(explosionAngle) * explosionDistance;
+          const explosionY = this.y + Math.sin(explosionAngle) * explosionDistance;
+          
+          // Much larger explosions as death progresses
+          const baseSize = 50;
+          const maxSize = 120;
+          const explosionSize = baseSize + (maxSize - baseSize) * progressFactor + Math.random() * 30;
+          
+          explosions.push({
+            x: explosionX,
+            y: explosionY,
+            size: explosionSize,
+            intensity: progressFactor
+          });
+        }
+        
+        return {
+          type: "boss_death_explosions",
+          explosions: explosions
+        };
+      }
+
+      return "dying";
     }
 
     // Check for phase transitions
@@ -480,12 +596,15 @@ export class Boss extends MiniBoss {
       this.hitFlash--;
     }
 
-    // Sync legacy properties
-    this.health = this.bodyPart.health;
-    this.shield = this.bodyPart.shield || 0;
-    this.maxShield = this.bodyPart.maxShield || 0;
-    this.finalPhase = this.bodyPart.enabled && !this.bodyPart.invulnerable;
-    this.enraged = this.bodyPart.enraged || false;
+    // Sync health and shield from body part
+    const bodyPart = this.parts.get("body");
+    if (bodyPart) {
+      this.health = bodyPart.health;
+      this.shield = bodyPart.shield || 0;
+      this.maxShield = bodyPart.maxShield || 0;
+      this.finalPhase = bodyPart.enabled && !bodyPart.invulnerable;
+      this.enraged = bodyPart.enraged || false;
+    }
   }
 
   updateParts(playerX, playerY) {
@@ -610,7 +729,7 @@ export class Boss extends MiniBoss {
   takeDamage(damage, bulletX, bulletY) {
     const hitPart = this.getHitPart(bulletX, bulletY);
     
-    if (!hitPart || hitPart.invulnerable) return false;
+    if (!hitPart || hitPart.invulnerable) return "invulnerable";
 
     this.hitFlash = 10;
     hitPart.hitFlash = 10;
@@ -626,8 +745,8 @@ export class Boss extends MiniBoss {
       hitPart.health -= damage;
     }
     
-    // Check if part is destroyed
-    if (hitPart.health <= 0) {
+    // Check if part is destroyed (handle floating point precision)
+    if (hitPart.health <= 0.01) {
       hitPart.health = 0;
       hitPart.destroyed = true;
       
@@ -639,90 +758,102 @@ export class Boss extends MiniBoss {
       
       if (hitPart.type === "core") {
         this.isDefeated = true;
+        return "destroyed";
       }
       
       console.log(`Boss part ${hitPart.id} destroyed`);
     }
     
-    return true;
+    return "damaged";
   }
 
-  // Fire left arm sweeping laser
-  fireLeftArm(playerX, playerY) {
-    const leftArm = this.parts.get("leftArm");
-    if (!leftArm || !leftArm.enabled || leftArm.destroyed) return [];
+  // Fire weapon for a specific part
+  firePartWeapon(partId, playerX, playerY) {
+    const part = this.parts.get(partId);
+    if (!part || !part.enabled || part.destroyed) return { projectiles: [], lasers: [] };
     
+    // Handle based on attack type
+    if (part.attackType === "sweeping_laser") {
+      return this.handleSweepingLaser(part, playerX, playerY);
+    } else if (part.attackType === "missile_barrage") {
+      return this.handleMissileBarrage(part, playerX, playerY);
+    } else if (part.attackType === "rainbow_spiral") {
+      return this.handleRainbowSpiral(part, playerX, playerY);
+    }
+    
+    return { projectiles: [], lasers: [] };
+  }
+  
+  handleSweepingLaser(part, playerX, playerY) {
     // Handle sweeping laser state machine
-    switch (leftArm.sweepState) {
+    switch (part.sweepState) {
       case "inactive":
-        if (leftArm.cooldown <= 0) {
-          leftArm.sweepState = "charging";
-          leftArm.sweepChargeTime = 0;
-          leftArm.sweepAngle = this.isPortrait ? 0 : Math.PI/2;
+        if (part.cooldown <= 0) {
+          part.sweepState = "charging";
+          part.sweepChargeTime = 0;
+          part.sweepAngle = this.isPortrait ? 0 : Math.PI/2;
           
-          leftArm.activeLaser = new ContinuousLaserBeam(
-            leftArm.x,
-            leftArm.y,
-            leftArm.sweepAngle,
+          part.activeLaser = new ContinuousLaserBeam(
+            part.x,
+            part.y,
+            part.sweepAngle,
             this.isPortrait
           );
         }
         break;
         
       case "charging":
-        if (leftArm.destroyed) {
-          leftArm.sweepState = "inactive";
-          leftArm.activeLaser = null;
-          return [];
+        if (part.destroyed) {
+          part.sweepState = "inactive";
+          part.activeLaser = null;
+          return { projectiles: [], lasers: [] };
         }
         
-        leftArm.sweepChargeTime++;
-        leftArm.coreAngle = leftArm.sweepAngle;
+        part.sweepChargeTime++;
+        part.coreAngle = part.sweepAngle;
         
-        if (leftArm.sweepChargeTime >= leftArm.weaponConfig.chargeTime) {
-          leftArm.sweepState = "sweeping";
-          leftArm.sweepDuration = 0;
-          leftArm.sweepDirection = 1;
+        if (part.sweepChargeTime >= part.weaponConfig.chargeTime) {
+          part.sweepState = "sweeping";
+          part.sweepDuration = 0;
+          part.sweepDirection = 1;
         }
         break;
         
       case "sweeping":
-        if (leftArm.destroyed) {
-          leftArm.sweepState = "inactive";
-          leftArm.activeLaser = null;
-          return [];
+        if (part.destroyed) {
+          part.sweepState = "inactive";
+          part.activeLaser = null;
+          return { projectiles: [], lasers: [] };
         }
         
-        leftArm.sweepDuration++;
+        part.sweepDuration++;
         
-        if (leftArm.activeLaser) {
-          leftArm.coreAngle = leftArm.activeLaser.angle;
+        if (part.activeLaser) {
+          part.coreAngle = part.activeLaser.angle;
         }
         
-        if (leftArm.sweepDuration >= leftArm.weaponConfig.sweepDuration) {
-          leftArm.sweepState = "inactive";
-          leftArm.cooldown = leftArm.maxCooldown * 2;
-          leftArm.activeLaser = null;
+        if (part.sweepDuration >= part.weaponConfig.sweepDuration) {
+          part.sweepState = "inactive";
+          part.cooldown = part.maxCooldown * 2;
+          part.activeLaser = null;
         }
         break;
     }
     
-    return [];
+    return { projectiles: [], lasers: [] };
   }
 
-  // Fire right arm missiles and bullet spreads
-  fireRightArm(playerX, playerY) {
-    const rightArm = this.parts.get("rightArm");
-    if (!rightArm || !rightArm.enabled || rightArm.destroyed || rightArm.cooldown > 0) return [];
+  handleMissileBarrage(part, playerX, playerY) {
+    if (part.cooldown > 0) return { projectiles: [], lasers: [] };
     
     const projectiles = [];
-    const armX = rightArm.x;
-    const armY = rightArm.y;
+    const armX = part.x;
+    const armY = part.y;
     const angleToPlayer = Math.atan2(playerY - armY, playerX - armX);
     
     // Use weapon config for attack patterns
-    const burstSize = rightArm.weaponConfig.burstSize || 3;
-    const spreadAngle = rightArm.weaponConfig.spreadAngle || 0.4;
+    const burstSize = part.weaponConfig.burstSize || 3;
+    const spreadAngle = part.weaponConfig.spreadAngle || 0.4;
     
     const attackType = Math.random();
     
@@ -773,40 +904,36 @@ export class Boss extends MiniBoss {
       }
     }
     
-    rightArm.cooldown = rightArm.maxCooldown;
-    return projectiles;
+    part.cooldown = part.maxCooldown;
+    return { projectiles, lasers: [] };
   }
 
-  // Fire final phase attacks
-  fireFinalPhase(playerX, playerY) {
-    const bodyPart = this.parts.get("body");
-    if (!bodyPart || !bodyPart.enabled || bodyPart.destroyed) return { bullets: [], enemies: [] };
-    
-    const bullets = [];
+  handleRainbowSpiral(part, playerX, playerY) {
+    const projectiles = [];
     const enemies = [];
     
     // Initialize pulse pattern if not already done
-    if (!bodyPart.pulsePattern) {
-      bodyPart.pulsePattern = {
+    if (!part.pulsePattern) {
+      part.pulsePattern = {
         waveCount: 0,
-        maxWaves: bodyPart.weaponConfig.waveCount || 20,
+        maxWaves: part.weaponConfig.waveCount || 20,
         inBreak: false,
         breakTimer: 0,
-        breakDuration: bodyPart.weaponConfig.breakDuration || 60,
+        breakDuration: part.weaponConfig.breakDuration || 60,
         spiralOffset: Math.random() * Math.PI * 2
       };
     }
     
     // Handle pulsing pattern
-    if (!bodyPart.pulsePattern.inBreak) {
+    if (!part.pulsePattern.inBreak) {
       if (this.frameCount % 3 === 0) {
-        const bulletCount = bodyPart.weaponConfig.spiralBullets || 10;
-        const speed = bodyPart.weaponConfig.spiralSpeed || 3.5;
+        const bulletCount = part.weaponConfig.spiralBullets || 10;
+        const speed = part.weaponConfig.spiralSpeed || 3.5;
         
         for (let i = 0; i < bulletCount; i++) {
-          const angle = (i / bulletCount) * Math.PI * 2 + this.frameCount * 0.04 + bodyPart.pulsePattern.spiralOffset;
+          const angle = (i / bulletCount) * Math.PI * 2 + this.frameCount * 0.04 + part.pulsePattern.spiralOffset;
           const colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff", "#ffa500", "#ff69b4"];
-          bullets.push({
+          projectiles.push({
             x: this.x,
             y: this.y,
             vx: Math.cos(angle) * speed,
@@ -816,27 +943,27 @@ export class Boss extends MiniBoss {
             type: "boss"
           });
         }
-        bodyPart.pulsePattern.waveCount++;
+        part.pulsePattern.waveCount++;
       }
       
-      if (bodyPart.pulsePattern.waveCount >= bodyPart.pulsePattern.maxWaves) {
-        bodyPart.pulsePattern.inBreak = true;
-        bodyPart.pulsePattern.breakTimer = 0;
-        bodyPart.pulsePattern.waveCount = 0;
-        bodyPart.pulsePattern.maxWaves = (bodyPart.weaponConfig.waveCount || 20) + Math.floor(Math.random() * 6);
-        bodyPart.pulsePattern.breakDuration = (bodyPart.weaponConfig.breakDuration || 60) + Math.floor(Math.random() * 30);
-        bodyPart.pulsePattern.spiralOffset = Math.random() * Math.PI * 2;
+      if (part.pulsePattern.waveCount >= part.pulsePattern.maxWaves) {
+        part.pulsePattern.inBreak = true;
+        part.pulsePattern.breakTimer = 0;
+        part.pulsePattern.waveCount = 0;
+        part.pulsePattern.maxWaves = (part.weaponConfig.waveCount || 20) + Math.floor(Math.random() * 6);
+        part.pulsePattern.breakDuration = (part.weaponConfig.breakDuration || 60) + Math.floor(Math.random() * 30);
+        part.pulsePattern.spiralOffset = Math.random() * Math.PI * 2;
       }
     } else {
-      bodyPart.pulsePattern.breakTimer++;
-      if (bodyPart.pulsePattern.breakTimer >= bodyPart.pulsePattern.breakDuration) {
-        bodyPart.pulsePattern.inBreak = false;
+      part.pulsePattern.breakTimer++;
+      if (part.pulsePattern.breakTimer >= part.pulsePattern.breakDuration) {
+        part.pulsePattern.inBreak = false;
       }
     }
     
     // Spawn enemies
-    if (bodyPart.enemySpawnTimer <= 0) {
-      bodyPart.enemySpawnTimer = bodyPart.enemySpawnCooldown;
+    if (part.enemySpawnTimer <= 0) {
+      part.enemySpawnTimer = part.enemySpawnCooldown;
       
       const enemyTypes = ["straight", "sine", "zigzag"];
       for (let i = 0; i < 3; i++) {
@@ -848,7 +975,7 @@ export class Boss extends MiniBoss {
       }
     }
     
-    return { bullets, enemies };
+    return { projectiles, lasers: [], enemies };
   }
 
   getHealthPercentage() {
@@ -857,6 +984,34 @@ export class Boss extends MiniBoss {
 
   render(ctx) {
     ctx.save();
+    
+    // Apply death effects
+    if (this.isDefeated) {
+      // Apply opacity for fade out
+      ctx.globalAlpha = this.opacity;
+      
+      // Death glow effect (intense red glow when dying)
+      const glowIntensity = 0.8 + Math.sin(this.frameCount * 0.4) * 0.2; // Pulsing glow
+      ctx.fillStyle = "#ff0000";
+      const prevAlpha = ctx.globalAlpha;
+      ctx.globalAlpha = prevAlpha * glowIntensity * 0.7;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size + 40, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = prevAlpha;
+    }
+
+    // Apply red flash overlay if dying and flashing
+    if (this.isDefeated && this.showRedFlash) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.fillStyle = "#ff0000";
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size + 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
     
     // Apply hit flash
     if (this.hitFlash > 0) {
@@ -880,10 +1035,11 @@ export class Boss extends MiniBoss {
       }
     }
 
-    // Draw continuous laser beam if active
-    const leftArm = this.parts.get("leftArm");
-    if (leftArm && leftArm.activeLaser && !leftArm.destroyed) {
-      leftArm.activeLaser.render(ctx);
+    // Draw continuous laser beams for any parts with active lasers
+    for (const part of this.parts.values()) {
+      if (part.activeLaser && !part.destroyed) {
+        part.activeLaser.render(ctx);
+      }
     }
 
     // Draw robot head

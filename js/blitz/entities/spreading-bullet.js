@@ -69,7 +69,7 @@ export class SpreadingBullet {
 
   explode(addEnemyBulletCallback) {
     this.exploded = true;
-    console.log('SpreadingBullet explode() called, creating 8 bullets');
+    console.log('SpreadingBullet explode() called, creating spread bullets');
     
     // Guard against missing callback
     if (typeof addEnemyBulletCallback !== 'function') {
@@ -77,9 +77,11 @@ export class SpreadingBullet {
       return;
     }
     
-    const numBullets = 8; // Number of bullets in the ring
-    const bulletSpeed = 4; // Speed of the spreading bullets
-    const bulletSize = this.size * 0.3; // Much smaller bullets
+    // Get config for spread bullets - fallback to zigzagBasic
+    const config = this.game?.levelManager?.config?.enemies?.zigzagBasic;
+    const numBullets = config?.spreadBulletCount || 8;
+    const bulletSpeed = config?.spreadBulletSpeed || 4;
+    const bulletSize = config?.spreadBulletSize || this.size * 0.3;
 
     for (let i = 0; i < numBullets; i++) {
       const angle = (i / numBullets) * Math.PI * 2; // Evenly spaced around circle

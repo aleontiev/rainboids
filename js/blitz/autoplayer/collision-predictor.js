@@ -9,26 +9,40 @@ export class CollisionPredictor {
   constructor(player) {
     this.player = player;
     this.threatAssessment = new ThreatAssessment(player);
+    
+    // Enhanced safety buffer - 1.5x normal player hitbox for better collision avoidance
+    this.PLAYER_HITBOX = 6; // Base player hitbox
+    this.SAFETY_BUFFER = this.PLAYER_HITBOX * 1.5; // 9 pixels for enhanced safety
+    
+    // Conservative projectile speed multiplier - assume projectiles might accelerate
+    this.PROJECTILE_SPEED_SAFETY_MARGIN = 1.1; // 10% faster than expected
   }
 
   /**
    * Map all threats to a unified interface
+   * Enhanced to filter out distant non-laser threats
    */
   mapAllThreats(collidables, slowdownFactor) {
     return collidables.map(collidable => {
       const threatData = this.threatAssessment.getThreatProperties(collidable);
       if (!threatData) return null;
       
+      // Filter out non-imminent threats (except lasers)
+      if (!this.threatAssessment.isImminentThreat(collidable, slowdownFactor)) {
+        return null;
+      }
+      
       return {
         entity: collidable,
         x: collidable.x,
         y: collidable.y,
-        vx: (collidable.vx || collidable.dx/60 || 0) * slowdownFactor,
-        vy: (collidable.vy || collidable.dy/60 || 0) * slowdownFactor,
+        vx: (collidable.vx || collidable.dx/60 || 0) * slowdownFactor * this.PROJECTILE_SPEED_SAFETY_MARGIN,
+        vy: (collidable.vy || collidable.dy/60 || 0) * slowdownFactor * this.PROJECTILE_SPEED_SAFETY_MARGIN,
         radius: threatData.radius,
         priority: threatData.priority,
         type: threatData.type,
-        isMoving: threatData.isMoving
+        isMoving: threatData.isMoving,
+        requiresImminencyCheck: threatData.requiresImminencyCheck
       };
     }).filter(threat => threat !== null);
   }
@@ -91,7 +105,7 @@ export class CollisionPredictor {
         (threat.y - this.player.y) ** 2
       );
       
-      const requiredSpeed = (distanceToThreat - threat.radius - 6) / timeToCollision;
+      const requiredSpeed = (distanceToThreat - threat.radius - this.SAFETY_BUFFER) / timeToCollision;
       
       if (requiredSpeed > playerSpeed) {
         unavoidableCollisions.push({
@@ -119,7 +133,7 @@ export class CollisionPredictor {
     const relativeVy = threatVy - (this.player.vy || 0);
     
     const threatData = this.threatAssessment.getThreatProperties(threat);
-    const collisionRadius = 6 + threatData.radius;
+    const collisionRadius = this.SAFETY_BUFFER + threatData.radius;
     
     // Calculate intersection point
     const timeToCollision = this.threatAssessment.calculateCollisionTime(threat, slowdownFactor);
@@ -139,6 +153,106 @@ export class CollisionPredictor {
         y: relativeVy
       }
     };
+  }
+
+  /**
+   * CRITICAL: Validate that a movement vector will not result in any collisions
+   * This is the core safety check that ensures every move is collision-free
+   */
+  validateMovementSafety(movementVector, allThreats, slowdownFactor, playerSpeed = 3) {
+    if (!movementVector || (movementVector.x === 0 && movementVector.y === 0)) {
+      return true; // No movement is always safe
+    }
+
+    // Calculate where player will be after applying this movement
+    const futurePlayerX = this.player.x + movementVector.x * playerSpeed;
+    const futurePlayerY = this.player.y + movementVector.y * playerSpeed;
+
+    // Check multiple frames ahead to ensure the movement path is safe
+    const framesToCheck = 10; // Check 10 frames ahead for safety
+    
+    for (let frame = 1; frame <= framesToCheck; frame++) {
+      const frameProgress = frame / framesToCheck;
+      const checkX = this.player.x + (futurePlayerX - this.player.x) * frameProgress;
+      const checkY = this.player.y + (futurePlayerY - this.player.y) * frameProgress;
+
+      // Check collision with all threats at this future frame
+      for (const threat of allThreats) {
+        // Predict where threat will be at this frame (using conservative speed)
+        const futureThreatX = threat.x + threat.vx * frame;
+        const futureThreatY = threat.y + threat.vy * frame;
+
+        // Calculate distance between future player and future threat positions
+        const distance = Math.sqrt(
+          (checkX - futureThreatX) ** 2 + 
+          (checkY - futureThreatY) ** 2
+        );
+
+        // Check if collision would occur (with enhanced safety buffer)
+        const collisionRadius = this.SAFETY_BUFFER + threat.radius;
+        if (distance < collisionRadius) {
+          return false; // Movement would result in collision
+        }
+      }
+    }
+
+    // Also check that the final position is within screen bounds
+    const margin = 40;
+    if (futurePlayerX < margin || futurePlayerX > window.innerWidth - margin ||
+        futurePlayerY < margin || futurePlayerY > window.innerHeight - margin) {
+      return false; // Movement would go out of bounds
+    }
+
+    return true; // Movement is safe
+  }
+
+  /**
+   * Find the safest movement direction from a set of candidates
+   */
+  selectSafestMovement(movementCandidates, allThreats, slowdownFactor, playerSpeed = 3) {
+    let safestMovement = { x: 0, y: 0 };
+    let bestSafetyScore = 0;
+
+    // Always include "no movement" as an option
+    const candidates = [{ x: 0, y: 0 }, ...movementCandidates];
+
+    for (const candidate of candidates) {
+      // First check if this movement is fundamentally safe
+      if (!this.validateMovementSafety(candidate, allThreats, slowdownFactor, playerSpeed)) {
+        continue; // Skip unsafe movements
+      }
+
+      // Calculate safety score for this movement
+      const futureX = this.player.x + candidate.x * playerSpeed;
+      const futureY = this.player.y + candidate.y * playerSpeed;
+      const safetyScore = this.calculatePositionSafety(futureX, futureY, allThreats);
+
+      if (safetyScore > bestSafetyScore) {
+        bestSafetyScore = safetyScore;
+        safestMovement = candidate;
+      }
+    }
+
+    return safestMovement;
+  }
+
+  /**
+   * Calculate safety score for a position considering all threats
+   */
+  calculatePositionSafety(x, y, allThreats) {
+    let safetyScore = 1.0;
+
+    for (const threat of allThreats) {
+      const distance = Math.sqrt((threat.x - x) ** 2 + (threat.y - y) ** 2);
+      const dangerRadius = threat.radius + this.SAFETY_BUFFER + 40;
+      
+      if (distance < dangerRadius) {
+        const proximityFactor = 1.0 - (distance / dangerRadius);
+        safetyScore *= (1.0 - proximityFactor * 0.5 * threat.priority);
+      }
+    }
+
+    return Math.max(0, safetyScore);
   }
 
   /**
@@ -204,7 +318,7 @@ export class CollisionPredictor {
         );
         
         const threatData = this.threatAssessment.getThreatProperties(threat.entity);
-        const safeDistance = threatData.radius + 6 + 20;
+        const safeDistance = threatData.radius + this.SAFETY_BUFFER + 20;
         
         if (threatDistance < safeDistance) {
           // Check if threat will be in this position when we arrive
@@ -258,7 +372,7 @@ export class CollisionPredictor {
         );
         
         const threatData = this.threatAssessment.getThreatProperties(threat.entity);
-        const dangerRadius = threatData.radius + 6 + 40;
+        const dangerRadius = threatData.radius + this.SAFETY_BUFFER + 40;
         
         if (threatDistance < dangerRadius) {
           const proximityFactor = 1.0 - (threatDistance / dangerRadius);

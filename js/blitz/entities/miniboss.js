@@ -46,6 +46,9 @@ export class MiniBoss extends Enemy {
     this.circularWeaponCooldown = config?.miniBossCircularWeaponCooldown || 120;
     this.burstWeaponCooldown = config?.miniBossBurstWeaponCooldown || 90;
 
+    // Projectile color alternating counter for vibe shift
+    this.projectileColorCounter = 0;
+
     // Shield system
     this.invulnerable = true; // Start invulnerable
     this.invulnerableTimer = 0;
@@ -60,18 +63,23 @@ export class MiniBoss extends Enemy {
     this.enemySpawnTimer = 0;
     this.enemySpawnCooldown = config?.miniBossEnemySpawnCooldown || 200;
 
-    // Death effect system
+    // Enhanced death effect system
     this.dying = false;
     this.deathTimer = 0;
-    this.deathDuration = config?.miniBossDeathDuration || 180; // 3 seconds
+    this.deathDuration = config?.miniBossDeathDuration || 300; // 5 seconds - increased duration
     this.deathExplosionTimer = 0;
-    this.deathExplosionInterval = config?.miniBossDeathExplosionInterval || 8; // Explosion every 8 frames
+    this.deathExplosionInterval = config?.miniBossDeathExplosionInterval || 6; // More frequent explosions
     this.finalExplosionTriggered = false;
     this.deathBlinkTimer = 0;
-    this.deathBlinkInterval = 8; // Blink every 8 frames
+    this.deathBlinkInterval = 4; // Faster blinking for more dramatic effect
     this.showRedFlash = false;
     this.opacity = 1.0;
     this.fadeOutStarted = false;
+    this.deathSoundTimer = 0;
+    this.deathSoundInterval = 30; // Play death sound every 0.5 seconds
+    this.deathExplosionCount = 0;
+    this.maxDeathExplosions = 20; // More explosions for dramatic effect
+    this.isDefeated = false; // Add isDefeated property for consistency with boss
 
     // Velocity tracking (dx/dy per second)
     this.dx = 0;
@@ -106,8 +114,8 @@ export class MiniBoss extends Enemy {
     this.attackCooldowns.set(attackType, 0);
   }
 
-  // Check if this miniboss can be targeted by auto-aim
-  isVulnerableToAutoAim() {
+  // Check if this miniboss is vulnerable
+  isVulnerable() {
     return !this.invulnerable && !this.dying;
   }
 
@@ -119,13 +127,14 @@ export class MiniBoss extends Enemy {
       this.angle = Math.atan2(playerY - this.y, playerX - this.x);
     }
 
-    // Handle death sequence
-    if (this.dying) {
+    // Handle enhanced death sequence (only if not yet defeated)
+    if (this.dying && !this.isDefeated) {
       this.deathTimer += slowdownFactor;
       this.deathExplosionTimer += slowdownFactor;
       this.deathBlinkTimer += slowdownFactor;
+      this.deathSoundTimer += slowdownFactor;
 
-      // Handle red blinking effect
+      // Handle rapid red blinking effect
       if (this.deathBlinkTimer >= this.deathBlinkInterval) {
         this.deathBlinkTimer = 0;
         this.showRedFlash = !this.showRedFlash;
@@ -142,30 +151,59 @@ export class MiniBoss extends Enemy {
         this.opacity = Math.max(0, 1 - fadeProgress);
       }
 
-      // Trigger final explosion when death timer is complete
+      // Play cascading death sounds
+      if (this.deathSoundTimer >= this.deathSoundInterval && this.deathExplosionCount < this.maxDeathExplosions) {
+        this.deathSoundTimer = 0;
+        return {
+          type: "death_sound",
+          soundType: "miniBossExplosion"
+        };
+      }
+
+      // Trigger final mega explosion when death timer is complete
       if (
         this.deathTimer >= this.deathDuration &&
         !this.finalExplosionTriggered
       ) {
         this.finalExplosionTriggered = true;
+        // Create the final explosion effect
+        if (this.game && this.game.effects) {
+          this.game.effects.createExplosion(this.x, this.y, this.size * 3, 3.0);
+        }
+        if (this.game && this.game.audio) {
+          this.game.audio.play(this.game.audio.sounds.megaExplosion || this.game.audio.sounds.explosion);
+        }
+        // Mark as defeated and return the string that entity manager expects for removal
+        this.isDefeated = true;
         return "final_explosion";
       }
 
-      // Create random explosions around the miniboss
-      if (this.deathExplosionTimer >= this.deathExplosionInterval) {
+      // Create more frequent and varied explosions around the miniboss
+      if (this.deathExplosionTimer >= this.deathExplosionInterval && this.deathExplosionCount < this.maxDeathExplosions) {
         this.deathExplosionTimer = 0;
+        this.deathExplosionCount++;
         
-        // Create explosion data to return
+        // Create escalating explosion pattern
         const explosionAngle = Math.random() * Math.PI * 2;
-        const explosionDistance = 20 + Math.random() * 60; // Random distance from center
+        const baseDistance = this.size * 0.5;
+        const maxDistance = this.size * 1.5;
+        const progressFactor = this.deathExplosionCount / this.maxDeathExplosions;
+        const explosionDistance = baseDistance + (maxDistance - baseDistance) * progressFactor;
+        
         const explosionX = this.x + Math.cos(explosionAngle) * explosionDistance;
         const explosionY = this.y + Math.sin(explosionAngle) * explosionDistance;
+        
+        // Larger explosions as death progresses
+        const baseSize = 30;
+        const maxSize = 80;
+        const explosionSize = baseSize + (maxSize - baseSize) * progressFactor + Math.random() * 20;
         
         return {
           type: "death_explosion",
           x: explosionX,
           y: explosionY,
-          size: 40 + Math.random() * 30
+          size: explosionSize,
+          intensity: progressFactor // For visual effects scaling
         };
       }
 
@@ -330,63 +368,66 @@ export class MiniBoss extends Enemy {
   }
 
   firePrimary(playerX, playerY) {
-    // Added playerX, playerY
     this.primaryWeaponTimer = 0;
-    const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x); // Calculate angle to player
-    const bulletSpeed = 2; // Further reduced speed
-    // Return bullet data for the main game to create
+    
+    // Check if we have a configured primary attack
+    const primaryAttack = this.attacks.get("primary");
+    if (primaryAttack) {
+      return this.fireConfiguredWeapon(primaryAttack, playerX, playerY);
+    }
+    
+    // Default primary attack
+    const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x);
+    const bulletSpeed = 2;
     return {
-      x: this.x, // Fire from center of miniboss
-      y: this.y, // Fire from center of miniboss
-      vx: Math.cos(angleToPlayer) * bulletSpeed, // Aim at player
-      vy: Math.sin(angleToPlayer) * bulletSpeed, // Aim at player
-      size: 8, // Smaller projectiles
-      color: "#ff0000", // Red color
+      x: this.x,
+      y: this.y,
+      vx: Math.cos(angleToPlayer) * bulletSpeed,
+      vy: Math.sin(angleToPlayer) * bulletSpeed,
+      size: 8,
+      color: this.getProjectileColor(),
       type: "miniBossPrimary",
     };
   }
 
+  // Get alternating bullet color (half sprite color, half black/white)
+  getProjectileColor() {
+    this.projectileColorCounter++;
+    if (this.projectileColorCounter % 2 === 0) {
+      return this.spriteColor; // Use miniboss color
+    } else {
+      // Alternate between black and white
+      return Math.random() < 0.5 ? "#ffffff" : "#000000";
+    }
+  }
+
   fireSecondary(playerX, playerY) {
-    // Added playerX, playerY
     this.secondaryWeaponTimer = 0;
     this.chargingSecondary = 0;
+    
+    // Check if we have a configured secondary attack
+    const secondaryAttack = this.attacks.get("secondary");
+    if (secondaryAttack) {
+      return this.fireConfiguredWeapon(secondaryAttack, playerX, playerY);
+    }
+    
+    // Default secondary attack (spread)
     const bullets = [];
-    const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x); // Calculate angle to player
-    const bulletSpeed = 1.8; // Further reduced speed for spread
-
-    if (this.type === "alpha") {
-      // Alpha: Further reduced spread of 3 bullets
-      const spreadAngle = 0.2; // Tighter spread
-      for (let i = -1; i <= 1; i++) {
-        const angle = angleToPlayer + i * spreadAngle;
-        bullets.push({
-          x: this.x,
-          y: this.y,
-          vx: Math.cos(angle) * bulletSpeed,
-          vy: Math.sin(angle) * bulletSpeed,
-          size: 7, // Smaller projectiles for spread
-          color: "#ff0000", // Red color
-          type: "miniBossSecondary",
-        });
-      }
-    } else {
-      // Beta: Alternating dual shots
-      const sideOffset = 30; // Distance from center
-      for (let side = -1; side <= 1; side += 2) {
-        const offsetX =
-          Math.cos(angleToPlayer + Math.PI / 2) * sideOffset * side;
-        const offsetY =
-          Math.sin(angleToPlayer + Math.PI / 2) * sideOffset * side;
-        bullets.push({
-          x: this.x + offsetX,
-          y: this.y + offsetY,
-          vx: Math.cos(angleToPlayer) * bulletSpeed,
-          vy: Math.sin(angleToPlayer) * bulletSpeed,
-          size: 8, // Smaller projectiles
-          color: "#ffff00", // Yellow color for beta
-          type: "miniBossSecondary",
-        });
-      }
+    const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x);
+    const bulletSpeed = 1.8;
+    const spreadAngle = 0.2;
+    
+    for (let i = -1; i <= 1; i++) {
+      const angle = angleToPlayer + i * spreadAngle;
+      bullets.push({
+        x: this.x,
+        y: this.y,
+        vx: Math.cos(angle) * bulletSpeed,
+        vy: Math.sin(angle) * bulletSpeed,
+        size: 7,
+        color: this.getProjectileColor(),
+        type: "miniBossSecondary",
+      });
     }
     return bullets;
   }
@@ -430,46 +471,29 @@ export class MiniBoss extends Enemy {
 
   fireCircular(playerX, playerY) {
     this.circularWeaponTimer = 0;
+    
+    // Check if we have a configured circular attack
+    const circularAttack = this.attacks.get("circular");
+    if (circularAttack) {
+      return this.fireConfiguredWeapon(circularAttack, playerX, playerY);
+    }
+    
+    // Default circular attack
     const bullets = [];
-    const bulletSpeed = 1.5; // Further reduced speed
-
-    if (this.type === "alpha") {
-      // Alpha: Full 360 degree spiral
-      const numBullets = 12; // Reduced bullets for alpha
-      for (let i = 0; i < numBullets; i++) {
-        const angle = (i / numBullets) * Math.PI * 2;
-        bullets.push({
-          x: this.x,
-          y: this.y,
-          vx: Math.cos(angle) * bulletSpeed,
-          vy: Math.sin(angle) * bulletSpeed,
-          size: 7, // Smaller projectiles
-          color: "#ffa500", // Orange color
-          type: "miniBossCircular",
-        });
-      }
-    } else {
-      // Beta: Reduced rotating cross pattern
-      const numArms = 4;
-      const bulletsPerArm = 2; // Reduced from 3 to 2
-      for (let arm = 0; arm < numArms; arm++) {
-        const baseAngle =
-          (arm / numArms) * Math.PI * 2 + this.frameCount * 0.05; // Rotating
-        for (let i = 0; i < bulletsPerArm; i++) {
-          const distance = (i + 1) * 20; // Staggered distances
-          const x = this.x + Math.cos(baseAngle) * distance;
-          const y = this.y + Math.sin(baseAngle) * distance;
-          bullets.push({
-            x: x,
-            y: y,
-            vx: Math.cos(baseAngle) * bulletSpeed,
-            vy: Math.sin(baseAngle) * bulletSpeed,
-            size: 6, // Smaller for cross pattern
-            color: "#ffff00", // Yellow color for beta
-            type: "miniBossCircular",
-          });
-        }
-      }
+    const bulletSpeed = 1.5;
+    const numBullets = 12;
+    
+    for (let i = 0; i < numBullets; i++) {
+      const angle = (i / numBullets) * Math.PI * 2;
+      bullets.push({
+        x: this.x,
+        y: this.y,
+        vx: Math.cos(angle) * bulletSpeed,
+        vy: Math.sin(angle) * bulletSpeed,
+        size: 7,
+        color: this.getProjectileColor(),
+        type: "miniBossCircular",
+      });
     }
     return bullets;
   }
@@ -494,7 +518,7 @@ export class MiniBoss extends Enemy {
         vx: Math.cos(angle) * bulletSpeed,
         vy: Math.sin(angle) * bulletSpeed,
         size: 7, // Smaller burst projectiles
-        color: "#ffa500", // Orange color for distinction
+        color: this.getProjectileColor(), // Orange color for distinction
         type: "miniBossBurst",
       });
     }
@@ -506,8 +530,8 @@ export class MiniBoss extends Enemy {
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle); // Add this line for rotation
 
-    // Apply death effects
-    if (this.dying) {
+    // Apply death effects (only if not yet defeated)
+    if (this.dying && !this.isDefeated) {
       // Apply opacity for fade out
       ctx.globalAlpha = this.opacity;
       
@@ -522,8 +546,8 @@ export class MiniBoss extends Enemy {
       ctx.globalAlpha = prevAlpha;
     }
 
-    // Apply red flash overlay if dying and flashing
-    if (this.dying && this.showRedFlash) {
+    // Apply red flash overlay if dying and flashing (only if not yet defeated)
+    if (this.dying && this.showRedFlash && !this.isDefeated) {
       ctx.save();
       ctx.globalCompositeOperation = 'overlay';
       ctx.fillStyle = "#ff4444";
@@ -552,34 +576,32 @@ export class MiniBoss extends Enemy {
       ctx.lineWidth = 4;
       ctx.globalAlpha = 0.8 + 0.2 * Math.sin(this.frameCount * 0.3);
 
-      // Draw stroke around the actual ship shape based on type
-      if (this.type === "alpha") {
-        // Alpha ship outline - use the actual SVG path with larger stroke
+      // Draw stroke around the ship shape
+      if (this.svgAssetName && this.game && this.game.entities) {
         ctx.save();
+        
+        // Apply rotation if needed
+        if (this.spriteRotation) {
+          ctx.rotate(this.spriteRotation);
+        }
+        
         const scale = this.size / 512;
         ctx.scale(scale, scale);
         ctx.translate(-512, -512);
         ctx.lineWidth = 8 / scale; // Thicker stroke, adjusted for scale
 
-        // Use the SVG asset loaded from alpha-miniboss.svg
-        const svgAsset = this.game.entities.getSVGAsset('alpha-miniboss');
-        const path = this.game.entities.svgToPath2D(svgAsset);
-        ctx.stroke(path);
+        // Use the SVG asset
+        const svgAsset = this.game.entities.getSVGAsset(this.svgAssetName);
+        if (svgAsset) {
+          const path = this.game.entities.svgToPath2D(svgAsset);
+          ctx.stroke(path);
+        }
         ctx.restore();
       } else {
-        // Beta ship outline - use the actual SVG path with larger stroke
-        ctx.save();
-        ctx.rotate(Math.PI / 2); // Apply the same rotation as the ship
-        const scale = this.size / 512;
-        ctx.scale(scale, scale);
-        ctx.translate(-512, -512);
-        ctx.lineWidth = 8 / scale; // Thicker stroke, adjusted for scale
-
-        // Use the SVG asset loaded from beta-miniboss.svg
-        const svgAsset = this.game.entities.getSVGAsset('beta-miniboss');
-        const path = this.game.entities.svgToPath2D(svgAsset);
-        ctx.stroke(path);
-        ctx.restore();
+        // Default invulnerable stroke
+        ctx.beginPath();
+        ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+        ctx.stroke();
       }
 
       ctx.globalAlpha = 1;
@@ -682,98 +704,6 @@ export class MiniBoss extends Enemy {
     ctx.fill();
   }
 
-  drawAlphaShip(ctx) {
-    // Alpha mini-boss - Custom SVG design
-    ctx.save();
-
-    // Scale and position the SVG to fit the miniboss size
-    const scale = this.size / 512; // Original SVG is 1024x1024, center at 512
-    ctx.scale(scale, scale);
-    ctx.translate(-512, -512); // Center the SVG
-
-    // Set the fill color for the path (red theme for alpha, brighter when hit)
-    if (this.hitFlash > 0 && !this.dying) {
-      ctx.fillStyle = "#ff8888"; // Brighter red when hit
-      ctx.shadowColor = "#ff0000";
-      ctx.shadowBlur = 20;
-    } else {
-      ctx.fillStyle = "#ff4444";
-    }
-
-    // Use the SVG asset loaded from alpha-miniboss.svg
-    const svgAsset = this.game.entities.getSVGAsset('alpha-miniboss');
-    const path = this.game.entities.svgToPath2D(svgAsset);
-
-    ctx.fill(path);
-
-    // Reset shadow effect
-    ctx.shadowBlur = 0;
-
-    ctx.restore();
-
-    // Engine glow effects in orange to maintain alpha theme
-    ctx.fillStyle = "#ffaa00";
-    ctx.beginPath();
-    ctx.arc(
-      -this.size * 0.8,
-      -this.size * 0.15,
-      this.size * 0.1,
-      0,
-      Math.PI * 2
-    );
-    ctx.arc(
-      -this.size * 0.8,
-      this.size * 0.15,
-      this.size * 0.1,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-  }
-
-  drawBetaShip(ctx) {
-    // Beta mini-boss - New SVG design
-    ctx.save();
-
-    // Rotate 90 degrees clockwise to fix SVG orientation (user request)
-    ctx.rotate(Math.PI / 2);
-
-    // Scale and position the SVG to fit the miniboss size
-    const scale = this.size / 512; // Original SVG is 1024x1024, center at 512
-    ctx.scale(scale, scale);
-    ctx.translate(-512, -512); // Center the SVG
-
-    // Set the fill color for the path (yellow theme for beta)
-    ctx.fillStyle = "#ffdd44";
-
-    // Use the SVG asset loaded from beta-miniboss.svg
-    const svgAsset = this.game.entities.getSVGAsset('beta-miniboss');
-    const path = this.game.entities.svgToPath2D(svgAsset);
-
-    ctx.fill(path);
-
-    ctx.restore();
-
-    // Add engine glow effects in yellow/orange to maintain beta theme
-    ctx.fillStyle = "#ffaa00";
-    ctx.beginPath();
-    ctx.arc(
-      -this.size * 0.8,
-      -this.size * 0.1,
-      this.size * 0.06,
-      0,
-      Math.PI * 2
-    );
-    ctx.arc(-this.size * 0.8, 0, this.size * 0.06, 0, Math.PI * 2);
-    ctx.arc(
-      -this.size * 0.8,
-      this.size * 0.1,
-      this.size * 0.06,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-  }
 
   drawShieldAndHealthBar(ctx) {
     const barWidth = this.size * 1.8;
@@ -815,77 +745,107 @@ export class MiniBoss extends Enemy {
       ctx.fillText("INVINCIBLE", this.x, barY + 6);
     }
   }
+  
+  fireConfiguredWeapon(weaponConfig, playerX, playerY) {
+    const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x);
+    const bullets = [];
+    
+    switch (weaponConfig.type) {
+      case "aimed":
+        // Single aimed bullet
+        return {
+          x: this.x,
+          y: this.y,
+          vx: Math.cos(angleToPlayer) * weaponConfig.speed,
+          vy: Math.sin(angleToPlayer) * weaponConfig.speed,
+          size: weaponConfig.size || 8,
+          color: this.getProjectileColor(),
+          type: "miniBoss" + (weaponConfig.name || "Bullet")
+        };
+        
+      case "spread":
+        // Spread of bullets
+        const spreadCount = weaponConfig.bullets || 3;
+        const spreadAngle = weaponConfig.spreadAngle || 0.2;
+        const halfSpread = Math.floor(spreadCount / 2);
+        
+        for (let i = 0; i < spreadCount; i++) {
+          const offset = i - halfSpread;
+          const angle = angleToPlayer + offset * spreadAngle;
+          bullets.push({
+            x: this.x,
+            y: this.y,
+            vx: Math.cos(angle) * weaponConfig.speed,
+            vy: Math.sin(angle) * weaponConfig.speed,
+            size: weaponConfig.size || 7,
+            color: this.getProjectileColor(),
+            type: "miniBoss" + (weaponConfig.name || "Spread")
+          });
+        }
+        return bullets;
+        
+      case "dual":
+        // Dual side shots
+        const sideOffset = weaponConfig.sideOffset || 30;
+        for (let side = -1; side <= 1; side += 2) {
+          const offsetX = Math.cos(angleToPlayer + Math.PI / 2) * sideOffset * side;
+          const offsetY = Math.sin(angleToPlayer + Math.PI / 2) * sideOffset * side;
+          bullets.push({
+            x: this.x + offsetX,
+            y: this.y + offsetY,
+            vx: Math.cos(angleToPlayer) * weaponConfig.speed,
+            vy: Math.sin(angleToPlayer) * weaponConfig.speed,
+            size: weaponConfig.size || 8,
+            color: this.getProjectileColor(),
+            type: "miniBoss" + (weaponConfig.name || "Dual")
+          });
+        }
+        return bullets;
+        
+      case "circular":
+        // 360 degree circle
+        const numBullets = weaponConfig.bullets || 12;
+        for (let i = 0; i < numBullets; i++) {
+          const angle = (i / numBullets) * Math.PI * 2;
+          bullets.push({
+            x: this.x,
+            y: this.y,
+            vx: Math.cos(angle) * weaponConfig.speed,
+            vy: Math.sin(angle) * weaponConfig.speed,
+            size: weaponConfig.size || 7,
+            color: this.getProjectileColor(),
+            type: "miniBoss" + (weaponConfig.name || "Circular")
+          });
+        }
+        return bullets;
+        
+      case "cross":
+        // Rotating cross pattern
+        const numArms = weaponConfig.arms || 4;
+        const bulletsPerArm = weaponConfig.bulletsPerArm || 2;
+        for (let arm = 0; arm < numArms; arm++) {
+          const baseAngle = (arm / numArms) * Math.PI * 2 + this.frameCount * 0.05;
+          for (let i = 0; i < bulletsPerArm; i++) {
+            const distance = (i + 1) * 20;
+            const x = this.x + Math.cos(baseAngle) * distance;
+            const y = this.y + Math.sin(baseAngle) * distance;
+            bullets.push({
+              x: x,
+              y: y,
+              vx: Math.cos(baseAngle) * weaponConfig.speed,
+              vy: Math.sin(baseAngle) * weaponConfig.speed,
+              size: weaponConfig.size || 6,
+              color: this.getProjectileColor(),
+              type: "miniBoss" + (weaponConfig.name || "Cross")
+            });
+          }
+        }
+        return bullets;
+        
+      default:
+        // Default to aimed shot
+        return this.fireConfiguredWeapon({ ...weaponConfig, type: "aimed" }, playerX, playerY);
+    }
+  }
 }
 
-// Alpha MiniBoss implementation
-export class AlphaMiniBoss extends MiniBoss {
-  constructor(x, y, isPortrait, canvasWidth = 700, game = null) {
-    super(x, y, isPortrait, canvasWidth, game);
-    this.type = "alpha";
-    
-    // Set custom sprite for Alpha
-    this.setCustomSVGSprite('alpha-miniboss', 1, "#ff4444");
-    
-    // Configure Alpha-specific attacks
-    this.setupAlphaAttacks();
-  }
-  
-  setupAlphaAttacks() {
-    // Alpha has spread bullets and circular attacks
-    this.addAttack("primary", {
-      cooldown: 60,
-      type: "spread",
-      bullets: 3,
-      spreadAngle: 0.2,
-      speed: 2,
-      size: 7,
-      color: "#ff0000"
-    });
-    
-    this.addAttack("circular", {
-      cooldown: 120,
-      type: "circular",
-      bullets: 12,
-      speed: 1.5,
-      size: 7,
-      color: "#ffa500"
-    });
-  }
-}
-
-// Beta MiniBoss implementation  
-export class BetaMiniBoss extends MiniBoss {
-  constructor(x, y, isPortrait, canvasWidth = 700, game = null) {
-    super(x, y, isPortrait, canvasWidth, game);
-    this.type = "beta";
-    
-    // Set custom sprite for Beta with rotation
-    this.setCustomSVGSprite('beta-miniboss', 1, "#ffdd44");
-    this.spriteRotation = Math.PI / 2; // 90 degrees clockwise
-    
-    // Configure Beta-specific attacks
-    this.setupBetaAttacks();
-  }
-  
-  setupBetaAttacks() {
-    // Beta has dual shots and rotating cross patterns
-    this.addAttack("dual", {
-      cooldown: 90,
-      type: "dual",
-      sideOffset: 30,
-      speed: 1.8,
-      size: 8,
-      color: "#ffff00"
-    });
-    
-    this.addAttack("cross", {
-      cooldown: 120,
-      type: "cross",
-      arms: 4,
-      bulletsPerArm: 2,
-      speed: 1.5,
-      size: 6,
-      color: "#ffff00"
-    });
-  }
-}

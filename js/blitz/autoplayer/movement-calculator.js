@@ -12,6 +12,10 @@ export class MovementCalculator {
     this.threatAssessment = new ThreatAssessment(player);
     this.collisionPredictor = new CollisionPredictor(player);
     
+    // Enhanced safety buffer - 1.5x normal player hitbox for better collision avoidance
+    this.PLAYER_HITBOX = 6; // Base player hitbox
+    this.SAFETY_BUFFER = this.PLAYER_HITBOX * 1.5; // 9 pixels for enhanced safety
+    
     // Movement goal configuration
     this.goalDuration = options.goalDuration || 60;
     this.goalRevaluationThreshold = options.goalRevaluationThreshold || 30;
@@ -115,7 +119,7 @@ export class MovementCalculator {
   }
 
   /**
-   * Check if a position is safe from all threats
+   * Check if a position is safe from all threats, including laser paths
    */
   isPositionSafe(testX, testY, collidables, slowdownFactor) {
     const safetyMargin = 30;
@@ -126,13 +130,55 @@ export class MovementCalculator {
       return false;
     }
     
-    // Check for threat collisions
+    // Check for threat collisions and laser paths
     for (const collidable of collidables) {
       const threatData = this.getThreatProperties(collidable);
       if (!threatData) continue;
       
+      // Only check imminent threats unless they're lasers
+      const isImminentOrLaser = this.threatAssessment.isImminentThreat(collidable, slowdownFactor) || 
+                               this.threatAssessment.hasLaserIndicators(collidable) ||
+                               collidable.collidableType === 'enemyLaser';
+      
+      if (!isImminentOrLaser) {
+        continue; // Skip distant non-laser threats
+      }
+      
+      // Check laser path avoidance - primary entity lasers
+      const laserInfo = this.threatAssessment.getLaserLineInfo(collidable);
+      if (laserInfo && (laserInfo.isCharging || laserInfo.warningActive || laserInfo.isActive)) {
+        // Use larger safety buffer for laser paths
+        const laserSafetyBuffer = this.SAFETY_BUFFER * 4; // 4x safety buffer for lasers (increased from 3x)
+        if (this.threatAssessment.isPositionInLaserPath(testX, testY, laserInfo, laserSafetyBuffer)) {
+          return false;
+        }
+      }
+      
+      // Additional check for boss parts with activeLaser properties
+      if (collidable.parts && Array.isArray(collidable.parts)) {
+        for (const part of collidable.parts) {
+          if (part.activeLaser && !part.destroyed) {
+            const laser = part.activeLaser;
+            const partLaserInfo = {
+              originX: laser.originX || part.x,
+              originY: laser.originY || part.y,
+              angle: laser.angle,
+              width: laser.width || 16,
+              maxLength: laser.maxLength || Math.max(window.innerWidth, window.innerHeight) * 1.5
+            };
+            
+            // Very large safety buffer for laser warnings
+            const laserSafetyBuffer = this.SAFETY_BUFFER * 4;
+            if (this.threatAssessment.isPositionInLaserPath(testX, testY, partLaserInfo, laserSafetyBuffer)) {
+              return false;
+            }
+          }
+        }
+      }
+      
+      // Check regular threat collisions
       const distance = Math.sqrt((collidable.x - testX) ** 2 + (collidable.y - testY) ** 2);
-      const requiredDistance = threatData.radius + 6 + safetyMargin;
+      const requiredDistance = threatData.radius + this.SAFETY_BUFFER + safetyMargin;
       
       if (distance < requiredDistance) {
         if (threatData.isMoving) {
@@ -160,7 +206,7 @@ export class MovementCalculator {
   }
 
   /**
-   * Calculate position safety score (higher = safer)
+   * Calculate position safety score (higher = safer) including laser avoidance
    */
   calculatePositionSafety(testX, testY, collidables, slowdownFactor) {
     let safetyScore = 1.0;
@@ -174,15 +220,65 @@ export class MovementCalculator {
     ) / edgeMargin;
     safetyScore *= (0.8 + 0.2 * edgePenalty);
     
-    // Penalty for being near threats
+    // Check for laser threats and regular threats
     for (const collidable of collidables) {
       const distance = Math.sqrt((collidable.x - testX) ** 2 + (collidable.y - testY) ** 2);
-      if (distance < dangerRadius) {
-        const threatData = this.getThreatProperties(collidable);
-        if (threatData) {
-          const proximityFactor = 1.0 - (distance / dangerRadius);
-          safetyScore *= (1.0 - proximityFactor * 0.3 * threatData.priority);
+      const threatData = this.getThreatProperties(collidable);
+      if (!threatData) continue;
+      
+      // Only check imminent threats unless they're lasers
+      const isImminentOrLaser = this.threatAssessment.isImminentThreat(collidable, slowdownFactor) || 
+                               this.threatAssessment.hasLaserIndicators(collidable) ||
+                               collidable.collidableType === 'enemyLaser';
+      
+      if (!isImminentOrLaser) {
+        continue; // Skip distant non-laser threats
+      }
+      
+      // Major penalty for being in laser paths
+      const laserInfo = this.threatAssessment.getLaserLineInfo(collidable);
+      if (laserInfo) {
+        const laserSafetyBuffer = this.SAFETY_BUFFER * 2;
+        if (this.threatAssessment.isPositionInLaserPath(testX, testY, laserInfo, laserSafetyBuffer)) {
+          if (laserInfo.isActive) {
+            safetyScore *= 0.01; // Extreme penalty for active laser paths (reduced from 0.05)
+          } else if (laserInfo.isCharging || laserInfo.warningActive) {
+            safetyScore *= 0.1; // Very large penalty for charging/warning laser paths (reduced from 0.2)
+          } else {
+            safetyScore *= 0.5; // Large penalty for potential laser paths
+          }
         }
+      }
+      
+      // Additional penalty check for boss part activeLaser properties
+      if (collidable.parts && Array.isArray(collidable.parts)) {
+        for (const part of collidable.parts) {
+          if (part.activeLaser && !part.destroyed) {
+            const laser = part.activeLaser;
+            const partLaserInfo = {
+              originX: laser.originX || part.x,
+              originY: laser.originY || part.y,
+              angle: laser.angle,
+              width: laser.width || 16,
+              maxLength: laser.maxLength || Math.max(window.innerWidth, window.innerHeight) * 1.5
+            };
+            
+            const laserSafetyBuffer = this.SAFETY_BUFFER * 2;
+            if (this.threatAssessment.isPositionInLaserPath(testX, testY, partLaserInfo, laserSafetyBuffer)) {
+              if (laser.isLaserActive) {
+                safetyScore *= 0.01; // Extreme penalty for active laser paths
+              } else if (laser.state === 'charging' || laser.warningActive) {
+                safetyScore *= 0.1; // Very large penalty for charging/warning laser paths
+              }
+            }
+          }
+        }
+      }
+      
+      // Regular proximity penalties
+      if (distance < dangerRadius) {
+        const proximityFactor = 1.0 - (distance / dangerRadius);
+        safetyScore *= (1.0 - proximityFactor * 0.3 * threatData.priority);
       }
     }
     
@@ -285,21 +381,21 @@ export class MovementCalculator {
       };
     }
     
-    // Prioritize powerup collection when reasonably safe
+    // Enhanced powerup collection: prioritize more aggressively when safe
     if (powerups.length > 0) {
       const nearestSafePowerup = this.findSafestPowerup(powerups, threats, collisionPredictions);
       
       if (nearestSafePowerup) {
-        // Determine priority based on threat level and powerup value
-        let priority = 'medium'; // Default to medium priority for powerups
+        // More aggressive powerup collection - higher base priority
+        let priority = 'high'; // Start with high priority
         
-        // Lower priority if there are many threats or close threats
-        if (threats.length > 4 || (primaryThreat && primaryThreat.severity > 0.5)) {
-          priority = 'low';
+        // Only reduce priority for serious threats
+        if (threats.length > 5 || (primaryThreat && primaryThreat.severity > 0.6)) {
+          priority = 'medium';
         }
-        // Higher priority if very few threats and valuable powerup
-        else if (threats.length <= 1 && this.isPowerupValuable(nearestSafePowerup.powerup)) {
-          priority = 'high';
+        // Reduce further only for extreme threats
+        if (threats.length > 8 || (primaryThreat && primaryThreat.severity > 0.8)) {
+          priority = 'low';
         }
         
         return {
@@ -310,7 +406,29 @@ export class MovementCalculator {
       }
     }
     
-    // Default: maintain current position (no center-seeking)
+    // Enhanced center bias: always consider center positioning to prevent corner-pushing
+    const centerTarget = this.calculateCenterBiasTarget(threats, collisionPredictions);
+    if (centerTarget.shouldMoveToCenter) {
+      // Don't override high-priority dodge movements, but do override other goals
+      if (primaryThreat && primaryThreat.severity > 0.8) {
+        // High threat - focus on dodging but still include center bias in movement calculation
+        return {
+          type: 'dodge-with-center',
+          target: primaryThreat.threat,
+          centerTarget: centerTarget.position,
+          priority: 'high'
+        };
+      } else {
+        // Normal center bias goal
+        return {
+          type: 'center',
+          target: centerTarget.position,
+          priority: centerTarget.priority
+        };
+      }
+    }
+    
+    // Default: maintain current position
     return {
       type: 'maintain',
       target: null,
@@ -435,6 +553,156 @@ export class MovementCalculator {
   }
 
   /**
+   * Calculate center bias target - now active even during boss fights to prevent corner-pushing
+   */
+  calculateCenterBiasTarget(threats, collisionPredictions) {
+    const screenCenter = {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2
+    };
+    
+    const distanceFromCenter = Math.sqrt(
+      (this.player.x - screenCenter.x) ** 2 + 
+      (this.player.y - screenCenter.y) ** 2
+    );
+    
+    // More aggressive center bias - reduced threshold and always active when far from center
+    const centerBiasThreshold = 80; // Reduced from 120 to 80
+    if (distanceFromCenter < centerBiasThreshold) {
+      return { shouldMoveToCenter: false };
+    }
+    
+    // Calculate safe center position that avoids threats
+    const safeCenterPosition = this.findSafeCenterPosition(screenCenter, threats, collisionPredictions);
+    
+    // Enhanced priority system - more aggressive center positioning
+    let priority = 'medium'; // Default to medium instead of low
+    
+    // High priority when far from center, regardless of threat count
+    if (distanceFromCenter > 200) {
+      priority = 'high';
+    }
+    
+    // Very high priority when very far from center or near corners
+    if (distanceFromCenter > 300 || this.isNearCorner()) {
+      priority = 'high';
+    }
+    
+    return {
+      shouldMoveToCenter: true,
+      position: safeCenterPosition,
+      priority: priority
+    };
+  }
+
+  /**
+   * Find a safe position near the screen center
+   */
+  findSafeCenterPosition(idealCenter, threats, collisionPredictions) {
+    // Test positions in expanding rings around center
+    const testPositions = [idealCenter];
+    
+    // Add positions in a small radius around center
+    for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+      for (let radius = 50; radius <= 150; radius += 50) {
+        testPositions.push({
+          x: idealCenter.x + Math.cos(angle) * radius,
+          y: idealCenter.y + Math.sin(angle) * radius
+        });
+      }
+    }
+    
+    // Find safest valid position
+    let bestPosition = idealCenter;
+    let bestSafety = 0;
+    
+    for (const pos of testPositions) {
+      // Ensure position is within screen bounds
+      if (pos.x < 80 || pos.x > window.innerWidth - 80 || 
+          pos.y < 80 || pos.y > window.innerHeight - 80) {
+        continue;
+      }
+      
+      const safety = this.calculatePositionSafetyForTarget(pos, threats, collisionPredictions);
+      if (safety > bestSafety) {
+        bestSafety = safety;
+        bestPosition = pos;
+      }
+    }
+    
+    return bestPosition;
+  }
+
+  /**
+   * Calculate safety score for a target position considering predicted threats
+   */
+  calculatePositionSafetyForTarget(position, threats, collisionPredictions) {
+    let safetyScore = 1.0;
+    const dangerRadius = 120;
+    
+    // Check current threat positions
+    for (const threat of threats) {
+      const distance = Math.sqrt(
+        (threat.entity.x - position.x) ** 2 + 
+        (threat.entity.y - position.y) ** 2
+      );
+      
+      if (distance < dangerRadius) {
+        const proximityFactor = 1 - (distance / dangerRadius);
+        safetyScore *= (1 - proximityFactor * 0.4 * threat.priority);
+      }
+    }
+    
+    // Check predicted collision zones
+    for (const prediction of collisionPredictions) {
+      if (prediction.timeToCollision < 90) {
+        const futureX = prediction.threat.entity.x + 
+          (prediction.threat.entity.vx || prediction.threat.entity.dx/60 || 0) * prediction.timeToCollision;
+        const futureY = prediction.threat.entity.y + 
+          (prediction.threat.entity.vy || prediction.threat.entity.dy/60 || 0) * prediction.timeToCollision;
+          
+        const distance = Math.sqrt((futureX - position.x) ** 2 + (futureY - position.y) ** 2);
+        if (distance < dangerRadius) {
+          const proximityFactor = 1 - (distance / dangerRadius);
+          const timeFactor = 1 - (prediction.timeToCollision / 90);
+          safetyScore *= (1 - proximityFactor * timeFactor * 0.3);
+        }
+      }
+    }
+    
+    return Math.max(0, safetyScore);
+  }
+
+  /**
+   * Check if player is near a corner of the screen
+   */
+  isNearCorner(margin = 100) {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    const nearLeft = this.player.x < margin;
+    const nearRight = this.player.x > screenWidth - margin;
+    const nearTop = this.player.y < margin;
+    const nearBottom = this.player.y > screenHeight - margin;
+    
+    // Return true if near any corner (both horizontal AND vertical edge)
+    return (nearLeft || nearRight) && (nearTop || nearBottom);
+  }
+
+  /**
+   * Check if player is near any edge of the screen
+   */
+  isNearEdge(margin = 120) {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    
+    return this.player.x < margin || 
+           this.player.x > screenWidth - margin ||
+           this.player.y < margin ||
+           this.player.y > screenHeight - margin;
+  }
+
+  /**
    * Find the safest powerup to collect based on distance and threat analysis
    */
   findSafestPowerup(powerups, threats, collisionPredictions) {
@@ -444,19 +712,19 @@ export class MovementCalculator {
     for (const powerup of powerups) {
       const distance = Math.sqrt((powerup.x - this.player.x) ** 2 + (powerup.y - this.player.y) ** 2);
       
-      // Skip powerups that are too far away
-      if (distance > 500) continue;
+      // Increased search range for more aggressive powerup collection
+      if (distance > 600) continue;
       
       // Calculate safety score for this powerup
       const safetyScore = this.calculatePowerupSafety(powerup, threats, collisionPredictions);
-      if (safetyScore < 0.3) continue; // Skip if too dangerous
+      if (safetyScore < 0.2) continue; // More aggressive - lower safety threshold
       
       // Calculate value score for this powerup
       const valueScore = this.getPowerupValueScore(powerup);
       
-      // Combine safety, value, and proximity (closer is better)
-      const proximityScore = Math.max(0, 1 - distance / 500);
-      const totalScore = safetyScore * 0.4 + valueScore * 0.3 + proximityScore * 0.3;
+      // Enhanced scoring: higher weight for valuable powerups
+      const proximityScore = Math.max(0, 1 - distance / 600);
+      const totalScore = safetyScore * 0.3 + valueScore * 0.5 + proximityScore * 0.2;
       
       if (totalScore > bestScore) {
         bestScore = totalScore;
@@ -574,6 +842,7 @@ export class MovementCalculator {
 
   /**
    * Apply fluidity system to prevent jerky movement
+   * Now includes collision-free movement validation
    */
   applyFluiditySystem(movementGoal, threats, collisionPredictions, slowdownFactor, primaryThreat) {
     this.goalTimer++;
@@ -585,16 +854,26 @@ export class MovementCalculator {
     }
     
     // Calculate movement towards current goal
+    let proposedMovement = { x: 0, y: 0 };
     if (this.currentMovementGoal) {
-      return this.calculateMovementToGoal(this.currentMovementGoal, threats, collisionPredictions, slowdownFactor);
+      proposedMovement = this.calculateMovementToGoal(this.currentMovementGoal, threats, collisionPredictions, slowdownFactor);
+    } else if (primaryThreat) {
+      // Fallback to immediate threat avoidance
+      proposedMovement = this.calculateAvoidanceVector(primaryThreat.threat.entity, slowdownFactor);
     }
     
-    // Fallback to immediate threat avoidance
-    if (primaryThreat) {
-      return this.calculateAvoidanceVector(primaryThreat.threat.entity, slowdownFactor);
-    }
+    // CRITICAL: Validate that the proposed movement is collision-free
+    // Generate alternative movement candidates if needed
+    const movementCandidates = this.generateMovementCandidates(proposedMovement, threats, slowdownFactor);
     
-    return { x: 0, y: 0 };
+    // Use CollisionPredictor to select the safest movement
+    const safeMovement = this.collisionPredictor.selectSafestMovement(
+      movementCandidates, 
+      threats, 
+      slowdownFactor
+    );
+    
+    return safeMovement;
   }
 
   /**
@@ -666,6 +945,12 @@ export class MovementCalculator {
       
       case 'collect':
         return this.calculateCollectMovement(goal, threats, collisionPredictions, slowdownFactor);
+      
+      case 'center':
+        return this.calculateCenterMovement(goal, threats, collisionPredictions, slowdownFactor);
+      
+      case 'dodge-with-center':
+        return this.calculateDodgeWithCenterMovement(goal, threats, collisionPredictions, slowdownFactor);
       
       default:
         return { x: 0, y: 0 };
@@ -777,5 +1062,143 @@ export class MovementCalculator {
       x: normalized.x * goalWeight + avoidanceVector.x * avoidanceWeight,
       y: normalized.y * goalWeight + avoidanceVector.y * avoidanceWeight
     };
+  }
+
+  /**
+   * Calculate movement for center bias (moving toward screen center)
+   * Enhanced to be more persistent and prevent corner-pushing
+   */
+  calculateCenterMovement(goal, threats, collisionPredictions, slowdownFactor) {
+    if (!goal.target) return { x: 0, y: 0 };
+    
+    const toCenter = {
+      x: goal.target.x - this.player.x,
+      y: goal.target.y - this.player.y
+    };
+    
+    const distance = Math.sqrt(toCenter.x * toCenter.x + toCenter.y * toCenter.y);
+    if (distance === 0) return { x: 0, y: 0 };
+    
+    const normalized = {
+      x: toCenter.x / distance,
+      y: toCenter.y / distance
+    };
+    
+    // Apply threat avoidance - safety first
+    let avoidanceVector = { x: 0, y: 0 };
+    for (const prediction of collisionPredictions) {
+      if (prediction.timeToCollision < 90) {
+        const avoid = this.calculateAvoidanceVector(prediction.threat.entity, slowdownFactor);
+        const weight = 1.0 - (prediction.timeToCollision / 90);
+        avoidanceVector.x += avoid.x * weight;
+        avoidanceVector.y += avoid.y * weight;
+      }
+    }
+    
+    // Enhanced center bias - stronger weighting to prevent corner-pushing
+    // Increase center weight when near corners or edges
+    const distanceFromCenter = distance;
+    const cornerBonus = this.isNearCorner() ? 0.3 : 0.0;
+    const edgeBonus = this.isNearEdge() ? 0.2 : 0.0;
+    
+    let centerWeight = 0.4 + cornerBonus + edgeBonus; // Base increased from 0.3 to 0.4
+    let avoidanceWeight = 0.6 - cornerBonus - edgeBonus;
+    
+    // When very far from center, prioritize center movement even more
+    if (distanceFromCenter > 250) {
+      centerWeight = Math.min(0.7, centerWeight + 0.2);
+      avoidanceWeight = Math.max(0.3, avoidanceWeight - 0.2);
+    }
+    
+    return {
+      x: normalized.x * centerWeight + avoidanceVector.x * avoidanceWeight,
+      y: normalized.y * centerWeight + avoidanceVector.y * avoidanceWeight
+    };
+  }
+
+  /**
+   * Calculate movement that combines dodging with center bias
+   * Prevents corner-pushing during high-threat situations
+   */
+  calculateDodgeWithCenterMovement(goal, threats, collisionPredictions, slowdownFactor) {
+    // Primary dodge movement
+    let dodgeVector = { x: 0, y: 0 };
+    for (const prediction of collisionPredictions) {
+      if (prediction.timeToCollision < 60) {
+        const avoid = this.calculateAvoidanceVector(prediction.threat.entity, slowdownFactor);
+        const weight = 1.0 - (prediction.timeToCollision / 60);
+        dodgeVector.x += avoid.x * weight;
+        dodgeVector.y += avoid.y * weight;
+      }
+    }
+    
+    // Center bias component
+    let centerVector = { x: 0, y: 0 };
+    if (goal.centerTarget) {
+      const toCenter = {
+        x: goal.centerTarget.x - this.player.x,
+        y: goal.centerTarget.y - this.player.y
+      };
+      
+      const distance = Math.sqrt(toCenter.x * toCenter.x + toCenter.y * toCenter.y);
+      if (distance > 0) {
+        centerVector = {
+          x: toCenter.x / distance,
+          y: toCenter.y / distance
+        };
+      }
+    }
+    
+    // Combine dodge and center with stronger center bias when near corners
+    const cornerBonus = this.isNearCorner() ? 0.4 : 0.0;
+    const edgeBonus = this.isNearEdge() ? 0.2 : 0.0;
+    
+    const dodgeWeight = 0.7 - cornerBonus - edgeBonus;
+    const centerWeight = 0.3 + cornerBonus + edgeBonus;
+    
+    return {
+      x: dodgeVector.x * dodgeWeight + centerVector.x * centerWeight,
+      y: dodgeVector.y * dodgeWeight + centerVector.y * centerWeight
+    };
+  }
+
+  /**
+   * Generate alternative movement candidates for safety validation
+   */
+  generateMovementCandidates(primaryMovement, threats, slowdownFactor) {
+    const candidates = [primaryMovement];
+    
+    // Add directional alternatives
+    const directions = [
+      { x: 1, y: 0 },   // Right
+      { x: -1, y: 0 },  // Left
+      { x: 0, y: 1 },   // Down
+      { x: 0, y: -1 },  // Up
+      { x: 0.7, y: 0.7 },   // Diagonal down-right
+      { x: -0.7, y: 0.7 },  // Diagonal down-left
+      { x: 0.7, y: -0.7 },  // Diagonal up-right
+      { x: -0.7, y: -0.7 }  // Diagonal up-left
+    ];
+    
+    for (const dir of directions) {
+      candidates.push({
+        x: dir.x * 0.8,
+        y: dir.y * 0.8
+      });
+    }
+    
+    // Add modified versions of primary movement (reduced intensity)
+    if (primaryMovement.x !== 0 || primaryMovement.y !== 0) {
+      candidates.push({
+        x: primaryMovement.x * 0.5,
+        y: primaryMovement.y * 0.5
+      });
+      candidates.push({
+        x: primaryMovement.x * 0.8,
+        y: primaryMovement.y * 0.8
+      });
+    }
+    
+    return candidates;
   }
 }

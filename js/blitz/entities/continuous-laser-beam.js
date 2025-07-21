@@ -15,38 +15,38 @@ export class ContinuousLaserBeam {
     this.startAngle = isPortrait ? 0 : Math.PI/2; // Start pointing right (portrait) or down (landscape)
     this.endAngle = isPortrait ? Math.PI : -Math.PI/2; // End pointing left (portrait) or up (landscape)
     this.angle = this.startAngle; // Start at initial angle
-    this.rotationSpeed = 0.008; // Sweep speed
+    this.rotationSpeed = 0.004; // Sweep speed (reduced from 0.008 for slower movement)
     this.totalSweepAngle = isPortrait ? Math.PI : Math.PI; // 180 degree sweep
     this.sweepProgress = 0; // 0 to 1 progress through current sweep
     this.currentSweep = 1; // Track which sweep we're on (1 or 2)
     this.maxSweeps = 2; // Total number of sweeps before ending
     
-    // Periodic on/off pattern (in degrees) - longer pattern for bi-directional sweep
+    // Periodic on/off pattern (in degrees) - longer off intervals
     this.firePattern = [
-      { type: "on", degrees: 12 },
-      { type: "off", degrees: 8 },
-      { type: "on", degrees: 15 },
-      { type: "off", degrees: 6 },
+      { type: "on", degrees: 8 },
+      { type: "off", degrees: 20 },
       { type: "on", degrees: 10 },
-      { type: "off", degrees: 10 },
-      { type: "on", degrees: 18 },
-      { type: "off", degrees: 7 },
-      { type: "on", degrees: 14 },
-      { type: "off", degrees: 9 },
-      { type: "on", degrees: 16 },
-      { type: "off", degrees: 5 },
-      { type: "on", degrees: 20 },
-      { type: "off", degrees: 8 },
+      { type: "off", degrees: 18 },
+      { type: "on", degrees: 6 },
+      { type: "off", degrees: 22 },
       { type: "on", degrees: 12 },
-      { type: "off", degrees: 6 },
-      { type: "on", degrees: 15 },
-      { type: "off", degrees: 10 },
-      { type: "on", degrees: 18 },
-      { type: "off", degrees: 7 },
+      { type: "off", degrees: 16 },
+      { type: "on", degrees: 8 },
+      { type: "off", degrees: 24 },
+      { type: "on", degrees: 10 },
+      { type: "off", degrees: 20 },
       { type: "on", degrees: 14 },
-      { type: "off", degrees: 5 },
-      { type: "on", degrees: 22 },
-      { type: "off", degrees: 9 }
+      { type: "off", degrees: 18 },
+      { type: "on", degrees: 6 },
+      { type: "off", degrees: 22 },
+      { type: "on", degrees: 10 },
+      { type: "off", degrees: 26 },
+      { type: "on", degrees: 12 },
+      { type: "off", degrees: 20 },
+      { type: "on", degrees: 8 },
+      { type: "off", degrees: 24 },
+      { type: "on", degrees: 16 },
+      { type: "off", degrees: 18 }
     ];
     this.currentPatternIndex = 0;
     this.degreesInCurrentSegment = 0;

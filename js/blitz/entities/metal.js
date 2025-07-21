@@ -11,12 +11,12 @@ export class Metal {
     
     // Variable size - small, medium, or large (50% larger)
     this.sizeMultiplier = 0.75 + Math.random() * 1.5; // 0.75x to 2.25x size (50% larger)
-    const baseSize = game?.level?.config?.metalSize || 60;
+    const baseSize = game?.levelManager?.config?.world?.metalSize || 60;
     this.size = baseSize * this.sizeMultiplier; // Base size for collision detection (50% larger)
-    const baseThickness = game?.level?.config?.metalThickness || 6;
+    const baseThickness = game?.levelManager?.config?.world?.metalThickness || 6;
     this.thickness = baseThickness + this.sizeMultiplier * 3; // Thinner lines (6-9 pixels, 50% larger)
     
-    const baseSpeed = game?.level?.config?.metalSpeed || 0.5;
+    const baseSpeed = game?.levelManager?.config?.world?.metalSpeed || 0.5;
     this.speed = baseSpeed + Math.random() * 1; // Slow movement
     this.rotationSpeed = (Math.random() - 0.5) * 0.02; // Slow rotation
     this.rotation = Math.random() * Math.PI * 2;

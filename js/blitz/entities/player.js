@@ -13,6 +13,8 @@ export class Player {
     this.angle = 0;
     this.shootCooldown = 0;
     this.homingMissileCooldown = 0;
+    this.sideWeaponCooldown = 0; // Separate cooldown for side weapons
+    this.secondShipCooldown = 0; // Separate cooldown for second ship
     this.isShielding = false;
     this.shieldFrames = 0;
     this.shield = 0;
@@ -35,9 +37,39 @@ export class Player {
     this.prevX = x;
     this.prevY = y;
 
+    // Color animation
+    this.colorTimer = 0;
+    this.colorCycleSpeed = 0.003; // How fast to cycle through colors
+
     // Initialize autoplayer and autoaimer
     this.autoplayer = new Autoplayer(this);
     this.autoaimer = new Autoaimer(this);
+  }
+
+  // Create color gradient that cycles through purple->blue->teal->blue->purple
+  createColorGradient(ctx, visualSize) {
+    const gradient = ctx.createLinearGradient(-visualSize, -visualSize, visualSize, visualSize);
+    
+    // Create a smooth progression through cool colors only
+    // Purple: 270°, Blue: 240°, Teal: 180°
+    // Animation cycle: 0.0 -> 1.0 -> 0.0 (purple->teal->purple)
+    const cycle = Math.sin(this.colorTimer * 2) * 0.5 + 0.5; // Oscillates between 0 and 1
+    
+    // Map cycle to hue range: Purple (270°) to Teal (180°) and back
+    const hueRange = 90; // 270° to 180° = 90° range
+    const baseHue = 270; // Start at purple
+    const currentHue = baseHue - (cycle * hueRange); // 270° -> 180° -> 270°
+    
+    // Create gradient with complementary cool colors
+    const hue1 = currentHue;
+    const hue2 = currentHue - 30; // Slightly shifted for depth
+    const hue3 = currentHue + 30; // Slightly shifted for variety
+    
+    gradient.addColorStop(0, `hsl(${hue1}, 80%, 55%)`);
+    gradient.addColorStop(0.5, `hsl(${hue2}, 85%, 50%)`);
+    gradient.addColorStop(1, `hsl(${hue3}, 80%, 55%)`);
+    
+    return gradient;
   }
 
   update(
@@ -57,9 +89,10 @@ export class Player {
     // Store time slow state for rendering
     this.timeSlowActive = timeSlowActive;
 
-    // Handle shield timing
+    // Handle shield timing - apply time slow effect
     if (this.isShielding) {
-      this.shieldFrames--;
+      const shieldDecrement = timeSlowActive ? 0.3 : 1.0;
+      this.shieldFrames -= shieldDecrement;
       if (this.shieldFrames <= 0) {
         this.isShielding = false;
       }
@@ -78,13 +111,17 @@ export class Player {
       }
     }
 
-    // Get current speed (decreased during shield and time slow)
+    // Get current speed (decreased during shield, time slow, or manual slow)
     let currentSpeed = this.speed;
     if (this.isShielding) {
       currentSpeed *= 0.5; // 50% speed during shield
     }
     if (timeSlowActive) {
       currentSpeed *= 0.5; // 50% speed during time slow
+    }
+    // Manual slow movement when holding shift but shield is not available
+    if (keys.shift && !this.isShielding && this.shield <= 0) {
+      currentSpeed *= 0.5; // 50% speed when holding shift without shield
     }
 
     // Handle movement - autoplay overrides manual input
@@ -123,15 +160,34 @@ export class Player {
       if (keys.right) this.x += currentSpeed;
     }
 
-    // Keep player on screen
-    this.x = Math.max(20, Math.min(this.x, window.innerWidth - 20));
-    this.y = Math.max(20, Math.min(this.y, window.innerHeight - 20));
+    // Handle screen boundary bouncing
+    const margin = 20;
+    const bounceMultiplier = 0.7; // Reduce bounce velocity by 30%
+    
+    if (this.x < margin) {
+      this.x = margin;
+      this.vx = Math.abs(this.vx) * bounceMultiplier; // Bounce right
+    } else if (this.x > window.innerWidth - margin) {
+      this.x = window.innerWidth - margin;
+      this.vx = -Math.abs(this.vx) * bounceMultiplier; // Bounce left
+    }
+    
+    if (this.y < margin) {
+      this.y = margin;
+      this.vy = Math.abs(this.vy) * bounceMultiplier; // Bounce down
+    } else if (this.y > window.innerHeight - margin) {
+      this.y = window.innerHeight - margin;
+      this.vy = -Math.abs(this.vy) * bounceMultiplier; // Bounce up
+    }
 
     // Update velocity tracking for predictive aiming
     this.vx = this.x - this.prevX;
     this.vy = this.y - this.prevY;
     this.prevX = this.x;
     this.prevY = this.y;
+
+    // Update color animation timer
+    this.colorTimer += this.colorCycleSpeed;
 
     // Autoplay strategic ability usage
     if (autoplayEnabled) {
@@ -170,6 +226,14 @@ export class Player {
       this.homingMissileCooldown -= cooldownDecrement;
     }
 
+    // Update secondary weapon cooldowns at normal speed (not affected by time slow)
+    if (this.sideWeaponCooldown > 0) {
+      this.sideWeaponCooldown -= 1.0;
+    }
+    if (this.secondShipCooldown > 0) {
+      this.secondShipCooldown -= 1.0;
+    }
+
     // Update second ship positions (above/below or left/right based on orientation)
     this.secondShip.forEach((ship) => {
       if (ship.isHorizontal) {
@@ -192,245 +256,145 @@ export class Player {
     }
 
     if (this.shootCooldown <= 0) {
-      // Main weapon - use level 5 laser during rainbow invulnerability
-      if (this.mainWeaponLevel >= 5 || this.rainbowInvulnerable) {
-        // Rainbow laser beam - pass player laser speed and game reference
-        bullets.push(new LaserClass(this.x, this.y, this.angle, this.getPlayerLaserSpeed(), "rainbow", this.game, true));
-        this.shootCooldown = this.getPlayerLevel5FireRate();
-        return "laser"; // Return laser type for continuous sound
-      } else if (this.mainWeaponLevel === 1) {
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle,
-            this.getPlayerBulletSize(),
-            "#00ff88",
-            isPortrait,
-            this.getBulletSpeed(),
-            true,
-            this.game
-          ) // Speed 8 (same as level 2)
-        ); // Cool green
-        this.shootCooldown = this.getPlayerLevel1FireRate();
-      } else if (this.mainWeaponLevel === 2) {
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle,
-            this.getPlayerBulletSize(),
-            "#00ff88",
-            isPortrait,
-            this.getBulletSpeed(),
-            true,
-            this.game
-          )
-        ); // Same green as level 1, same size
-        this.shootCooldown = this.getPlayerLevel2FireRate();
-      } else if (this.mainWeaponLevel === 3) {
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle + 0.05,
-            this.getPlayerBulletSize(),
-            "#00ff88",
-            isPortrait,
-            this.getBulletSpeed(),
-            true
-          )
-        ); // Green bullets with slight spread
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle - 0.05,
-            this.getPlayerBulletSize(),
-            "#00ff88",
-            isPortrait,
-            this.getBulletSpeed(),
-            true
-          )
-        );
-        this.shootCooldown = this.getPlayerLevel3FireRate();
-      } else if (this.mainWeaponLevel >= 4) {
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle,
-            this.getPlayerBulletSize() * 1.5,
-            "#00ffcc",
-            isPortrait,
-            this.getBulletSpeed(),
-            true
-          )
-        ); // Teal, 3 bullets
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle + 0.05,
-            this.getPlayerBulletSize() * 1.5,
-            "#00ffcc",
-            isPortrait,
-            this.getBulletSpeed(),
-            true
-          )
-        );
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle - 0.05,
-            this.getPlayerBulletSize() * 1.5,
-            "#00ffcc",
-            isPortrait,
-            this.getBulletSpeed(),
-            true
-          )
-        );
-        this.shootCooldown = this.getPlayerLevel4FireRate();
+      // Get weapon configuration for current level (or level 5 during rainbow)
+      const effectiveLevel = this.rainbowInvulnerable ? 5 : this.mainWeaponLevel;
+      const weaponConfig = this.game?.level?.getPlayerWeaponConfig(effectiveLevel);
+      
+      if (!weaponConfig) {
+        console.error("No weapon config found for level", effectiveLevel);
+        return null;
       }
 
-      // Secondary weapon system (0-4 levels)
-      // Level 0: Nothing (handled by if condition)
-
-      if (this.sideWeaponLevel >= 1) {
-        // Level 1: 1 missile moving off to diagonal
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle + Math.PI / 4, // 45 degree diagonal
-            this.getPlayerBulletSize() * 0.8,
-            "#00ccaa",
-            isPortrait,
-            this.getBulletSpeed(),
-            true
-          )
-        );
-      }
-
-      if (this.sideWeaponLevel >= 2) {
-        // Level 2: 2 missiles going to both diagonals
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle - Math.PI / 4, // -45 degree diagonal
-            this.getPlayerBulletSize() * 0.8,
-            "#00ccaa",
-            isPortrait,
-            this.getBulletSpeed(),
-            true
-          )
-        );
-      }
-
-      if (this.sideWeaponLevel >= 2) {
-        // Level 2: 2 missiles + 2 homing missiles (green, 1.5x larger)
-        if (this.homingMissileCooldown <= 0) {
-          missiles.push(
-            new HomingMissileClass(
-              this.x,
-              this.y,
-              this.angle + 0.2,
-              this.getPlayerBulletSize() * 0.9,
-              "#00ff44"
-            )
-          );
-          missiles.push(
-            new HomingMissileClass(
-              this.x,
-              this.y,
-              this.angle - 0.2,
-              this.getPlayerBulletSize() * 0.9,
-              "#00ff44"
-            )
-          );
-          this.homingMissileCooldown = this.getPlayerHomingMissileCooldown();
+      // Fire all projectiles defined in the weapon config
+      let weaponType = "bullet"; // Default weapon type
+      
+      for (const projectileConfig of weaponConfig.projectiles) {
+        for (let i = 0; i < projectileConfig.count; i++) {
+          // Calculate angle for this projectile
+          let angle = this.angle;
+          if (projectileConfig.count > 1 && projectileConfig.angleOffset > 0) {
+            // Spread projectiles evenly across the angle range
+            const spreadRange = projectileConfig.angleOffset * 2;
+            const angleStep = spreadRange / (projectileConfig.count - 1);
+            angle += -projectileConfig.angleOffset + (i * angleStep);
+          }
+          
+          // Calculate position for this projectile
+          const posX = this.x + (projectileConfig.positionOffset?.x || 0);
+          const posY = this.y + (projectileConfig.positionOffset?.y || 0);
+          
+          // Create the projectile based on type
+          if (projectileConfig.type === "laser") {
+            bullets.push(new LaserClass(
+              posX,
+              posY,
+              angle,
+              projectileConfig.speed,
+              projectileConfig.color,
+              this.game,
+              true, // isPlayerLaser
+              projectileConfig.damage
+            ));
+            weaponType = "laser";
+          } else {
+            bullets.push(new BulletClass(
+              posX,
+              posY,
+              angle,
+              projectileConfig.size,
+              projectileConfig.color,
+              isPortrait,
+              projectileConfig.speed,
+              true, // isPlayerBullet
+              this.game,
+              projectileConfig.damage
+            ));
+            weaponType = "bullet";
+          }
         }
       }
 
-      if (this.sideWeaponLevel >= 3) {
-        // Level 3: 2 missiles + 4 homing missiles total
-        if (this.homingMissileCooldown <= 0) {
-          // Add 2 more homing missiles (total 4)
-          missiles.push(
-            new HomingMissileClass(
-              this.x,
-              this.y,
-              this.angle + 0.4,
-              this.getPlayerBulletSize() * 0.9,
-              "#00ff44"
-            )
-          );
-          missiles.push(
-            new HomingMissileClass(
-              this.x,
-              this.y,
-              this.angle - 0.4,
-              this.getPlayerBulletSize() * 0.9,
-              "#00ff44"
-            )
-          );
+      // Set cooldown from weapon config
+      this.shootCooldown = weaponConfig.fireRate;
+      
+      // Handle secondary weapons (pass weapon type to control firing)
+      this.handleSecondaryWeapons(bullets, missiles, BulletClass, HomingMissileClass, isPortrait, weaponType);
+      
+      return weaponType;
+    }
+
+    return null; // No shot fired
+  }
+
+
+  // Handle secondary weapons (side weapons, second ship)
+  handleSecondaryWeapons(bullets, missiles, BulletClass, HomingMissileClass, isPortrait, primaryWeaponType = "bullet") {
+    // Get secondary weapon configuration for current level
+    const secondaryConfig = this.game?.level?.getPlayerSecondaryWeaponConfig(this.sideWeaponLevel);
+    
+    if (!secondaryConfig || this.sideWeaponLevel === 0) {
+      return; // No secondary weapons at level 0 or if config missing
+    }
+
+    // Fire secondary projectiles if cooldown is ready
+    if (this.sideWeaponCooldown <= 0) {
+      // Fire all projectiles defined in the secondary weapon config
+      for (const projectileConfig of secondaryConfig.projectiles) {
+        for (let i = 0; i < projectileConfig.count; i++) {
+          // Calculate angle for this projectile
+          let angle = this.angle + projectileConfig.angleOffset;
+          
+          // Calculate position for this projectile
+          const posX = this.x + (projectileConfig.positionOffset?.x || 0);
+          const posY = this.y + (projectileConfig.positionOffset?.y || 0);
+          
+          // Create the projectile
+          bullets.push(new BulletClass(
+            posX,
+            posY,
+            angle,
+            projectileConfig.size,
+            projectileConfig.color,
+            isPortrait,
+            projectileConfig.speed,
+            true, // isPlayerBullet
+            this.game,
+            projectileConfig.damage
+          ));
         }
       }
+      
+      // Set secondary weapon cooldown
+      this.sideWeaponCooldown = secondaryConfig.fireRate;
+    }
 
-      if (this.sideWeaponLevel >= 4) {
-        // Level 4: 4 missiles total + 6 homing missiles total (ultimate level)
-        // Add third and fourth missiles (we already have 2 from levels 1-2)
-        bullets.push(
-          new BulletClass(
+    // Handle homing missiles if enabled in config
+    if (secondaryConfig.homingMissiles?.enabled && this.homingMissileCooldown <= 0) {
+      const missileConfig = secondaryConfig.homingMissiles;
+      
+      for (let i = 0; i < missileConfig.count; i++) {
+        // Calculate angle spread for this missile
+        const spreadStep = i < 2 ? missileConfig.angleSpread * (i === 0 ? 1 : -1) :
+                          missileConfig.angleSpread * (i % 2 === 0 ? 1 : -1) * (Math.floor(i / 2) + 1);
+        
+        missiles.push(
+          new HomingMissileClass(
             this.x,
             this.y,
-            this.angle + Math.PI / 6, // 30 degree
-            this.getPlayerBulletSize() * 0.8,
-            "#00ccaa",
-            isPortrait,
-            this.getBulletSpeed(),
-            true
+            this.angle + spreadStep,
+            missileConfig.size,
+            missileConfig.color,
+            true // isPlayerMissile = true
           )
         );
-        bullets.push(
-          new BulletClass(
-            this.x,
-            this.y,
-            this.angle - Math.PI / 6, // -30 degree
-            this.getPlayerBulletSize() * 0.8,
-            "#00ccaa",
-            isPortrait,
-            this.getBulletSpeed(),
-            true
-          )
-        );
-
-        // Add 2 more homing missiles (total 6)
-        if (this.homingMissileCooldown <= 0) {
-          missiles.push(
-            new HomingMissileClass(
-              this.x,
-              this.y,
-              this.angle + 0.6,
-              this.getPlayerBulletSize() * 0.9,
-              "#00ff44"
-            )
-          );
-          missiles.push(
-            new HomingMissileClass(
-              this.x,
-              this.y,
-              this.angle - 0.6,
-              this.getPlayerBulletSize() * 0.9,
-              "#00ff44"
-            )
-          );
-        }
       }
+      
+      this.homingMissileCooldown = missileConfig.fireRate;
+    }
 
-      // Second ship shooting
+    // Second ship shooting - only if primary weapon is not laser and cooldown is ready
+    const secondShipFireRate = 20; // 0.33 seconds - faster than side weapons
+    if (primaryWeaponType !== "laser" && this.secondShipCooldown <= 0 && this.secondShip.length > 0) {
       this.secondShip.forEach((ship) => {
         let secondShipBulletColor = "#4488ff"; // Always blue
         bullets.push(
@@ -442,16 +406,16 @@ export class Player {
             secondShipBulletColor,
             isPortrait,
             this.getBulletSpeed(),
-            true
+            true,
+            this.game,
+            1
           )
         );
       });
-
-      this.shootCooldown = this.getPlayerLevel1FireRate();
-      return "bullet"; 
+      
+      // Set second ship cooldown
+      this.secondShipCooldown = secondShipFireRate;
     }
-
-    return null; // No shot fired
   }
 
   render(ctx) {
@@ -465,15 +429,8 @@ export class Player {
     const visualSize = this.size * 2.5; // 2.5x larger visual size
 
     // Draw filled arrow with different colors based on state
-    let shipColor = "#00ff88"; // Default green
-    if (this.timeSlowActive) {
-      shipColor = "#00ff00"; // Bright green during time slow
-    }
-    if (this.isShielding) {
-      shipColor = "#ffff00"; // Yellow when shielding
-    }
     if (this.rainbowInvulnerable) {
-      // Rainbow gradient when invulnerable
+      // Fast rainbow gradient when invulnerable
       const gradient = ctx.createLinearGradient(
         -visualSize,
         -visualSize,
@@ -487,8 +444,13 @@ export class Player {
       gradient.addColorStop(0.75, `hsl(${(time * 60 + 270) % 360}, 100%, 50%)`);
       gradient.addColorStop(1, `hsl(${(time * 60 + 360) % 360}, 100%, 50%)`);
       ctx.fillStyle = gradient;
+    } else if (this.isShielding) {
+      ctx.fillStyle = "#ffff00"; // Yellow when shielding
+    } else if (this.timeSlowActive) {
+      ctx.fillStyle = "#00ff00"; // Bright green during time slow
     } else {
-      ctx.fillStyle = shipColor;
+      // Default: slowly cycling color gradient
+      ctx.fillStyle = this.createColorGradient(ctx, visualSize);
     }
 
     // Simple arrow shape
@@ -707,7 +669,7 @@ export class Player {
   // Helper methods to get player config values
   getPlayerSize() {
     try {
-      return this.game?.level?.config?.playerSize || 10;
+      return this.game?.level?.config?.player?.size || 10;
     } catch (e) {
       return 10;
     }
@@ -715,7 +677,7 @@ export class Player {
 
   getPlayerHitbox() {
     try {
-      return this.game?.level?.config?.playerHitbox || 6;
+      return this.game?.level?.config?.player?.hitbox || 6;
     } catch (e) {
       return 6;
     }
@@ -723,15 +685,16 @@ export class Player {
 
   getPlayerSpeed() {
     try {
-      return this.game?.level?.config?.playerSpeed || 6;
+      return this.game?.level?.config?.player?.speed || 6;
     } catch (e) {
       return 6;
     }
   }
 
-  getBulletSpeed() {
+  getBulletSpeed(level = null) {
     try {
-      return this.game?.level?.config?.bulletSpeed || 8;
+      const weaponLevel = level || this.mainWeaponLevel;
+      return this.game?.level?.getPlayerBulletSpeed(weaponLevel) || 8;
     } catch (e) {
       return 8;
     }
@@ -739,59 +702,53 @@ export class Player {
 
   getPlayerBulletSize() {
     try {
-      return this.game?.level?.config?.playerBulletSize || 8;
+      const baseSize = this.game?.level?.config?.player?.bulletSize || 15;
+      return baseSize; // Already 1.25x in config
     } catch (e) {
-      return 8;
+      return 15;
     }
   }
 
   getPlayerLaserSize() {
     try {
-      return this.game?.level?.config?.playerLaserSize || 6;
-    } catch (e) {
-      return 6;
-    }
-  }
-
-  getPlayerLaserSpeed() {
-    try {
-      return this.game?.level?.config?.playerLaserSpeed || 80;
-    } catch (e) {
-      return 80;
-    }
-  }
-
-  getPlayerLevel5FireRate() {
-      return this.game?.level?.config?.playerLevel5FireRate;
-  }
-
-  getPlayerLevel1FireRate() {
-      return this.game?.level?.config?.playerLevel1FireRate;
-  }
-
-  getPlayerLevel2FireRate() {
-      return this.game?.level?.config?.playerLevel2FireRate;
-  }
-
-  getPlayerLevel3FireRate() {
-      return this.game?.level?.config?.playerLevel3FireRate;
-  }
-
-  getPlayerLevel4FireRate() {
-      return this.game?.level?.config?.playerLevel4FireRate;
-  }
-
-  getPlayerHomingMissileCooldown() {
-    try {
-      return this.game?.level?.config?.playerHomingMissileCooldown || 10;
+      return this.game?.level?.config?.player?.laserSize || 10;
     } catch (e) {
       return 10;
     }
   }
 
+  getPlayerLaserSpeed() {
+    try {
+      return this.game?.level?.config?.player?.laserSpeed || 80;
+    } catch (e) {
+      return 80;
+    }
+  }
+
+  // Fire rate getters now use the new level configuration system
+  getPlayerFireRate(level = null) {
+    const weaponLevel = level || this.mainWeaponLevel;
+    return this.game?.level?.getPlayerFireRate(weaponLevel) || 15;
+  }
+
+  // Deprecated methods - keeping for backward compatibility
+  getPlayerLevel1FireRate() { return this.getPlayerFireRate(1); }
+  getPlayerLevel2FireRate() { return this.getPlayerFireRate(2); }
+  getPlayerLevel3FireRate() { return this.getPlayerFireRate(3); }
+  getPlayerLevel4FireRate() { return this.getPlayerFireRate(4); }
+  getPlayerLevel5FireRate() { return this.getPlayerFireRate(5); }
+
+  getPlayerHomingMissileCooldown() {
+    try {
+      return this.game?.level?.config?.player?.homingMissileCooldown || 60;
+    } catch (e) {
+      return 60;
+    }
+  }
+
   getPlayerShieldCooldownMax() {
     try {
-      return this.game?.level?.config?.playerShieldCooldownMax || 300;
+      return this.game?.level?.config?.player?.shieldCooldownMax || 300;
     } catch (e) {
       return 300;
     }
@@ -799,7 +756,7 @@ export class Player {
 
   getRainbowInvulnerableTime() {
     try {
-      return this.game?.level?.config?.playerRainbowInvulnerableTime || 360;
+      return this.game?.level?.config?.player?.rainbowInvulnerableTime || 360;
     } catch (e) {
       return 360;
     }
@@ -807,7 +764,7 @@ export class Player {
 
   getShieldDuration() {
     try {
-      return this.game?.level?.config?.playerShieldDuration || 60;
+      return this.game?.level?.config?.player?.shieldDuration || 60;
     } catch (e) {
       return 60;
     }

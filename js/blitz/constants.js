@@ -6,4 +6,3 @@ export const GAME_STATES = {
     GAME_OVER: 'GAME_OVER'
 };
 
-// Removed COLORS, GAME_CONFIG, ENEMY_TYPES, POWERUP_TYPES, and STAR_SHAPES - now in level manager

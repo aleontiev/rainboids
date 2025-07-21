@@ -16,13 +16,10 @@ export class AbilityManager {
     this.autoplaySlowTimer = 0;
     this.autoplayBombTimer = 0;
 
-    // Boss phase tracking
-    this.lastBossPhase = null;
-    this.lastBossArmsDestroyed = null;
   }
 
   /**
-   * Handle strategic ability usage for autoplay
+   * Handle strategic ability usage for autoplay with laser threat awareness
    */
   handleAutoplayAbilities(collidables, keys, powerups = [], game = null) {
     this.autoplayShieldTimer++;
@@ -53,7 +50,7 @@ export class AbilityManager {
       allThreats
     );
 
-    // Enhanced threat assessment
+    // Enhanced threat assessment including laser detection
     const projectileCount = enemyBullets.length + enemyLasers.length;
     const nearbyProjectiles = this.countNearbyProjectiles(
       enemyBullets,
@@ -71,10 +68,16 @@ export class AbilityManager {
       (enemy) => enemy.type === "miniboss" || enemy.isMiniboss
     );
 
+    // Check for laser threats
+    const laserThreats = this.assessLaserThreats(collidables);
+    const inLaserDanger = laserThreats.activeLasers > 0 || 
+                         laserThreats.chargingLasers > 0 || 
+                         laserThreats.inLaserPath;
+
     // More aggressive thresholds during boss fights
     const bossModifier = isBossActive || isMinibossActive ? 0.7 : 1.0;
 
-    // Enhanced shield usage logic with collision prediction
+    // Enhanced shield usage logic with collision prediction and laser awareness
     const shouldUseShield =
       (unavoidableCollisions.length > 0 &&
         unavoidableCollisions[0].prediction.timeToCollision < 45) || // Unavoidable collision imminent
@@ -87,7 +90,10 @@ export class AbilityManager {
       (isBossActive && nearbyProjectiles >= 4 && threatLevel >= 0.5) || // Boss-specific
       (isMinibossActive && nearbyProjectiles >= 3 && threatLevel >= 0.4) || // Miniboss-specific
       (projectileCount >= Math.floor(25 * bossModifier) &&
-        nearbyProjectiles >= Math.floor(5 * bossModifier)); // Screen overwhelmed
+        nearbyProjectiles >= Math.floor(5 * bossModifier)) || // Screen overwhelmed
+      (laserThreats.activeLasers > 0 && laserThreats.inLaserPath) || // Active laser threat
+      (laserThreats.chargingLasers > 0 && laserThreats.inLaserPath && 
+       unavoidableCollisions.length > 0); // Charging laser with no escape
 
     if (
       shouldUseShield &&
@@ -100,7 +106,6 @@ export class AbilityManager {
     }
 
     // Enhanced time slow usage with collision prediction
-    const bossPhaseChange = this.detectBossPhaseChange(boss);
     const nearCornerSlow = this.isNearCorner(60);
 
     const shouldUseTimeSlow =
@@ -111,11 +116,13 @@ export class AbilityManager {
       (nearCornerSlow &&
         nearbyProjectiles >= Math.floor(6 * bossModifier) &&
         threatLevel >= 0.7 * bossModifier) || // Cornered
-      (bossPhaseChange && threatLevel >= 0.6 * bossModifier) || // Boss phase change
       (isBossActive && nearbyProjectiles >= 6 && threatLevel >= 0.6) || // Boss-specific
       (isMinibossActive && nearbyProjectiles >= 4 && threatLevel >= 0.5) || // Miniboss-specific
       (projectileCount >= Math.floor(30 * bossModifier) &&
-        nearbyProjectiles >= Math.floor(7 * bossModifier)); // Screen overwhelmed
+        nearbyProjectiles >= Math.floor(7 * bossModifier)) || // Screen overwhelmed
+      (laserThreats.chargingLasers > 0 && laserThreats.inLaserPath) || // Laser about to fire while in path
+      (laserThreats.activeLasers > 1) || // Multiple active lasers
+      (laserThreats.activeLasers > 0 && nearbyProjectiles >= 3); // Active laser plus other threats
 
     if (
       shouldUseTimeSlow &&
@@ -152,16 +159,6 @@ export class AbilityManager {
     }
   }
 
-  /**
-   * Detect boss phase changes for strategic ability usage
-   */
-  detectBossPhaseChange(boss) {
-    return this.threatAssessment.detectBossPhaseChange(
-      boss,
-      this.lastBossPhase,
-      this.lastBossArmsDestroyed
-    );
-  }
 
   /**
    * Check if player is near screen corners (higher chance of being trapped)
@@ -191,6 +188,81 @@ export class AbilityManager {
   }
 
   /**
+   * Assess laser threats in the current situation
+   * Enhanced to detect boss part activeLaser threats
+   */
+  assessLaserThreats(collidables) {
+    let activeLasers = 0;
+    let chargingLasers = 0;
+    let inLaserPath = false;
+    
+    for (const collidable of collidables) {
+      // Check primary entity laser info
+      const laserInfo = this.threatAssessment.getLaserLineInfo(collidable);
+      if (laserInfo) {
+        if (laserInfo.isActive) {
+          activeLasers++;
+        }
+        if (laserInfo.isCharging || laserInfo.warningActive) {
+          chargingLasers++;
+        }
+        
+        // Check if player is currently in any laser path
+        const laserSafetyBuffer = 30; // Increased buffer for path checking
+        if (this.threatAssessment.isPositionInLaserPath(
+          this.player.x, 
+          this.player.y, 
+          laserInfo, 
+          laserSafetyBuffer
+        )) {
+          inLaserPath = true;
+        }
+      }
+      
+      // Additional check for boss parts with activeLaser (belt and suspenders approach)
+      if (collidable.parts && Array.isArray(collidable.parts)) {
+        for (const part of collidable.parts) {
+          if (part.activeLaser && !part.destroyed) {
+            const laser = part.activeLaser;
+            
+            if (laser.isLaserActive) {
+              activeLasers++;
+            }
+            if (laser.state === 'charging' || laser.warningActive) {
+              chargingLasers++;
+            }
+            
+            // Check if player is in the laser path
+            const partLaserInfo = {
+              originX: laser.originX || part.x,
+              originY: laser.originY || part.y,
+              angle: laser.angle,
+              width: laser.width || 16,
+              maxLength: laser.maxLength || Math.max(window.innerWidth, window.innerHeight) * 1.5
+            };
+            
+            const laserSafetyBuffer = 30;
+            if (this.threatAssessment.isPositionInLaserPath(
+              this.player.x, 
+              this.player.y, 
+              partLaserInfo, 
+              laserSafetyBuffer
+            )) {
+              inLaserPath = true;
+            }
+          }
+        }
+      }
+    }
+    
+    return {
+      activeLasers,
+      chargingLasers,
+      inLaserPath
+    };
+  }
+
+  /**
    * Get current ability timer values
    */
   getAbilityTimers() {
@@ -210,11 +282,4 @@ export class AbilityManager {
     this.autoplayBombTimer = 0;
   }
 
-  /**
-   * Reset boss phase tracking
-   */
-  resetBossPhaseTracking() {
-    this.lastBossPhase = null;
-    this.lastBossArmsDestroyed = null;
-  }
 }

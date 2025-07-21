@@ -35,6 +35,9 @@ export class CollisionManager {
 
       // Player vs metals (non-damaging collision)
       this.handlePlayerMetalCollisions();
+      
+      // Player vs own bullets (prevent self-damage from bounced bullets)
+      this.handlePlayerOwnBulletCollisions();
     }
 
     // Player bullets vs enemies
@@ -104,6 +107,19 @@ export class CollisionManager {
             );
             this.game.progress.update();
           } else {
+            console.log("🔥 PLAYER DEATH: Collision with ASTEROID", {
+              asteroid: {
+                x: this.entities.asteroids[i].x,
+                y: this.entities.asteroids[i].y,
+                size: this.entities.asteroids[i].size,
+                type: this.entities.asteroids[i].type || 'asteroid'
+              },
+              player: {
+                x: this.game.player.x,
+                y: this.game.player.y,
+                hitboxSize: this.game.player.hitboxSize
+              }
+            });
             this.game.effects.createExplosion(
               this.game.player.x,
               this.game.player.y
@@ -154,6 +170,20 @@ export class CollisionManager {
             );
             this.game.progress.update();
           } else {
+            console.log("🔥 PLAYER DEATH: Collision with ENEMY", {
+              enemy: {
+                x: this.entities.allEnemies[i].x,
+                y: this.entities.allEnemies[i].y,
+                size: this.entities.allEnemies[i].size,
+                type: this.entities.allEnemies[i].type || this.entities.allEnemies[i].constructor.name,
+                health: this.entities.allEnemies[i].health || 'N/A'
+              },
+              player: {
+                x: this.game.player.x,
+                y: this.game.player.y,
+                hitboxSize: this.game.player.hitboxSize
+              }
+            });
             this.game.effects.createExplosion(
               this.game.player.x,
               this.game.player.y
@@ -205,6 +235,24 @@ export class CollisionManager {
             );
             this.game.progress.update();
           } else {
+            console.log("🔥 PLAYER DEATH: Collision with ENEMY BULLET", {
+              bullet: {
+                x: this.entities.enemyBullets[i].x,
+                y: this.entities.enemyBullets[i].y,
+                size: this.entities.enemyBullets[i].size,
+                color: this.entities.enemyBullets[i].color,
+                damage: this.entities.enemyBullets[i].damage || 1,
+                isPlayerBullet: this.entities.enemyBullets[i].isPlayerBullet || false,
+                isPlayerLaser: this.entities.enemyBullets[i].isPlayerLaser || false,
+                angle: this.entities.enemyBullets[i].angle,
+                speed: this.entities.enemyBullets[i].speed
+              },
+              player: {
+                x: this.game.player.x,
+                y: this.game.player.y,
+                hitboxSize: this.game.player.hitboxSize
+              }
+            });
             this.game.effects.createExplosion(
               this.game.player.x,
               this.game.player.y
@@ -254,6 +302,24 @@ export class CollisionManager {
             );
             this.game.progress.update();
           } else {
+            console.log("🔥 PLAYER DEATH: Collision with ENEMY LASER", {
+              laser: {
+                x: this.entities.enemyLasers[i].x,
+                y: this.entities.enemyLasers[i].y,
+                width: this.entities.enemyLasers[i].width,
+                length: this.entities.enemyLasers[i].length,
+                color: this.entities.enemyLasers[i].color,
+                damage: this.entities.enemyLasers[i].damage || 1,
+                isPlayerLaser: this.entities.enemyLasers[i].isPlayerLaser || false,
+                angle: this.entities.enemyLasers[i].angle,
+                speed: this.entities.enemyLasers[i].speed
+              },
+              player: {
+                x: this.game.player.x,
+                y: this.game.player.y,
+                hitboxSize: this.game.player.hitboxSize
+              }
+            });
             this.game.effects.createExplosion(
               this.game.player.x,
               this.game.player.y
@@ -268,9 +334,14 @@ export class CollisionManager {
 
   handlePlayerMissileCollisions() {
     for (let i = this.entities.missiles.length - 1; i >= 0; i--) {
-      if (
-        this.checkPlayerCollision(this.game.player, this.entities.missiles[i])
-      ) {
+      const missile = this.entities.missiles[i];
+      
+      // Skip collision detection for player's own missiles
+      if (missile.isPlayerMissile) {
+        continue; // Player missiles should pass through the player
+      }
+      
+      if (this.checkPlayerCollision(this.game.player, missile)) {
         if (this.game.player.godMode) {
           // In godmode, destroy the missile instead of taking damage
           this.entities.missiles.splice(i, 1);
@@ -282,12 +353,7 @@ export class CollisionManager {
         }
 
         // Check for damage collision (excludes godmode but includes shielding/rainbow)
-        if (
-          this.checkPlayerDamageCollision(
-            this.game.player,
-            this.entities.missiles[i]
-          )
-        ) {
+        if (this.checkPlayerDamageCollision(this.game.player, missile)) {
           if (this.game.player.secondShip.length > 0) {
             const destroyedShip = this.game.player.secondShip.pop();
             this.game.effects.createExplosion(destroyedShip.x, destroyedShip.y);
@@ -302,6 +368,23 @@ export class CollisionManager {
             );
             this.game.progress.update();
           } else {
+            console.log("🔥 PLAYER DEATH: Collision with ENEMY MISSILE", {
+              missile: {
+                x: missile.x,
+                y: missile.y,
+                size: missile.size,
+                color: missile.color,
+                damage: missile.damage || 1,
+                target: missile.target || 'N/A',
+                speed: missile.speed,
+                isPlayerMissile: missile.isPlayerMissile || false
+              },
+              player: {
+                x: this.game.player.x,
+                y: this.game.player.y,
+                hitboxSize: this.game.player.hitboxSize
+              }
+            });
             this.game.effects.createExplosion(
               this.game.player.x,
               this.game.player.y
@@ -347,6 +430,25 @@ export class CollisionManager {
               );
               this.game.progress.update();
             } else {
+              console.log("🔥 PLAYER DEATH: Collision with SPREADING BULLET", {
+                spreadingBullet: {
+                  x: this.entities.spreadingBullets[i].x,
+                  y: this.entities.spreadingBullets[i].y,
+                  segments: this.entities.spreadingBullets[i].segments.length,
+                  color: this.entities.spreadingBullets[i].color,
+                  damage: this.entities.spreadingBullets[i].damage || 1
+                },
+                segment: {
+                  x: segment.x,
+                  y: segment.y,
+                  size: segment.size
+                },
+                player: {
+                  x: this.game.player.x,
+                  y: this.game.player.y,
+                  hitboxSize: this.game.player.hitboxSize
+                }
+              });
               this.game.effects.createExplosion(
                 this.game.player.x,
                 this.game.player.y
@@ -374,12 +476,6 @@ export class CollisionManager {
     for (const metal of this.entities.metals) {
       const collisionSegment = metal.checkPlayerCollision(this.game.player);
       if (collisionSegment) {
-        // Calculate push direction - push player away from metal
-        const metalDirection = {
-          x: metal.vx,
-          y: metal.vy,
-        };
-
         // Calculate normal vector to the collision segment
         const dx = collisionSegment.x2 - collisionSegment.x1;
         const dy = collisionSegment.y2 - collisionSegment.y1;
@@ -395,39 +491,66 @@ export class CollisionManager {
           const playerRelativeY = this.game.player.y - collisionSegment.y1;
           const side = playerRelativeX * nx + playerRelativeY * ny > 0 ? 1 : -1;
 
+          // Calculate player speed for bouncing effects
+          const playerSpeed = Math.sqrt(this.game.player.vx * this.game.player.vx + this.game.player.vy * this.game.player.vy);
+          const metalSpeed = Math.sqrt(metal.vx * metal.vx + metal.vy * metal.vy);
+
           // Push player away from metal surface
-          const pushDistance =
-            this.game.player.hitboxSize + metal.thickness / 2 + 5;
+          const pushDistance = this.game.player.hitboxSize + metal.thickness / 2 + 5;
           const pushX = nx * side * pushDistance;
           const pushY = ny * side * pushDistance;
 
           // Set player position to safe distance from metal
-          this.game.player.x =
-            collisionSegment.x1 +
-            (collisionSegment.x2 - collisionSegment.x1) * 0.5 +
-            pushX;
-          this.game.player.y =
-            collisionSegment.y1 +
-            (collisionSegment.y2 - collisionSegment.y1) * 0.5 +
-            pushY;
+          this.game.player.x = collisionSegment.x1 + (collisionSegment.x2 - collisionSegment.x1) * 0.5 + pushX;
+          this.game.player.y = collisionSegment.y1 + (collisionSegment.y2 - collisionSegment.y1) * 0.5 + pushY;
 
-          // Add some velocity to push player away if metal is moving toward player
-          const metalSpeed = Math.sqrt(
-            metal.vx * metal.vx + metal.vy * metal.vy
-          );
-          if (metalSpeed > 0) {
-            const dotProduct =
-              (metal.vx * pushX + metal.vy * pushY) / pushDistance;
-            if (dotProduct > 0) {
-              // Metal is moving toward player
-              this.game.player.vx += (pushX / pushDistance) * metalSpeed * 0.3;
-              this.game.player.vy += (pushY / pushDistance) * metalSpeed * 0.3;
-            }
+          // Determine who is colliding into whom based on relative velocities
+          const relativePlayerVx = this.game.player.vx - metal.vx;
+          const relativePlayerVy = this.game.player.vy - metal.vy;
+          const relativeSpeed = Math.sqrt(relativePlayerVx * relativePlayerVx + relativePlayerVy * relativePlayerVy);
+          
+          // Calculate collision direction
+          const collisionNormalX = pushX / pushDistance;
+          const collisionNormalY = pushY / pushDistance;
+          
+          // Check if player is moving into metal (dot product of relative velocity with collision normal)
+          const playerIntoMetal = (relativePlayerVx * collisionNormalX + relativePlayerVy * collisionNormalY) < 0;
+
+          if (playerIntoMetal && playerSpeed > 2) {
+            // Player colliding into metal - bounce metal away
+            const bounceForce = Math.min(playerSpeed * 0.8, 15); // Cap bounce force
+            metal.vx += collisionNormalX * bounceForce;
+            metal.vy += collisionNormalY * bounceForce;
+            
+            // Add some bounce to player too (reduced)
+            this.game.player.vx += -collisionNormalX * bounceForce * 0.3;
+            this.game.player.vy += -collisionNormalY * bounceForce * 0.3;
+          } else if (!playerIntoMetal && metalSpeed > 1) {
+            // Metal colliding into player - less pronounced bounce
+            const bounceForce = Math.min(metalSpeed * 0.4, 8); // Reduced force
+            metal.vx += collisionNormalX * bounceForce * 0.5;
+            metal.vy += collisionNormalY * bounceForce * 0.5;
+            
+            // Push player away
+            this.game.player.vx += collisionNormalX * bounceForce * 0.6;
+            this.game.player.vy += collisionNormalY * bounceForce * 0.6;
+          } else {
+            // Gentle separation for low-speed collisions
+            this.game.player.vx += collisionNormalX * 2;
+            this.game.player.vy += collisionNormalY * 2;
+            metal.vx += -collisionNormalX * 1;
+            metal.vy += -collisionNormalY * 1;
           }
         }
         break; // Only handle one collision per frame
       }
     }
+  }
+
+  handlePlayerOwnBulletCollisions() {
+    // Player bullets should completely ignore the player - no collision detection needed
+    // Player bullets only collide with enemies, asteroids, metals, minibosses, and bosses
+    // This method is intentionally empty to prevent any self-damage
   }
 
   // PLAYER BULLET COLLISIONS
@@ -505,23 +628,33 @@ export class CollisionManager {
             if (damageResult === 'breakIntoMedium') {
               // Large asteroid breaks into 2 medium asteroids
               for (let k = 0; k < 2; k++) {
+                // Base direction on original asteroid's velocity but angle out slightly
+                const baseAngle = Math.atan2(asteroid.vy, asteroid.vx);
+                const splitAngle = baseAngle + (k === 0 ? -0.3 : 0.3); // ±17 degrees
+                const speed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy) * (0.8 + Math.random() * 0.4); // 80-120% of original speed
+                
                 this.entities.spawnAsteroid(
                   "medium",
                   asteroid.x + (Math.random() - 0.5) * 40,
                   asteroid.y + (Math.random() - 0.5) * 40,
-                  (Math.random() - 0.5) * 3,
-                  (Math.random() - 0.5) * 3
+                  Math.cos(splitAngle) * speed,
+                  Math.sin(splitAngle) * speed
                 );
               }
             } else if (damageResult === 'breakIntoSmall') {
               // Medium asteroid breaks into 2 small asteroids
               for (let k = 0; k < 2; k++) {
+                // Base direction on original asteroid's velocity but angle out slightly
+                const baseAngle = Math.atan2(asteroid.vy, asteroid.vx);
+                const splitAngle = baseAngle + (k === 0 ? -0.3 : 0.3); // ±17 degrees
+                const speed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy) * (0.8 + Math.random() * 0.4); // 80-120% of original speed
+                
                 this.entities.spawnAsteroid(
                   "small",
                   asteroid.x + (Math.random() - 0.5) * 40,
                   asteroid.y + (Math.random() - 0.5) * 40,
-                  (Math.random() - 0.5) * 3,
-                  (Math.random() - 0.5) * 3
+                  Math.cos(splitAngle) * speed,
+                  Math.sin(splitAngle) * speed
                 );
               }
             }
@@ -596,25 +729,51 @@ export class CollisionManager {
         if (this.checkCollision(enemyBullet, asteroid)) {
           this.entities.enemyBullets.splice(i, 1);
 
-          const damageResult = asteroid.takeDamage(1);
-          if (damageResult === "destroyed") {
+          // Use asteroid's health system with impact coordinates (like player bullets)
+          const damageResult = asteroid.takeDamage(1, enemyBullet.x, enemyBullet.y);
+          this.game.effects.createAsteroidHitEffect(enemyBullet.x, enemyBullet.y);
+          
+          if (damageResult) {
+            // Handle asteroid destruction based on damage result
             this.entities.asteroids.splice(j, 1);
             this.game.effects.createDebris(asteroid.x, asteroid.y, "#ffffff");
-            this.game.effects.createAsteroidHitEffect(asteroid.x, asteroid.y);
             this.game.audio.play(this.game.audio.sounds.asteroidExplosion);
+            this.game.state.addScore(50);
 
-            // Create smaller asteroids if it was large
-            if (asteroid.type === "large") {
+            if (damageResult === 'breakIntoMedium') {
+              // Large asteroid breaks into 2 medium asteroids
               for (let k = 0; k < 2; k++) {
+                // Base direction on original asteroid's velocity but angle out slightly
+                const baseAngle = Math.atan2(asteroid.vy, asteroid.vx);
+                const splitAngle = baseAngle + (k === 0 ? -0.3 : 0.3); // ±17 degrees
+                const speed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy) * (0.8 + Math.random() * 0.4); // 80-120% of original speed
+                
+                this.entities.spawnAsteroid(
+                  "medium",
+                  asteroid.x + (Math.random() - 0.5) * 40,
+                  asteroid.y + (Math.random() - 0.5) * 40,
+                  Math.cos(splitAngle) * speed,
+                  Math.sin(splitAngle) * speed
+                );
+              }
+            } else if (damageResult === 'breakIntoSmall') {
+              // Medium asteroid breaks into 2 small asteroids
+              for (let k = 0; k < 2; k++) {
+                // Base direction on original asteroid's velocity but angle out slightly
+                const baseAngle = Math.atan2(asteroid.vy, asteroid.vx);
+                const splitAngle = baseAngle + (k === 0 ? -0.3 : 0.3); // ±17 degrees
+                const speed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy) * (0.8 + Math.random() * 0.4); // 80-120% of original speed
+                
                 this.entities.spawnAsteroid(
                   "small",
                   asteroid.x + (Math.random() - 0.5) * 40,
                   asteroid.y + (Math.random() - 0.5) * 40,
-                  (Math.random() - 0.5) * 3,
-                  (Math.random() - 0.5) * 3
+                  Math.cos(splitAngle) * speed,
+                  Math.sin(splitAngle) * speed
                 );
               }
             }
+            // If damageResult === 'destroyed', just remove asteroid (no breakup)
           }
           break;
         }
@@ -696,12 +855,51 @@ export class CollisionManager {
             this.entities.enemyLasers.splice(i, 1);
           }
 
-          const damageResult = asteroid.takeDamage(1);
-          if (damageResult === "destroyed") {
+          // Use asteroid's health system with impact coordinates (like player bullets)
+          const damageResult = asteroid.takeDamage(1, laser.x, laser.y);
+          this.game.effects.createAsteroidHitEffect(laser.x, laser.y);
+          
+          if (damageResult) {
+            // Handle asteroid destruction based on damage result
             this.entities.asteroids.splice(j, 1);
             this.game.effects.createDebris(asteroid.x, asteroid.y, "#ffffff");
-            this.game.effects.createAsteroidHitEffect(asteroid.x, asteroid.y);
             this.game.audio.play(this.game.audio.sounds.asteroidExplosion);
+            this.game.state.addScore(50);
+
+            if (damageResult === 'breakIntoMedium') {
+              // Large asteroid breaks into 2 medium asteroids
+              for (let k = 0; k < 2; k++) {
+                // Base direction on original asteroid's velocity but angle out slightly
+                const baseAngle = Math.atan2(asteroid.vy, asteroid.vx);
+                const splitAngle = baseAngle + (k === 0 ? -0.3 : 0.3); // ±17 degrees
+                const speed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy) * (0.8 + Math.random() * 0.4); // 80-120% of original speed
+                
+                this.entities.spawnAsteroid(
+                  "medium",
+                  asteroid.x + (Math.random() - 0.5) * 40,
+                  asteroid.y + (Math.random() - 0.5) * 40,
+                  Math.cos(splitAngle) * speed,
+                  Math.sin(splitAngle) * speed
+                );
+              }
+            } else if (damageResult === 'breakIntoSmall') {
+              // Medium asteroid breaks into 2 small asteroids
+              for (let k = 0; k < 2; k++) {
+                // Base direction on original asteroid's velocity but angle out slightly
+                const baseAngle = Math.atan2(asteroid.vy, asteroid.vx);
+                const splitAngle = baseAngle + (k === 0 ? -0.3 : 0.3); // ±17 degrees
+                const speed = Math.sqrt(asteroid.vx * asteroid.vx + asteroid.vy * asteroid.vy) * (0.8 + Math.random() * 0.4); // 80-120% of original speed
+                
+                this.entities.spawnAsteroid(
+                  "small",
+                  asteroid.x + (Math.random() - 0.5) * 40,
+                  asteroid.y + (Math.random() - 0.5) * 40,
+                  Math.cos(splitAngle) * speed,
+                  Math.sin(splitAngle) * speed
+                );
+              }
+            }
+            // If damageResult === 'destroyed', just remove asteroid (no breakup)
           }
           break;
         }
@@ -751,6 +949,21 @@ export class CollisionManager {
               );
               this.game.progress.update();
             } else {
+              console.log("🔥 PLAYER DEATH: Collision with CONTINUOUS LASER BEAM", {
+                laser: {
+                  startX: laser.startX,
+                  startY: laser.startY,
+                  endX: laser.endX,
+                  endY: laser.endY,
+                  width: laser.width,
+                  color: laser.color
+                },
+                player: {
+                  x: this.game.player.x,
+                  y: this.game.player.y,
+                  hitboxSize: this.game.player.hitboxSize
+                }
+              });
               this.game.effects.createExplosion(
                 this.game.player.x,
                 this.game.player.y

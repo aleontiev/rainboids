@@ -1,7 +1,7 @@
 // Laser entity for Rainboids: Blitz
 
 export class Laser {
-  constructor(x, y, angle, speed, color, game = null, isPlayerLaser = false) {
+  constructor(x, y, angle, speed, color, game = null, isPlayerLaser = false, damage = null) {
     this.x = x;
     this.y = y;
     this.angle = angle;
@@ -9,7 +9,10 @@ export class Laser {
     this.color = color;
     this.game = game;
     this.isPlayerLaser = isPlayerLaser; // Flag to distinguish player lasers from enemy lasers
-    this.width = game?.level?.config?.laserWidth || 8; // Very thin laser for enemy lasers
+    // Use player laserWidth for player lasers, or world laserWidth for enemy lasers
+    this.width = isPlayerLaser 
+      ? (game?.level?.config?.player?.laserWidth || 8)
+      : (game?.level?.config?.world?.laserWidth || 8);
     this.length = game?.level?.config?.laserLength || 100; // Length of laser beam for collision detection
     this.life = game?.level?.config?.laserLife || 60; // Longer life (1 second)
     this.colorIndex = 0;
@@ -26,6 +29,9 @@ export class Laser {
       "#4400ff",
       "#ff00ff",
     ];
+    
+    // Damage property - use custom damage or fallback to reduced power for player lasers
+    this.damage = damage !== null ? damage : (isPlayerLaser ? 0.33 : 1);
     
     // Velocity tracking (dx/dy per second)
     this.dx = 0;
