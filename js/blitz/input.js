@@ -1,8 +1,9 @@
 // Input handling for keyboard and touch controls
 
 export class InputHandler {
-  constructor(canvas) {
+  constructor(canvas, game = null) {
     this.canvas = canvas;
+    this.game = game;
     this.input = {
       up: false,
       down: false,
@@ -70,10 +71,21 @@ export class InputHandler {
         this.input.right = true;
         break;
       case "Space":
-        if (!this.input.fire) {
-          this.input.firePressed = true;
+        // Check if dialog is active first
+        if (this.game?.dialog?.getCurrentMessage()) {
+          this.game.dialog.advance();
+        } else {
+          if (!this.input.fire) {
+            this.input.firePressed = true;
+          }
+          this.input.fire = true;
         }
-        this.input.fire = true;
+        break;
+      case "Enter":
+        // Enter key also advances dialog
+        if (this.game?.dialog?.getCurrentMessage()) {
+          this.game.dialog.advance();
+        }
         break;
       case "ShiftLeft":
       case "ShiftRight":
@@ -151,8 +163,18 @@ export class InputHandler {
     }
 
     const touchPos = this.getTouchPos(evt);
-    this.input.target = touchPos;
-    this.input.fire = true;
+    
+    // Try UI click first, if handled don't fire weapons
+    let uiHandled = false;
+    if (this.game && this.game.renderer) {
+      uiHandled = this.game.renderer.handleClick(touchPos.x, touchPos.y);
+    }
+    
+    // If UI didn't handle the touch, treat it as gameplay input
+    if (!uiHandled) {
+      this.input.target = touchPos;
+      this.input.fire = true;
+    }
   }
 
   handleTouchEnd(evt) {
@@ -196,13 +218,33 @@ export class InputHandler {
       x: evt.clientX - rect.left,
       y: evt.clientY - rect.top,
     };
+    
+    // Update renderer mouse position for hover states
+    if (this.game && this.game.renderer) {
+      this.game.renderer.updateMousePosition(
+        this.input.mousePosition.x, 
+        this.input.mousePosition.y
+      );
+    }
   }
 
   handleMouseDown(evt) {
     if (evt.button === 0) {
       // Left mouse button
-      this.input.fire = true;
-      this.input.firePressed = true;
+      const rect = this.canvas.getBoundingClientRect();
+      const x = evt.clientX - rect.left;
+      const y = evt.clientY - rect.top;
+      
+      // Try UI click first, if handled don't fire weapons
+      let uiHandled = false;
+      if (this.game && this.game.renderer) {
+        uiHandled = this.game.renderer.handleClick(x, y);
+      }
+      
+      if (!uiHandled) {
+        this.input.fire = true;
+        this.input.firePressed = true;
+      }
     }
     // Right-click functionality removed
   }

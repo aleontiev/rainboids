@@ -91,6 +91,66 @@ export class Metal {
     const prevX = this.x;
     const prevY = this.y;
     
+    // Get player position for drift effect
+    const player = this.game?.player;
+    const edgeMargin = 50; // Distance from edge to trigger bounce
+    const removalMargin = 200; // Distance beyond edge for removal
+    
+    if (this.isPortrait) {
+      // Portrait mode: bounce off left/right edges
+      
+      // Check left edge
+      if (this.x < edgeMargin) {
+        this.x = edgeMargin;
+        this.vx = Math.abs(this.vx) * 0.8; // Bounce right with damping
+      }
+      // Check right edge
+      else if (this.x > window.innerWidth - edgeMargin) {
+        this.x = window.innerWidth - edgeMargin;
+        this.vx = -Math.abs(this.vx) * 0.8; // Bounce left with damping
+      }
+      
+      // Add slight drift towards player horizontally
+      if (player) {
+        const driftStrength = 0.02;
+        const deltaX = player.x - this.x;
+        this.vx += Math.sign(deltaX) * driftStrength;
+        
+        // Limit horizontal velocity
+        this.vx = Math.max(-2, Math.min(2, this.vx));
+      }
+      
+      // Continue downward movement
+      this.vy = this.speed;
+      
+    } else {
+      // Landscape mode: bounce off top/bottom edges
+      
+      // Check top edge
+      if (this.y < edgeMargin) {
+        this.y = edgeMargin;
+        this.vy = Math.abs(this.vy) * 0.8; // Bounce down with damping
+      }
+      // Check bottom edge
+      else if (this.y > window.innerHeight - edgeMargin) {
+        this.y = window.innerHeight - edgeMargin;
+        this.vy = -Math.abs(this.vy) * 0.8; // Bounce up with damping
+      }
+      
+      // Add slight drift towards player vertically
+      if (player) {
+        const driftStrength = 0.02;
+        const deltaY = player.y - this.y;
+        this.vy += Math.sign(deltaY) * driftStrength;
+        
+        // Limit vertical velocity
+        this.vy = Math.max(-2, Math.min(2, this.vy));
+      }
+      
+      // Continue leftward movement
+      this.vx = -this.speed;
+    }
+    
     // Update position
     this.x += this.vx * slowdownFactor;
     this.y += this.vy * slowdownFactor;
@@ -102,12 +162,13 @@ export class Metal {
     this.dx = (this.x - prevX) * 60;
     this.dy = (this.y - prevY) * 60;
     
-    // Check if off screen for cleanup
-    const margin = 100;
+    // Check if far enough off screen for removal
     if (this.isPortrait) {
-      return this.y < window.innerHeight + margin;
+      // Remove if pushed far beyond top or bottom
+      return this.y > -removalMargin && this.y < window.innerHeight + removalMargin;
     } else {
-      return this.x > -margin;
+      // Remove if pushed far beyond left or right
+      return this.x > -removalMargin && this.x < window.innerWidth + removalMargin;
     }
   }
 
@@ -175,22 +236,38 @@ export class Metal {
     const bulletVx = Math.cos(bullet.angle) * bullet.speed;
     const bulletVy = Math.sin(bullet.angle) * bullet.speed;
     
-    if (length === 0) return { vx: -bulletVx, vy: -bulletVy };
+    if (length === 0) return { 
+      angle: bullet.angle + Math.PI,
+      x: bullet.x + Math.cos(bullet.angle + Math.PI) * 5,
+      y: bullet.y + Math.sin(bullet.angle + Math.PI) * 5
+    };
     
     // Normal vector to the line (perpendicular)
     const nx = -dy / length;
     const ny = dx / length;
     
+    // Make sure normal points away from incoming bullet
+    const dotProduct = bulletVx * nx + bulletVy * ny;
+    const normalX = dotProduct < 0 ? nx : -nx;
+    const normalY = dotProduct < 0 ? ny : -ny;
+    
     // Reflect the bullet velocity
-    const dot = bulletVx * nx + bulletVy * ny;
-    const reflectedVx = bulletVx - 2 * dot * nx;
-    const reflectedVy = bulletVy - 2 * dot * ny;
+    const dot = bulletVx * normalX + bulletVy * normalY;
+    const reflectedVx = bulletVx - 2 * dot * normalX;
+    const reflectedVy = bulletVy - 2 * dot * normalY;
+    
+    // Calculate new angle
+    const newAngle = Math.atan2(reflectedVy, reflectedVx);
+    
+    // Push bullet away from the metal to prevent getting stuck
+    const pushDistance = bullet.size + this.thickness/2 + 5;
+    const newX = bullet.x + normalX * pushDistance;
+    const newY = bullet.y + normalY * pushDistance;
     
     return { 
-      vx: reflectedVx, 
-      vy: reflectedVy,
-      angle: Math.atan2(reflectedVy, reflectedVx),
-      speed: Math.sqrt(reflectedVx * reflectedVx + reflectedVy * reflectedVy)
+      angle: newAngle,
+      x: newX,
+      y: newY
     };
   }
 
@@ -222,6 +299,143 @@ export class Metal {
       angle: Math.atan2(reflectedVy, reflectedVx),
       speed: Math.sqrt(reflectedVx * reflectedVx + reflectedVy * reflectedVy)
     };
+  }
+
+  // Handle player collision with metal - player is 3x heavier than metal
+  handlePlayerCollision(player, segment) {
+    const { x1, y1, x2, y2 } = segment;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    
+    if (length === 0) return;
+    
+    // Normal vector to the line (perpendicular)
+    const nx = -dy / length;
+    const ny = dx / length;
+    
+    // Make sure normal points away from player
+    const deltaX = player.x - this.x;
+    const deltaY = player.y - this.y;
+    const dotProduct = deltaX * nx + deltaY * ny;
+    const normalX = dotProduct < 0 ? nx : -nx;
+    const normalY = dotProduct < 0 ? ny : -ny;
+    
+    // Mass ratio: player = 10, metal = 1, total = 11 (player much heavier for realistic pushing)
+    const playerMass = 10.0;
+    const metalMass = 1.0;
+    const totalMass = playerMass + metalMass;
+    
+    // Position separation based on mass ratio
+    const pushDistance = player.hitboxSize + this.thickness/2 + 5;
+    const playerPush = pushDistance * (metalMass / totalMass); // Player moves very little (1/11)
+    const metalPush = pushDistance * (playerMass / totalMass); // Metal moves much more (10/11)
+    
+    player.x += normalX * playerPush;
+    player.y += normalY * playerPush;
+    this.x -= normalX * metalPush;
+    this.y -= normalY * metalPush;
+    
+    // Get velocities
+    const playerVelX = player.dx / 60; // Convert from pixels/second to pixels/frame
+    const playerVelY = player.dy / 60;
+    const metalVelX = this.vx;
+    const metalVelY = this.vy;
+    
+    // Calculate relative velocity in collision normal direction
+    const relativeVelX = playerVelX - metalVelX;
+    const relativeVelY = playerVelY - metalVelY;
+    const relativeNormalVel = relativeVelX * normalX + relativeVelY * normalY;
+    
+    // Don't resolve if objects are separating
+    if (relativeNormalVel > 0) return;
+    
+    // Coefficient of restitution (how bouncy the collision is)
+    const restitution = 0.1; // More inelastic collision
+    
+    // Impulse calculation for unequal masses
+    const impulse = -(1 + restitution) * relativeNormalVel / totalMass;
+    
+    // Apply impulse based on mass (lighter object gets more velocity change)
+    const playerImpulse = impulse * metalMass; // Player gets much smaller change
+    const metalImpulse = impulse * playerMass; // Metal gets larger change
+    
+    // Update velocities - but with much reduced effect
+    this.vx += metalImpulse * normalX * 0.2; // Much more reduced impulse transfer
+    this.vy += metalImpulse * normalY * 0.2;
+    
+    // Add extra momentum transfer based on player speed - require much more force
+    const playerSpeed = Math.sqrt(playerVelX * playerVelX + playerVelY * playerVelY);
+    const pushForce = Math.min(playerSpeed * 0.05, 0.3); // Much smaller force coefficient and cap
+    
+    // Only apply push force if player is moving at significant speed
+    const minimumPushSpeed = 4.0; // Player must be moving even faster to push metal
+    if (playerSpeed > minimumPushSpeed) {
+      this.vx += normalX * -pushForce; // Negative because normal points away from player
+      this.vy += normalY * -pushForce;
+    }
+    
+    // Limit metal velocity to prevent excessive speed and disappearing
+    const maxMetalSpeed = 1.0; // Much lower max speed to prevent disappearing
+    const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (currentSpeed > maxMetalSpeed) {
+      this.vx = (this.vx / currentSpeed) * maxMetalSpeed;
+      this.vy = (this.vy / currentSpeed) * maxMetalSpeed;
+    }
+  }
+
+  // Handle enemy collision with metal (50% dampened effect)
+  handleEnemyCollision(enemy, segment) {
+    const { x1, y1, x2, y2 } = segment;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    
+    if (length === 0) return;
+    
+    // Normal vector to the line (perpendicular)
+    const nx = -dy / length;
+    const ny = dx / length;
+    
+    // Make sure normal points away from enemy
+    const deltaX = enemy.x - this.x;
+    const deltaY = enemy.y - this.y;
+    const dotProduct = deltaX * nx + deltaY * ny;
+    const normalX = dotProduct < 0 ? nx : -nx;
+    const normalY = dotProduct < 0 ? ny : -ny;
+    
+    // 50% dampened effect for enemies
+    const pushDistance = (enemy.size + this.thickness/2 + 5) * 0.5;
+    const dampenedPush = pushDistance * 0.5;
+    
+    enemy.x += normalX * dampenedPush;
+    enemy.y += normalY * dampenedPush;
+    this.x -= normalX * dampenedPush;
+    this.y -= normalY * dampenedPush;
+    
+    // Transfer momentum with 50% dampening
+    const enemyVelX = enemy.dx / 60; // Convert from pixels/second to pixels/frame
+    const enemyVelY = enemy.dy / 60;
+    const metalVelX = this.vx;
+    const metalVelY = this.vy;
+    
+    // Dampened momentum exchange (35% instead of 70%)
+    const momentumExchange = 0.35;
+    
+    const newMetalVelX = metalVelX * (1 - momentumExchange) + enemyVelX * momentumExchange;
+    const newMetalVelY = metalVelY * (1 - momentumExchange) + enemyVelY * momentumExchange;
+    
+    // Apply new velocity to metal
+    this.vx = newMetalVelX;
+    this.vy = newMetalVelY;
+    
+    // Limit metal velocity to prevent excessive speed
+    const maxMetalSpeed = 3; // Slightly lower max speed from enemy interactions
+    const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (currentSpeed > maxMetalSpeed) {
+      this.vx = (this.vx / currentSpeed) * maxMetalSpeed;
+      this.vy = (this.vy / currentSpeed) * maxMetalSpeed;
+    }
   }
 
   render(ctx) {

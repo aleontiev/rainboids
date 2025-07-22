@@ -31,49 +31,9 @@ export class AudioManager {
       megaExplosion: this.generateSfxrSound("megaExplosion"),
       megaBossExplosion: this.generateSfxrSound("megaBossExplosion"),
     };
-    // Music button (music only)
-    const musicButton = document.getElementById("music-btn");
-    const volumeButton = document.getElementById("volume-btn");
-    const updateMusicIcon = () => {
-      musicButton.classList.toggle("muted", this.musicMuted);
-    };
-    const updateVolumeIcon = () => {
-      volumeButton.classList.toggle("muted", this.soundMuted);
-    };
-
-    const musicButtonClicked = (e) => {
-      e.stopPropagation();
-      this.musicMuted = !this.musicMuted;
-      if (this.backgroundMusic) {
-        this.backgroundMusic.muted = this.musicMuted || this.soundMuted;
-      }
-      updateMusicIcon();
-    };
-    const volumeButtonClicked = (e) => {
-      e.stopPropagation();
-      this.soundMuted = !this.soundMuted;
-      if (this.backgroundMusic) {
-        this.backgroundMusic.muted = this.soundMuted || this.musicMuted;
-      }
-      updateVolumeIcon();
-    };
-    if (musicButton) {
-      if (this.game.isMobile) {
-        musicButton.addEventListener("touchend", musicButtonClicked);
-      } else {
-        musicButton.addEventListener("click", musicButtonClicked);
-      }
-      updateMusicIcon();
-    }
-
-    if (volumeButton) {
-      if (this.game.isMobile) {
-        volumeButton.addEventListener("touchend", volumeButtonClicked);
-      } else {
-        volumeButton.addEventListener("click", volumeButtonClicked);
-      }
-      updateVolumeIcon();
-    }
+    // Music/volume button state is now handled by canvas renderer
+    // Button states available via this.musicMuted and this.soundMuted
+    // Button clicks handled via this.toggleMusic() and this.toggleSound() methods
   }
   ready() {
     this.audioReady = true;
@@ -359,6 +319,20 @@ export class AudioManager {
       setTimeout(() => {
         this.continuousLaserLoop();
       }, 250); // Responsive interval for smooth continuous sound
+    }
+  }
+
+  toggleMusic() {
+    this.musicMuted = !this.musicMuted;
+    if (this.backgroundMusic) {
+      this.backgroundMusic.muted = this.musicMuted;
+    }
+  }
+
+  toggleSound() {
+    this.soundMuted = !this.soundMuted;
+    if (this.laserSoundPlaying && this.soundMuted) {
+      this.stopContinuousLaser();
     }
   }
 }

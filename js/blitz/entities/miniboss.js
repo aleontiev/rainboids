@@ -661,7 +661,7 @@ export class MiniBoss extends Enemy {
       ctx.fillStyle = "#ff4444";
     }
     
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = "#ff4444";
     ctx.lineWidth = 3;
     
     // Draw a diamond shape as default
@@ -732,7 +732,7 @@ export class MiniBoss extends Enemy {
       }
 
       // Border
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = "#ff4444";
       ctx.lineWidth = 1;
       ctx.strokeRect(barX, barY, barWidth, barHeight);
     }

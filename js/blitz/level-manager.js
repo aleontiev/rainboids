@@ -276,7 +276,7 @@ export class LevelManager {
           this.trackEnemySpawned(event.enemyId);
         }
         break;
-      case "explode_remaining_enemies":
+      case "explode_enemies":
         this.explodeRemainingEnemies();
         break;
       case "spawn_powerups":
@@ -295,7 +295,7 @@ export class LevelManager {
     if (currentPhase.powerupEnabled) {
       this.powerupSpawnTimer++;
       if (this.powerupSpawnTimer > currentPhase.powerupSpawnRate + Math.random() * this.config.world.powerupSpawnVariance) {
-        this.game.entities.spawnPowerup();
+        this.game.entities.spawnPowerup(currentPhase);
         this.powerupSpawnTimer = 0;
       }
     }

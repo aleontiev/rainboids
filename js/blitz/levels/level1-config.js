@@ -368,8 +368,8 @@ export default {
       
       // Visual appearance
       shape: "triangle", // triangle, circle, square, rounded-square, equal-triangle, sharp-triangle, two-circles, ring, or custom SVG path
-      strokeColor: "#ffffff",
-      strokeWidth: 2,
+      strokeColor: "#ff4444",
+      strokeWidth: 3,
       
       // Movement behavior
       movementPattern: "straight", // straight, sine, zigzag, circle, dive, stationary
@@ -391,7 +391,7 @@ export default {
       canClone: false,
       cloneInterval: 90,
       maxClones: 3,
-      maxGenerations: 4,
+      maxGenerations: 5,
       
       // Physics
       invulnerable: false,
@@ -402,17 +402,19 @@ export default {
     straightBasic: {
       name: "Basic Fighter",
       shape: "triangle",
-      color: "#ffffff",
+      color: "#ff4444",
       movementPattern: "straight",
       attackPattern: "simple",
-      shootCooldown: 60,
-      bulletType: "normal"
+      shootCooldown: 150,
+      bulletType: "normal",
+      bulletSize: 10,
+      bulletColor: "#ff4444"
     },
     
     sineBasic: {
       name: "Wave Rider",
       shape: "two-circles",
-      color: "#000000",
+      color: "#ff6644",
       movementPattern: "sine",
       movementConfig: {
         amplitude: { min: 30, max: 70 },
@@ -428,16 +430,17 @@ export default {
           { x: 0, y: 0.6 }   // Bottom circle
         ]
       },
-      shootCooldown: 60,
+      shootCooldown: 150,
       bulletType: "normal",
-      bulletSize: 6,
-      bulletSpeed: 5
+      bulletSize: 10,
+      bulletSpeed: 5,
+      bulletColor: "#ff6644"
     },
     
     zigzagBasic: {
       name: "Zigzag Bomber",
       shape: "triangle",
-      color: "#ffffff",
+      color: "#ff8844",
       movementPattern: "zigzag",
       movementConfig: {
         zigzagTimer: 30,
@@ -445,21 +448,22 @@ export default {
       },
       attackPattern: "spreading",
       attackConfig: {
-        spreadBulletSize: 8,
+        spreadBulletSize: 5,
         spreadBulletSpeed: 3,
         spreadBulletCount: 8,
         spreadExplosionTime: 120
       },
-      shootCooldown: 180,
+      shootCooldown: 300,
       bulletType: "spreading",
-      bulletSize: 20,
-      bulletSpeed: 1.5
+      bulletSize: 15,
+      bulletSpeed: 1.5,
+      bulletColor: "#ff8844"
     },
     
     circleBasic: {
       name: "Orbital Cloner",
       shape: "ring",
-      color: "#000000",
+      color: "#ffaa44",
       size: 24,
       movementPattern: "circle",
       movementConfig: {
@@ -468,20 +472,21 @@ export default {
         driftSpeed: 0.5
       },
       attackPattern: "simple",
-      shootCooldown: 600,
+      shootCooldown: 300,
       bulletType: "normal",
-      bulletSize: 6,
+      bulletSize: 10,
       bulletSpeed: 5,
+      bulletColor: "#ffaa44",
       canClone: true,
       cloneInterval: 90,
       maxClones: 3,
-      maxGenerations: 4
+      maxGenerations: 5
     },
     
     diveBasic: {
       name: "Dive Bomber",
       shape: "sharp-triangle",
-      color: "#ffffff",
+      color: "#ffcc44",
       size: 24,
       movementPattern: "dive",
       movementConfig: {
@@ -495,7 +500,7 @@ export default {
     laserBasic: {
       name: "Laser Sniper",
       shape: "circle", // Will have custom laser cannon rendering
-      color: "#000000",
+      color: "#ffaa44",
       speed: 1,
       movementPattern: "straight",
       movementConfig: {
@@ -509,15 +514,15 @@ export default {
         laserSpeed: 80,
         targetingAccuracy: 30 // 30px radius inaccuracy
       },
-      shootCooldown: 300, // Total cycle time
+      shootCooldown: 400, // Total cycle time
       bulletType: "laser",
-      bulletColor: "#ff0000"
+      bulletColor: "#ffaa44"
     },
     
     pulseBasic: {
       name: "Pulse Ring",
       shape: "ring",
-      color: "#ffffff",
+      color: "#ffcc44",
       size: 33.6, // 1.4x normal size
       speed: 1.5,
       movementPattern: "straight",
@@ -531,17 +536,17 @@ export default {
         pulseRadius: 0, // Shoots from center
         warningTime: 30 // Warning effect before pulse
       },
-      shootCooldown: 300, // Not used for pulse
+      shootCooldown: 400, // Not used for pulse
       bulletType: "circular",
-      bulletSize: 5,
+      bulletSize: 8,
       bulletSpeed: 3,
-      bulletColor: "#888888"
+      bulletColor: "#ffcc44"
     },
     
     squareBasic: {
       name: "Corner Gunner",
       shape: "square",
-      color: "#000000",
+      color: "#ff6644",
       size: 30,
       speed: 1,
       movementPattern: "sine",
@@ -563,10 +568,11 @@ export default {
         ],
         randomDirection: true // Each corner shoots in random direction
       },
-      shootCooldown: 60,
+      shootCooldown: 150,
       bulletType: "circular",
-      bulletSize: 8,
+      bulletSize: 12,
       bulletSpeed: 4,
+      bulletColor: "#ff6644",
       visualConfig: {
         rotationSpeed: 0.1 // Spinning square
       }
@@ -576,7 +582,7 @@ export default {
     zigzagFast: {
       name: "Speed Bomber",
       shape: "triangle",
-      color: "#ffffff",
+      color: "#ff8844",
       speed: 3.5,
       size: 20,
       fadeInTime: 30,
@@ -587,22 +593,22 @@ export default {
       },
       attackPattern: "spreading",
       attackConfig: {
-        spreadBulletSize: 6,
+        spreadBulletSize: 4,
         spreadBulletSpeed: 4,
         spreadBulletCount: 12,
         spreadExplosionTime: 90
       },
-      shootCooldown: 120,
+      shootCooldown: 250,
       bulletType: "spreading",
-      bulletSize: 15,
+      bulletSize: 12,
       bulletSpeed: 2.5,
-      bulletColor: "#ff4444"
+      bulletColor: "#ff8844"
     },
     
     squareHeavy: {
       name: "Heavy Gunner",
       shape: "square",
-      color: "#000000",
+      color: "#ff4444",
       health: 2,
       speed: 0.7,
       size: 40,
@@ -625,11 +631,11 @@ export default {
           { x: -0.7, y: -0.7 }
         ]
       },
-      shootCooldown: 45,
+      shootCooldown: 120,
       bulletType: "circular",
-      bulletSize: 12,
+      bulletSize: 15,
       bulletSpeed: 4,
-      bulletColor: "#ff8800",
+      bulletColor: "#ff4444",
       visualConfig: {
         rotationSpeed: 0.1
       }
@@ -640,16 +646,16 @@ export default {
       type: "miniboss",
       sprite: "alpha-miniboss",
       spriteScale: 1,
-      spriteColor: "#ff4444",
+      spriteColor: "#ff6644",
       health: 100,
       shield: 50,
       speed: 0.5,
       size: 90,
       // Weapon configurations
-      primaryWeaponCooldown: 60,
-      secondaryWeaponCooldown: 90,
+      primaryWeaponCooldown: 70,
+      secondaryWeaponCooldown: 80,
       circularWeaponCooldown: 120,
-      burstWeaponCooldown: 90,
+      burstWeaponCooldown: 100,
       enemySpawnCooldown: 200,
       invulnerableDuration: 180,
       deathDuration: 30,
@@ -664,7 +670,7 @@ export default {
       type: "miniboss", 
       sprite: "beta-miniboss",
       spriteScale: 1,
-      spriteColor: "#ffdd44",
+      spriteColor: "#ffaa44",
       spriteRotation: Math.PI / 2,
       health: 100,
       shield: 50,
@@ -687,20 +693,7 @@ export default {
     
     mainBoss: {
       type: "boss",
-      health: 1000,
-      size: 120,
-      speed: 1,
-      // Boss-specific timings
-      enemySpawnCooldown: 180,
-      leftArmCooldown: 120,
-      rightArmCooldown: 90,
-      mouthTimer: 60,
-      laserChargeTime: 60,
-      laserPreviewTime: 90,
-      laserSweepDuration: 360,
-      patrolRange: 150,
-      laserSweepMaxChargeTime: 120,
-      coreLength: 60
+      spriteColor: "#ffdd44" // Red/orange/yellow for boss
     }
   },
   
@@ -724,11 +717,21 @@ export default {
       powerupEnabled: true,
       metalEnabled: true,
       
+      // Phase-specific powerup weights
+      powerups: {
+        shield: { weight: 25 },
+        bomb: { weight: 15 },
+        mainWeapon: { weight: 50 },
+        sideWeapon: { weight: 20 },
+        secondShip: { weight: 10 },
+        rainbowStar: { weight: 5 }
+      },
+      
       // Phase-specific enemy configurations
       enemies: {
         straightBasic: {
           spawnRate: {
-            base: 200,
+            base: 300,
             variance: 40,
             timeModifier: {
               enabled: true,
@@ -742,21 +745,21 @@ export default {
         },
         sineBasic: {
           spawnRate: {
-            base: 250,
+            base: 400,
             variance: 50
           },
           weight: 0.3 // 30% of enemy spawns
         },
         zigzagBasic: {
           spawnRate: {
-            base: 300,
+            base: 400,
             variance: 60
           },
           weight: 0.2 // 20% of enemy spawns
         },
         diveBasic: {
           spawnRate: {
-            base: 400,
+            base: 100,
             variance: 80
           },
           weight: 0.1 // 10% of enemy spawns
@@ -781,6 +784,16 @@ export default {
       asteroidTypes: ["small", "medium", "large"],
       powerupEnabled: true,
       metalEnabled: true,
+      
+      // Phase 2: Increased shield and bomb weights for miniboss fight
+      powerups: {
+        shield: { weight: 35 },
+        bomb: { weight: 25 },
+        mainWeapon: { weight: 20 },
+        sideWeapon: { weight: 15 },
+        secondShip: { weight: 5 },
+        rainbowStar: { weight: 3 }
+      },
       
       // Reduced enemy spawning during miniboss fight
       enemies: {
@@ -834,6 +847,16 @@ export default {
       powerupEnabled: true,
       metalEnabled: false,
       
+      // Phase 3: Higher weapon powerup rates during asteroid storm
+      powerups: {
+        shield: { weight: 20 },
+        bomb: { weight: 10 },
+        mainWeapon: { weight: 35 },
+        sideWeapon: { weight: 25 },
+        secondShip: { weight: 8 },
+        rainbowStar: { weight: 7 }
+      },
+      
       // No enemies during asteroid storm
       enemies: {},
       
@@ -855,6 +878,16 @@ export default {
       asteroidTypes: ["small", "medium"],
       powerupEnabled: true,
       metalEnabled: true,
+      
+      // Phase 4: Heavy defensive focus for dual miniboss fight
+      powerups: {
+        shield: { weight: 40 },
+        bomb: { weight: 30 },
+        mainWeapon: { weight: 15 },
+        sideWeapon: { weight: 10 },
+        secondShip: { weight: 3 },
+        rainbowStar: { weight: 5 }
+      },
       
       // Minimal enemy spawning during dual miniboss fight
       enemies: {
@@ -908,6 +941,16 @@ export default {
       powerupEnabled: true,
       metalEnabled: false,
       
+      // Phase 5: More weapons and rainbowStar for final storm
+      powerups: {
+        shield: { weight: 15 },
+        bomb: { weight: 10 },
+        mainWeapon: { weight: 30 },
+        sideWeapon: { weight: 25 },
+        secondShip: { weight: 10 },
+        rainbowStar: { weight: 15 }
+      },
+      
       enemies: {}, // No enemies
       
       events: []
@@ -929,11 +972,21 @@ export default {
       powerupEnabled: true,
       metalEnabled: false,
       
+      // Phase 6: Prepare for boss with equal powerup distribution
+      powerups: {
+        shield: { weight: 20 },
+        bomb: { weight: 20 },
+        mainWeapon: { weight: 20 },
+        sideWeapon: { weight: 20 },
+        secondShip: { weight: 15 },
+        rainbowStar: { weight: 10 }
+      },
+      
       enemies: {}, // No enemies
       
       events: [
         {
-          type: "explode_remaining_enemies",
+          type: "explode_enemies",
           condition: "phase_start",
           value: 0,
           onlyOnce: true
@@ -962,6 +1015,16 @@ export default {
       asteroidTypes: [],
       powerupEnabled: false,
       metalEnabled: false,
+      
+      // Phase 7: No powerups during dialog (powerupEnabled: false)
+      powerups: {
+        shield: { weight: 0 },
+        bomb: { weight: 0 },
+        mainWeapon: { weight: 0 },
+        sideWeapon: { weight: 0 },
+        secondShip: { weight: 0 },
+        rainbowStar: { weight: 0 }
+      },
       
       enemies: {}, // No enemies
       

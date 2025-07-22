@@ -17,10 +17,6 @@ body.game-ready {
   pointer-events: all;
 }
 
-h2 {
-  margin-bottom: 0;
-}
-
 canvas {
   display: block;
   background-color: #000;
@@ -33,15 +29,7 @@ canvas {
   background: #000;
 }
 
-/* Custom cursor */
 .custom-cursor {
   cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiPjxsaW5lIHgxPSIxMiIgeTE9IjgiIHgyPSIxMiIgeTI9IjE2Ii8+PGxpbmUgeDE9IjgiIHkxPSIxMiIgeDI9IjE2IiB5Mj0iMTIiLz48L3N2Zz4K") 12 12,
     auto;
-}
-
-/* Icon positioning adjustments */
-.icon-adjust {
-  top: 0px;
-  left: 0px;
-  position: relative;
 }

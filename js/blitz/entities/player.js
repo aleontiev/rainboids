@@ -548,15 +548,14 @@ export class Player {
       ctx.stroke();
     }
 
-    // Draw visible hitbox (animated radial rainbow gradient)
-    ctx.globalAlpha = shipOpacity;
+    // Draw simple teal-green glow
+    ctx.globalAlpha = shipOpacity * 0.6;
     const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.hitboxSize);
-    const time = Date.now() * 0.005; // Animate over time
 
-    gradient.addColorStop(0, `hsl(${(time * 50) % 360}, 100%, 70%)`); // Center color
-    gradient.addColorStop(0.3, `hsl(${(time * 50 + 60) % 360}, 100%, 60%)`);
-    gradient.addColorStop(0.6, `hsl(${(time * 50 + 120) % 360}, 100%, 50%)`);
-    gradient.addColorStop(1, `hsl(${(time * 50 + 180) % 360}, 100%, 40%)`); // Outer color
+    gradient.addColorStop(0, "#66ffcc"); // Center - bright teal-green
+    gradient.addColorStop(0.4, "#44ccaa"); // Mid - darker teal
+    gradient.addColorStop(0.8, "#22aa88"); // Outer - darker green
+    gradient.addColorStop(1, "transparent"); // Fade to transparent
 
     ctx.fillStyle = gradient;
     ctx.beginPath();

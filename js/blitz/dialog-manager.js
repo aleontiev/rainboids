@@ -16,130 +16,70 @@ export class DialogManager {
   }
 
   setup() {
-    const bossDialog = document.getElementById("boss-dialog");
-    const levelCleared = document.getElementById("level-cleared");
-
-    if (bossDialog) {
-      this.game.controls.addHandler(bossDialog, () => this.advance());
-    }
-
-    if (levelCleared) {
-      this.game.controls.addHandler(levelCleared, () =>
-        this.game.state.restart()
-      );
-    }
+    // Dialog display and interaction now handled by canvas renderer
+    // Dialog clicks handled via canvas click detection
   }
 
   show() {
-    this.dialogState = 1;
     this.isActive = true;
+    this.dialogState = 0;
     this.timer = 0;
-    this.game.state.state = "BOSS_DIALOG";
-
-    const dialogElement = document.getElementById("boss-dialog");
-    const textElement = document.getElementById("boss-text");
-
-    if (dialogElement) {
-      dialogElement.style.display = "block";
-    }
-
-    if (textElement) {
-      textElement.textContent = this.dialogMessages[0];
-    }
-
-    // Hide game action buttons during dialog
-    this.hideGameActionButtons();
-  }
-
-  advance() {
-    if (!this.isActive) return;
-
-    this.dialogState++;
-    const textElement = document.getElementById("boss-text");
-
-    if (this.dialogState <= this.dialogMessages.length) {
-      if (textElement) {
-        textElement.textContent = this.dialogMessages[this.dialogState - 1];
-      }
-    } else {
-      this.hide();
-      this.game.entities.spawnBoss();
-    }
+    this.updateDialog();
   }
 
   hide() {
     this.isActive = false;
     this.dialogState = 0;
-
-    const dialogElement = document.getElementById("boss-dialog");
-    if (dialogElement) {
-      dialogElement.style.display = "none";
-    }
-
-    // Show game action buttons again
-    this.showGameActionButtons();
-
-    this.game.state.state = "PLAYING";
-    this.game.gamePhase = 5; // Phase 5: Boss fight phase
   }
 
-  update(deltaTime) {
-    if (this.isActive) {
-      this.timer += deltaTime;
+  updateDialog() {
+    // All dialog rendering now handled by canvas renderer
+    // Dialog text available via this.getCurrentMessage()
+  }
 
-      // Auto-advance dialog during autoplay mode (500ms per page)
-      if (this.game.cheats.autoplay && this.timer >= 500) {
-        this.advance();
-        this.timer = 0; // Reset timer for next page
-      }
+  getCurrentMessage() {
+    if (!this.isActive || this.dialogState >= this.dialogMessages.length) {
+      return null;
+    }
+    return this.dialogMessages[this.dialogState];
+  }
+
+  advance() {
+    if (!this.isActive) return;
+
+    if (this.dialogState === 0) {
+      // From "..." to "......"
+      this.dialogState = 1;
+      this.updateDialog();
+    } else if (this.dialogState === 1) {
+      // From "......" to threat message
+      this.dialogState = 2;
+      this.updateDialog();
+    } else if (this.dialogState === 2) {
+      // From threat message to second threat
+      this.dialogState = 3;
+      this.updateDialog();
+    } else {
+      // Close dialog and start boss fight
+      this.hide();
+      this.game.level.phase = 5; // Boss fight phase
+      this.game.entities.spawnBoss();
+    }
+  }
+
+  update() {
+    if (!this.isActive) return;
+
+    this.timer++;
+
+    // Auto-advance after 2 seconds on first two states
+    if ((this.dialogState === 0 || this.dialogState === 1) && this.timer >= 120) {
+      this.advance();
+      this.timer = 0;
     }
   }
 
   reset() {
-    if (this.isActive) {
-      this.hide();
-    }
-    this.dialogState = 0;
-    this.isActive = false;
-    this.timer = 0;
-  }
-
-  // Check if dialog should be triggered
-  shouldTrigger(gamePhase, timer) {
-    return gamePhase === 4 && timer >= 5000 && !this.isActive;
-  }
-
-  // Hide game action buttons during dialog
-  hideGameActionButtons() {
-    const buttonIds = [
-      "time-slow-button",
-      "pause-button",
-      "shield-button",
-      "bomb-button",
-    ];
-
-    buttonIds.forEach((id) => {
-      const button = document.getElementById(id);
-      if (button) {
-        button.style.display = "none";
-      }
-    });
-  }
-
-  // Show game action buttons after dialog
-  showGameActionButtons() {
-    const buttonIds = [
-      "time-slow-button",
-      "pause-button",
-      "shield-button",
-      "bomb-button",
-    ];
-
-    buttonIds.forEach((id) => {
-      const button = document.getElementById(id);
-      if (button) {
-        button.style.display = "block";
-      }
-    });
+    this.hide();
   }
 }

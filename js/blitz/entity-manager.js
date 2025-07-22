@@ -3,16 +3,6 @@
 import {
   Enemy,
   createEnemyFromConfig,
-  createEnemy,
-  // Legacy exports for backward compatibility
-  StraightEnemy,
-  SineEnemy,
-  ZigzagEnemy,
-  CircleEnemy,
-  DiveEnemy,
-  LaserEnemy,
-  PulseEnemy,
-  SquareEnemy,
 } from "./entities/enemy.js";
 import { MiniBoss } from "./entities/miniboss.js";
 import { Boss } from "./entities/boss.js";
@@ -211,18 +201,7 @@ export class EntityManager {
     const enemyConfigs = this.game?.level?.config?.enemies;
     if (!enemyConfigs) {
       console.warn("No enemy configs found, falling back to default spawning");
-      // Fallback using legacy createEnemy function
-      const enemyTypes = ["straight", "sine", "zigzag", "circle", "dive", "laser"];
-      const randomType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-      
-      const enemy = createEnemy(randomType, spawnX, spawnY, this.game.isPortrait, null, false, this.game);
-      
-      if (enemy) {
-        console.log(`Spawned fallback enemy: ${randomType}`);
-        this.enemies.push(enemy);
-        this.updateAllEnemiesList();
-      }
-      return enemy;
+      throw new Error("No enemies, bad level config")
     }
     
     const basicEnemyConfigs = Object.keys(enemyConfigs).filter(
@@ -259,7 +238,7 @@ export class EntityManager {
     return enemy;
   }
 
-  spawnPowerup() {
+  spawnPowerup(phaseConfig = null) {
     const canvas = this.game.canvas;
     let spawnX, spawnY;
 
@@ -271,20 +250,35 @@ export class EntityManager {
       spawnY = Math.random() * canvas.height;
     }
 
-    // Weighted powerup selection
-    const powerupWeights = {
-      shield: 25,
-      bomb: 15,
-      mainWeapon: 30,
-      sideWeapon: 20,
-      secondShip: 10,
-      rainbowStar: 5,
-    };
+    // Get powerup weights from phase config or use defaults
+    let powerupWeights;
+    if (phaseConfig && phaseConfig.powerups) {
+      // Extract weights from phase config format { powerupType: { weight: number } }
+      powerupWeights = {};
+      for (const [type, config] of Object.entries(phaseConfig.powerups)) {
+        powerupWeights[type] = config.weight || 0;
+      }
+    } else {
+      // Fallback to default weights
+      powerupWeights = {
+        shield: 25,
+        bomb: 15,
+        mainWeapon: 30,
+        sideWeapon: 20,
+        secondShip: 10,
+        rainbowStar: 5,
+      };
+    }
 
     const totalWeight = Object.values(powerupWeights).reduce(
       (sum, weight) => sum + weight,
       0
     );
+    
+    // If total weight is 0, don't spawn any powerups
+    if (totalWeight <= 0) {
+      return null;
+    }
     const random = Math.random() * totalWeight;
     let currentWeight = 0;
     let selectedType = "shield";
@@ -622,11 +616,29 @@ export class EntityManager {
   updateMissiles(slowdownFactor) {
     for (let i = this.missiles.length - 1; i >= 0; i--) {
       const missile = this.missiles[i];
-      // Homing missiles need access to all enemies for targeting
-      if (!missile.update(this.allEnemies, slowdownFactor)) {
+      // Homing missiles need access to targetable enemies (excluding invulnerable parts)
+      const targetableEnemies = this.getTargetableEnemies();
+      if (!missile.update(targetableEnemies, slowdownFactor)) {
         this.missiles.splice(i, 1);
       }
     }
+  }
+
+  getTargetableEnemies() {
+    // Filter out invulnerable enemies
+    const vulnerableEnemies = [...this.enemies, ...this.miniBosses].filter((enemy) => {
+      if (enemy.isVulnerable && typeof enemy.isVulnerable === "function") {
+        return enemy.isVulnerable();
+      }
+      return !enemy.godMode && !enemy.invulnerable;
+    });
+
+    // Add boss targetable parts if boss exists
+    if (this.boss && !this.boss.isDefeated && this.boss.getTargetableParts) {
+      vulnerableEnemies.push(...this.boss.getTargetableParts());
+    }
+
+    return vulnerableEnemies;
   }
 
   updateSpreadingBullets(slowdownFactor) {

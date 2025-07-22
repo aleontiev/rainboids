@@ -56,26 +56,8 @@ export class DeathManager {
           this.game.state.highScore
         );
 
-        this.game.elements.finalScore.textContent =
-          this.game.state.score.toLocaleString();
-        this.game.elements.highScore.textContent =
-          this.game.state.highScore.toLocaleString();
-
-        // Check if game over element exists and debug its state
-        const gameOverEl = this.game.elements.gameOver;
-
-        // Ensure game over modal is properly set up
-        gameOverEl.style.display = "flex";
-        gameOverEl.style.opacity = "1"; // Start fully visible for testing
-        gameOverEl.style.zIndex = "9999"; // Higher z-index
-        gameOverEl.style.position = "fixed"; // Use fixed instead of absolute
-        gameOverEl.style.top = "0";
-        gameOverEl.style.left = "0";
-        gameOverEl.style.width = "100%";
-        gameOverEl.style.height = "100%";
-        gameOverEl.style.backgroundColor = "rgba(0, 0, 0, 0.8)"; // Ensure background
-        gameOverEl.style.visibility = "visible";
-        gameOverEl.style.pointerEvents = "auto";
+        // Game over UI is now handled by canvas renderer
+        // Scores are available via this.game.state.score and this.game.state.highScore
 
         // Set up game over screen state - do this after UI setup
         this.game.opacity = 1;
@@ -88,21 +70,14 @@ export class DeathManager {
         this.fadeOutTimer / this.fadeOutTime
       );
 
-      // Keep game over modal fully visible (skip fade animation for now)
-      this.game.elements.gameOver.style.opacity = "1";
+      // Game over rendering handled by canvas renderer
 
       // After fade is complete, end death animation
       if (this.fadeOutTimer >= this.fadeOutTime) {
         this.game.state.state = "GAME_OVER";
         this.animationActive = false;
         this.game.opacity = 1.0;
-        this.game.elements.gameOver.style.opacity = "1";
-
-        // Final debugging to see if element is actually visible
-        const gameOverEl = this.game.elements.gameOver;
-        // Try to force visibility
-        gameOverEl.style.visibility = "visible";
-        gameOverEl.style.pointerEvents = "auto";
+        // Game over state is now handled by canvas renderer
       } else {
         // Fade out game
         this.game.opacity = Math.max(0, 0.3 - finalFadeProgress * 0.3); // Fade from 30% to 0%

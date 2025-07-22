@@ -2,7 +2,6 @@
 import { Player } from "./blitz/entities/player.js";
 import { Boss } from "./blitz/entities/boss.js";
 import { InputHandler } from "./blitz/input.js";
-import { TitleScreen } from "./blitz/title-screen.js";
 import { ProgressView } from "./blitz/progress-view.js";
 import { ActionsView } from "./blitz/actions-view.js";
 import { EffectsManager } from "./blitz/effects-manager.js";
@@ -17,6 +16,7 @@ import { CollisionManager } from "./blitz/collision-manager.js";
 import { GameLoopManager } from "./blitz/game-loop-manager.js";
 import { PowerupManager } from "./blitz/powerup-manager.js";
 import { Renderer } from "./blitz/renderer.js";
+// UIRenderer functionality moved to Renderer
 import { PlayerManager } from "./blitz/player-manager.js";
 import { ControlManager } from "./blitz/control-manager.js";
 import { IconManager } from "./blitz/icon-manager.js";
@@ -26,42 +26,10 @@ class BlitzGame {
   constructor() {
     window.blitz = this; // Make game accessible for sound effects
 
-    // Cache all HTML elements
-    this.elements = {
-      gameCanvas: document.getElementById("gameCanvas"),
-      titleCanvas: document.getElementById("titleCanvas"),
-      titleScreen: document.getElementById("title-screen"),
-      titleContent: document.getElementById("title-content"), // New: for title screen specific content
-      pauseContent: document.getElementById("pause-content"), // New: for pause screen specific content
-      gameOver: document.getElementById("game-over"),
-      startBtn: document.getElementById("start-button"),
-      restartBtn: document.getElementById("restart-button"),
-      timeSlowButton: document.getElementById("time-slow-button"),
-      pauseButton: document.getElementById("pause-button"),
-      shieldButton: document.getElementById("shield-button"),
-      bombButton: document.getElementById("bomb-button"),
-      levelCleared: document.getElementById("level-cleared"),
-      loreModal: document.getElementById("lore-modal"),
-      creditsModal: document.getElementById("credits-modal"),
-      helpModal: document.getElementById("help-modal"),
-      loreBtn: document.getElementById("lore-btn"),
-      creditsBtn: document.getElementById("credits-btn"),
-      helpBtn: document.getElementById("help-btn"),
-      loreCloseBtn: document.querySelector("#lore-modal .close-button"),
-      creditsCloseBtn: document.querySelector("#credits-modal .close-button"),
-      helpCloseBtn: document.querySelector("#help-modal .close-button"),
-      score: document.getElementById("score-value"),
-      highScore: document.getElementById("high-score-value"),
-      finalScore: document.getElementById("final-score-value"),
-      timer: document.getElementById("timer-value"),
-    };
-
-    this.canvas = this.elements.gameCanvas;
+    // Get canvas element - all other UI is now canvas-based
+    this.canvas = document.getElementById("gameCanvas");
     this.ctx = this.canvas.getContext("2d");
-    const titleCanvas = this.elements.titleCanvas;
-    const titleCtx = titleCanvas.getContext("2d");
-    this.title = new TitleScreen(titleCanvas, titleCtx);
-    this.input = new InputHandler(this.canvas);
+    this.input = new InputHandler(this.canvas, this);
     this.progress = new ProgressView(this);
     this.actions = new ActionsView(this);
     this.level = new LevelManager(this);
@@ -76,6 +44,7 @@ class BlitzGame {
     this.gameLoop = new GameLoopManager(this);
     this.powerup = new PowerupManager(this);
     this.renderer = new Renderer(this);
+    // UI functionality now handled by renderer
     this.playerManager = new PlayerManager(this);
     this.state = new State(this);
     this.controls = new ControlManager(this);
@@ -154,12 +123,6 @@ class BlitzGame {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
 
-    // Also resize title canvas
-    if (this.titleCanvas) {
-      this.titleCanvas.width = window.innerWidth;
-      this.titleCanvas.height = window.innerHeight;
-    }
-
     // Store previous orientation
     const previousOrientation = this.isPortrait;
 
@@ -171,8 +134,6 @@ class BlitzGame {
     if (previousOrientation !== this.isPortrait) {
       this.repositionEnemies();
     }
-
-    this.title.resize(window.innerWidth, window.innerHeight);
   }
 
   repositionEnemies() {
@@ -266,6 +227,7 @@ class BlitzGame {
 
   render() {
     this.renderer.render();
+    // UI rendering now handled within renderer.render()
   }
 
   loop(currentTime) {
@@ -401,6 +363,48 @@ class BlitzGame {
     }
 
     return collidables;
+  }
+
+  // Convenience methods for UI renderer
+  startGame() {
+    this.state.play();
+  }
+
+  restartGame() {
+    this.state.play();
+  }
+
+  toggleGodMode() {
+    this.cheats.toggleGodMode();
+  }
+
+  toggleUpgrades() {
+    this.cheats.toggleUpgrades();
+  }
+
+  toggleAutoAim() {
+    this.cheats.toggleAutoAim();
+  }
+
+  toggleAutoPlayer() {
+    this.cheats.toggleAutoPlayer();
+  }
+
+  showHelp() {
+    // Help modal is now handled by canvas renderer
+    this.renderer.helpModalVisible = true;
+  }
+
+  useBomb() {
+    this.actions.useBomb();
+  }
+
+  useShield() {
+    this.actions.useShield();
+  }
+
+  useTimeSlow() {
+    this.actions.useTimeSlow();
   }
 }
 

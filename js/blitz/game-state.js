@@ -77,10 +77,10 @@ export class State {
 
   start() {
     this.state = "PLAYING";
-    this.game.elements.titleScreen.style.display = "none";
+    // All UI now handled by canvas renderer
 
-    // Hide pause content when starting game
-    this.game.elements.pauseContent.style.display = "none";
+    // Update background for gameplay
+    this.game.background.setup();
 
     // Show power buttons
     this.game.actions.show();
@@ -101,7 +101,7 @@ export class State {
   restart() {
     this.game.reset();
     this.game.background.setup();
-    this.game.elements.gameOver.style.display = "none";
+    // Game over UI now handled by canvas renderer
     this.state = "PLAYING";
 
     // Show power buttons again
@@ -115,11 +115,10 @@ export class State {
   pause(toggle) {
     if (this.state === "PLAYING") {
       this.state = "PAUSED";
-      this.game.elements.titleScreen.style.display = "flex";
+      // Pause UI now handled by canvas renderer
 
-      // Show title content (includes start button), show pause content
-      this.game.elements.titleContent.style.display = "flex";
-      this.game.elements.pauseContent.style.display = "block";
+      // Update background for title screen
+      this.game.background.setup();
 
       // Hide power buttons during pause
       this.game.actions.hide();
@@ -134,10 +133,10 @@ export class State {
 
   resume() {
     this.state = "PLAYING";
-    this.game.elements.titleScreen.style.display = "none";
+    // Resume UI now handled by canvas renderer
 
-    // Hide pause content when resuming
-    this.game.elements.pauseContent.style.display = "none";
+    // Update background for gameplay
+    this.game.background.setup();
 
     // Show power buttons again
     this.game.actions.show();
@@ -148,11 +147,10 @@ export class State {
 
   fadeToLevelCleared() {
     this.state = "LEVEL_CLEARED";
-    this.game.elements.levelCleared.style.display = "block";
-
-    // Fade out the canvas
-    this.game.elements.gameCanvas.style.transition = "opacity 1s";
-    this.game.elements.gameCanvas.style.opacity = "0.1";
+    // Level cleared UI now handled by canvas renderer
+    
+    // Canvas opacity can be managed through game opacity property
+    this.game.opacity = 0.1;
   }
 
   startBossDeathSequence() {

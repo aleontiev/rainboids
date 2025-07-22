@@ -1063,7 +1063,7 @@ export class Boss extends MiniBoss {
     
     // Body color changes when vulnerable
     ctx.fillStyle = bodyPart.enabled && !bodyPart.invulnerable ? "#ff4444" : "#444444";
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = "#ff4444";
     ctx.lineWidth = 3;
     
     // Main body
@@ -1103,7 +1103,7 @@ export class Boss extends MiniBoss {
     const headY = this.y + this.headOffsetY - this.size * 0.3;
     
     ctx.fillStyle = "#666666";
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = "#ff4444";
     ctx.lineWidth = 2;
     
     ctx.save();
@@ -1211,7 +1211,7 @@ export class Boss extends MiniBoss {
     ctx.rotate(arm.shoulderAngle);
     
     ctx.fillStyle = "#666666";
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = "#ff4444";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.rect(-15, -arm.shoulderRadius, 30, arm.shoulderRadius * 2);
@@ -1231,7 +1231,7 @@ export class Boss extends MiniBoss {
     ctx.rotate(arm.coreAngle);
     
     ctx.fillStyle = color;
-    ctx.strokeStyle = "#ffffff";
+    ctx.strokeStyle = "#ff4444";
     ctx.lineWidth = 3;
     
     // Charging effects for laser arm
@@ -1312,7 +1312,7 @@ export class Boss extends MiniBoss {
       
       ctx.fillStyle = healthColor;
       ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = "#ff4444";
       ctx.lineWidth = 1;
       ctx.strokeRect(barX, barY, barWidth, barHeight);
       
@@ -1324,7 +1324,7 @@ export class Boss extends MiniBoss {
         const shieldPercent = part.shield / part.maxShield;
         ctx.fillStyle = "#00ffff";
         ctx.fillRect(barX, shieldBarY, barWidth * shieldPercent, barHeight);
-        ctx.strokeStyle = "#ffffff";
+        ctx.strokeStyle = "#ff4444";
         ctx.lineWidth = 1;
         ctx.strokeRect(barX, shieldBarY, barWidth, barHeight);
       }

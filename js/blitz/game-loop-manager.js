@@ -7,19 +7,19 @@ export class GameLoopManager {
 
   // Main update method
   update(deltaTime, slowdownFactor = 1.0) {
+    // Always update background for title screen animations
+    this.game.background.update();
+
     if (
       ["PLAYING", "DYING"].indexOf(this.game.state.state) === -1
     ) {
-      // only playing and dying trigger
+      // only playing and dying trigger full game updates
       return;
     }
 
     this.game.death.update();
 
     this.game.state.update(deltaTime);
-
-    // Update background
-    this.game.background.update();
 
     // Update dialog system
     this.game.dialog.update(deltaTime);
@@ -58,10 +58,7 @@ export class GameLoopManager {
     const deltaTime = currentTime - this.lastTime;
     this.lastTime = currentTime;
 
-    // Update title screen animations if visible
-    if (state.state === "TITLE" || state.state === "PAUSED") {
-      this.game.title.update();
-    }
+    // Title screen animations now handled by background manager
 
     // Update game logic only when playing or during death animation
     if (state.state === "PLAYING") {
@@ -69,6 +66,9 @@ export class GameLoopManager {
       this.update(deltaTime, slowdownFactor);
     } else if (state.state === "DYING") {
       this.update(deltaTime, 0.2); // Update even during death animation
+    } else {
+      // Update background animations for title screen and other states
+      this.game.background.update();
     }
 
     // Render everything

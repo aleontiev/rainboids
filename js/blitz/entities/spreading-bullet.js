@@ -115,25 +115,52 @@ export class SpreadingBullet {
 
     ctx.save();
     ctx.translate(this.x, this.y);
-    ctx.rotate(this.angle);
-    ctx.fillStyle = this.color;
-
-    // Draw like a regular bullet but larger (same style as enemy bullets)
-    const width = this.size * 2;
-    const height = this.size;
-
+    
+    // Rotate based on time for spinning effect
+    const spinSpeed = 0.1;
+    ctx.rotate(this.time * spinSpeed);
+    
+    // Draw spiky ball
+    const radius = this.size;
+    const spikes = 8;
+    const innerRadius = radius * 0.6;
+    const outerRadius = radius;
+    
+    // Create gradient for depth
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, outerRadius);
+    gradient.addColorStop(0, this.color);
+    gradient.addColorStop(0.7, this.color);
+    gradient.addColorStop(1, "#440000"); // Darker edge
+    
+    ctx.fillStyle = gradient;
+    
+    // Draw spiky shape
     ctx.beginPath();
-    ctx.moveTo(-width / 2, -height / 2);
-    ctx.lineTo(width / 2 - height / 2, -height / 2);
-    ctx.arc(width / 2 - height / 2, 0, height / 2, -Math.PI / 2, Math.PI / 2, false);
-    ctx.lineTo(-width / 2, height / 2);
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (i * Math.PI) / spikes;
+      const r = i % 2 === 0 ? outerRadius : innerRadius;
+      const x = Math.cos(angle) * r;
+      const y = Math.sin(angle) * r;
+      
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
     ctx.closePath();
     ctx.fill();
     
-    // Add white stroke for enemy bullets
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    // Add warning glow effect as it approaches explosion
+    const timeRatio = this.time / this.explosionTime;
+    if (timeRatio > 0.7) {
+      ctx.save();
+      ctx.globalAlpha = (timeRatio - 0.7) / 0.3; // Fade in during last 30%
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = 10 + (timeRatio - 0.7) * 20;
+      ctx.fill();
+      ctx.restore();
+    }
 
     ctx.restore();
   }
