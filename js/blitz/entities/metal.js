@@ -110,15 +110,7 @@ export class Metal {
         this.vx = -Math.abs(this.vx) * 0.8; // Bounce left with damping
       }
       
-      // Add slight drift towards player horizontally
-      if (player) {
-        const driftStrength = 0.02;
-        const deltaX = player.x - this.x;
-        this.vx += Math.sign(deltaX) * driftStrength;
-        
-        // Limit horizontal velocity
-        this.vx = Math.max(-2, Math.min(2, this.vx));
-      }
+      // No artificial drift - metal follows physics only
       
       // Continue downward movement
       this.vy = this.speed;
@@ -137,15 +129,7 @@ export class Metal {
         this.vy = -Math.abs(this.vy) * 0.8; // Bounce up with damping
       }
       
-      // Add slight drift towards player vertically
-      if (player) {
-        const driftStrength = 0.02;
-        const deltaY = player.y - this.y;
-        this.vy += Math.sign(deltaY) * driftStrength;
-        
-        // Limit vertical velocity
-        this.vy = Math.max(-2, Math.min(2, this.vy));
-      }
+      // No artificial drift - metal follows physics only
       
       // Continue leftward movement
       this.vx = -this.speed;
@@ -155,8 +139,11 @@ export class Metal {
     this.x += this.vx * slowdownFactor;
     this.y += this.vy * slowdownFactor;
     
-    // Update rotation
+    // Update rotation from both base rotation and angular velocity from collisions
     this.rotation += this.rotationSpeed * slowdownFactor;
+    if (this.angularVelocity !== undefined) {
+      this.rotation += this.angularVelocity * slowdownFactor;
+    }
     
     // Calculate velocity (pixels per frame * 60 = pixels per second)
     this.dx = (this.x - prevX) * 60;
@@ -301,7 +288,7 @@ export class Metal {
     };
   }
 
-  // Handle player collision with metal - player is 3x heavier than metal
+  // Handle player collision with metal - proper momentum transfer physics
   handlePlayerCollision(player, segment) {
     const { x1, y1, x2, y2 } = segment;
     const dx = x2 - x1;
@@ -314,30 +301,20 @@ export class Metal {
     const nx = -dy / length;
     const ny = dx / length;
     
-    // Make sure normal points away from player
+    // Make sure normal points away from metal surface towards player
     const deltaX = player.x - this.x;
     const deltaY = player.y - this.y;
     const dotProduct = deltaX * nx + deltaY * ny;
     const normalX = dotProduct < 0 ? nx : -nx;
     const normalY = dotProduct < 0 ? ny : -ny;
     
-    // Mass ratio: player = 10, metal = 1, total = 11 (player much heavier for realistic pushing)
-    const playerMass = 10.0;
-    const metalMass = 1.0;
-    const totalMass = playerMass + metalMass;
+    // Separate objects to prevent overlap
+    const pushDistance = player.hitboxSize + this.thickness/2 + 3;
+    player.x += normalX * pushDistance * 0.6; // Player moves less
+    this.x -= normalX * pushDistance * 0.4; // Metal moves less
     
-    // Position separation based on mass ratio
-    const pushDistance = player.hitboxSize + this.thickness/2 + 5;
-    const playerPush = pushDistance * (metalMass / totalMass); // Player moves very little (1/11)
-    const metalPush = pushDistance * (playerMass / totalMass); // Metal moves much more (10/11)
-    
-    player.x += normalX * playerPush;
-    player.y += normalY * playerPush;
-    this.x -= normalX * metalPush;
-    this.y -= normalY * metalPush;
-    
-    // Get velocities
-    const playerVelX = player.dx / 60; // Convert from pixels/second to pixels/frame
+    // Get current velocities (convert player velocity from px/sec to px/frame)
+    const playerVelX = player.dx / 60;
     const playerVelY = player.dy / 60;
     const metalVelX = this.vx;
     const metalVelY = this.vy;
@@ -347,44 +324,73 @@ export class Metal {
     const relativeVelY = playerVelY - metalVelY;
     const relativeNormalVel = relativeVelX * normalX + relativeVelY * normalY;
     
-    // Don't resolve if objects are separating
+    // Don't resolve if objects are separating already
     if (relativeNormalVel > 0) return;
     
-    // Coefficient of restitution (how bouncy the collision is)
-    const restitution = 0.1; // More inelastic collision
+    // Find collision point on metal segment for torque calculation
+    const t = Math.max(0, Math.min(1, 
+      ((player.x - x1) * dx + (player.y - y1) * dy) / (length * length)
+    ));
+    const collisionPointX = x1 + t * dx;
+    const collisionPointY = y1 + t * dy;
     
-    // Impulse calculation for unequal masses
-    const impulse = -(1 + restitution) * relativeNormalVel / totalMass;
+    // Physics constants - same mass for all entities
+    const playerMass = 1.0; // Same mass as enemies and metal
+    const metalMass = 1.0;
+    const restitution = 0.3; // Some bounciness
     
-    // Apply impulse based on mass (lighter object gets more velocity change)
-    const playerImpulse = impulse * metalMass; // Player gets much smaller change
-    const metalImpulse = impulse * playerMass; // Metal gets larger change
+    // Calculate impulse for elastic collision
+    const impulse = -(1 + restitution) * relativeNormalVel / (playerMass + metalMass);
     
-    // Update velocities - but with much reduced effect
-    this.vx += metalImpulse * normalX * 0.2; // Much more reduced impulse transfer
-    this.vy += metalImpulse * normalY * 0.2;
+    // Apply momentum transfer - equal masses means equal and opposite changes
+    const playerVelChangeX = impulse * metalMass * normalX / playerMass;
+    const playerVelChangeY = impulse * metalMass * normalY / playerMass;
+    const metalVelChangeX = -impulse * playerMass * normalX / metalMass;
+    const metalVelChangeY = -impulse * playerMass * normalY / metalMass;
     
-    // Add extra momentum transfer based on player speed - require much more force
-    const playerSpeed = Math.sqrt(playerVelX * playerVelX + playerVelY * playerVelY);
-    const pushForce = Math.min(playerSpeed * 0.05, 0.3); // Much smaller force coefficient and cap
+    // Update metal linear velocity
+    this.vx += metalVelChangeX;
+    this.vy += metalVelChangeY;
     
-    // Only apply push force if player is moving at significant speed
-    const minimumPushSpeed = 4.0; // Player must be moving even faster to push metal
-    if (playerSpeed > minimumPushSpeed) {
-      this.vx += normalX * -pushForce; // Negative because normal points away from player
-      this.vy += normalY * -pushForce;
+    // Calculate and apply torque to metal based on collision point
+    const metalCenterX = this.x;
+    const metalCenterY = this.y;
+    const leverArmX = collisionPointX - metalCenterX;
+    const leverArmY = collisionPointY - metalCenterY;
+    
+    // Force applied at collision point
+    const forceX = -impulse * playerMass * normalX;
+    const forceY = -impulse * playerMass * normalY;
+    
+    // Torque = lever arm × force (cross product in 2D)
+    const torque = leverArmX * forceY - leverArmY * forceX;
+    
+    // Apply angular velocity (assuming metal has uniform density)
+    const momentOfInertia = metalMass * length * length / 12; // Rod moment of inertia
+    const angularImpulse = torque / Math.max(momentOfInertia, 1); // Prevent division by zero
+    
+    // Initialize angular velocity if not present
+    if (this.angularVelocity === undefined) {
+      this.angularVelocity = 0;
     }
+    this.angularVelocity += angularImpulse * 0.1; // Scale for reasonable rotation
     
-    // Limit metal velocity to prevent excessive speed and disappearing
-    const maxMetalSpeed = 1.0; // Much lower max speed to prevent disappearing
-    const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-    if (currentSpeed > maxMetalSpeed) {
-      this.vx = (this.vx / currentSpeed) * maxMetalSpeed;
-      this.vy = (this.vy / currentSpeed) * maxMetalSpeed;
+    // Apply angular damping
+    this.angularVelocity *= 0.95;
+    
+    // Update player velocity by modifying dx/dy (converted back to px/sec)
+    player.dx += playerVelChangeX * 60;
+    player.dy += playerVelChangeY * 60;
+    
+    // Apply some velocity damping to prevent excessive speeds
+    const metalSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (metalSpeed > 3.0) {
+      this.vx = (this.vx / metalSpeed) * 3.0;
+      this.vy = (this.vy / metalSpeed) * 3.0;
     }
   }
 
-  // Handle enemy collision with metal (50% dampened effect)
+  // Handle enemy collision with metal - same physics as player collision
   handleEnemyCollision(enemy, segment) {
     const { x1, y1, x2, y2 } = segment;
     const dx = x2 - x1;
@@ -397,44 +403,94 @@ export class Metal {
     const nx = -dy / length;
     const ny = dx / length;
     
-    // Make sure normal points away from enemy
+    // Make sure normal points away from metal surface towards enemy
     const deltaX = enemy.x - this.x;
     const deltaY = enemy.y - this.y;
     const dotProduct = deltaX * nx + deltaY * ny;
     const normalX = dotProduct < 0 ? nx : -nx;
     const normalY = dotProduct < 0 ? ny : -ny;
     
-    // 50% dampened effect for enemies
-    const pushDistance = (enemy.size + this.thickness/2 + 5) * 0.5;
-    const dampenedPush = pushDistance * 0.5;
+    // Find collision point on metal segment for torque calculation
+    const t = Math.max(0, Math.min(1, 
+      ((enemy.x - x1) * dx + (enemy.y - y1) * dy) / (length * length)
+    ));
+    const collisionPointX = x1 + t * dx;
+    const collisionPointY = y1 + t * dy;
     
-    enemy.x += normalX * dampenedPush;
-    enemy.y += normalY * dampenedPush;
-    this.x -= normalX * dampenedPush;
-    this.y -= normalY * dampenedPush;
+    // Separate objects to prevent overlap
+    const pushDistance = (enemy.size || enemy.hitboxSize || 15) + this.thickness/2 + 3;
+    enemy.x += normalX * pushDistance * 0.6; // Enemy moves less
+    this.x -= normalX * pushDistance * 0.4; // Metal moves less
     
-    // Transfer momentum with 50% dampening
-    const enemyVelX = enemy.dx / 60; // Convert from pixels/second to pixels/frame
-    const enemyVelY = enemy.dy / 60;
+    // Get current velocities - same mass for all entities
+    const enemyVelX = (enemy.dx || 0) / 60; // Convert from pixels/second to pixels/frame
+    const enemyVelY = (enemy.dy || 0) / 60;
     const metalVelX = this.vx;
     const metalVelY = this.vy;
     
-    // Dampened momentum exchange (35% instead of 70%)
-    const momentumExchange = 0.35;
+    // Calculate relative velocity in collision normal direction
+    const relativeVelX = enemyVelX - metalVelX;
+    const relativeVelY = enemyVelY - metalVelY;
+    const relativeNormalVel = relativeVelX * normalX + relativeVelY * normalY;
     
-    const newMetalVelX = metalVelX * (1 - momentumExchange) + enemyVelX * momentumExchange;
-    const newMetalVelY = metalVelY * (1 - momentumExchange) + enemyVelY * momentumExchange;
+    // Don't resolve if objects are separating already
+    if (relativeNormalVel > 0) return;
     
-    // Apply new velocity to metal
-    this.vx = newMetalVelX;
-    this.vy = newMetalVelY;
+    // Physics constants - same mass for all entities
+    const entityMass = 1.0; // Same mass for player, enemies, and metal
+    const metalMass = 1.0;
+    const restitution = 0.3; // Some bounciness
     
-    // Limit metal velocity to prevent excessive speed
-    const maxMetalSpeed = 3; // Slightly lower max speed from enemy interactions
-    const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-    if (currentSpeed > maxMetalSpeed) {
-      this.vx = (this.vx / currentSpeed) * maxMetalSpeed;
-      this.vy = (this.vy / currentSpeed) * maxMetalSpeed;
+    // Calculate impulse for elastic collision
+    const impulse = -(1 + restitution) * relativeNormalVel / (entityMass + metalMass);
+    
+    // Apply momentum transfer - equal masses means equal and opposite changes
+    const entityVelChangeX = impulse * metalMass * normalX / entityMass;
+    const entityVelChangeY = impulse * metalMass * normalY / entityMass;
+    const metalVelChangeX = -impulse * entityMass * normalX / metalMass;
+    const metalVelChangeY = -impulse * entityMass * normalY / metalMass;
+    
+    // Update metal linear velocity
+    this.vx += metalVelChangeX;
+    this.vy += metalVelChangeY;
+    
+    // Calculate and apply torque to metal based on collision point
+    const metalCenterX = this.x;
+    const metalCenterY = this.y;
+    const leverArmX = collisionPointX - metalCenterX;
+    const leverArmY = collisionPointY - metalCenterY;
+    
+    // Force applied at collision point
+    const forceX = -impulse * entityMass * normalX;
+    const forceY = -impulse * entityMass * normalY;
+    
+    // Torque = lever arm × force (cross product in 2D)
+    const torque = leverArmX * forceY - leverArmY * forceX;
+    
+    // Apply angular velocity (assuming metal has uniform density)
+    const momentOfInertia = metalMass * length * length / 12; // Rod moment of inertia
+    const angularImpulse = torque / Math.max(momentOfInertia, 1); // Prevent division by zero
+    
+    // Initialize angular velocity if not present
+    if (this.angularVelocity === undefined) {
+      this.angularVelocity = 0;
+    }
+    this.angularVelocity += angularImpulse * 0.1; // Scale for reasonable rotation
+    
+    // Apply angular damping
+    this.angularVelocity *= 0.95;
+    
+    // Update enemy velocity if it has dx/dy properties
+    if (enemy.dx !== undefined && enemy.dy !== undefined) {
+      enemy.dx += entityVelChangeX * 60;
+      enemy.dy += entityVelChangeY * 60;
+    }
+    
+    // Apply velocity damping to prevent excessive speeds
+    const metalSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (metalSpeed > 3.0) {
+      this.vx = (this.vx / metalSpeed) * 3.0;
+      this.vy = (this.vy / metalSpeed) * 3.0;
     }
   }
 
