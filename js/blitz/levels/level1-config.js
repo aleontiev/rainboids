@@ -6,22 +6,13 @@ export default {
     speed: 6,
     size: 10,
     hitbox: 6,
-    dashDistance: 150,
-    dashFrames: 40,
-    
-    // Default weapon properties (used as fallbacks)
-    bulletSize: 15,
-    bulletSpeed: 8,
-    laserSize: 20,
-    laserSpeed: 80,
-    laserWidth: 16, // Width of laser beams
-    
-    // Abilities
-    homingMissileCooldown: 60,
     shieldCooldownMax: 300,
     shieldDuration: 60,
-    rainbowInvulnerableTime: 360,
-    
+    laserWidth: 15,
+    laserSpeed: 50,
+    laserLength: 48,
+    laserLife: 2000,
+
     // Weapon level configurations - each level defines complete weapon behavior
     levels: [
       // Level 1: Single green bullet
@@ -32,14 +23,14 @@ export default {
           {
             type: "bullet",
             count: 1,
-            size: 10,
+            size: 15, // Increased from 10 to 15 (1.5x)
             speed: 6,
             color: "#44ff44",
             damage: 1,
             angleOffset: 0,
-            positionOffset: { x: 0, y: 0 }
-          }
-        ]
+            positionOffset: { x: 0, y: 0 },
+          },
+        ],
       },
       // Level 2: Single green bullet, faster firing
       {
@@ -49,14 +40,14 @@ export default {
           {
             type: "bullet",
             count: 1,
-            size: 12,
+            size: 15, // Increased from 12 to 15 (1.25x)
             speed: 7,
             color: "#44ff44",
             damage: 1,
             angleOffset: 0,
-            positionOffset: { x: 0, y: 0 }
-          }
-        ]
+            positionOffset: { x: 0, y: 0 },
+          },
+        ],
       },
       // Level 3: Double bullets with slight spread
       {
@@ -66,14 +57,14 @@ export default {
           {
             type: "bullet",
             count: 2,
-            size: 15,
+            size: 19, // Increased from 15 to 19 (1.25x)
             speed: 8,
             color: "#44ff44",
             damage: 1,
             angleOffset: 0.05, // ±0.05 radians spread
-            positionOffset: { x: 0, y: 0 }
-          }
-        ]
+            positionOffset: { x: 0, y: 0 },
+          },
+        ],
       },
       // Level 4: Triple bullets with spread
       {
@@ -83,16 +74,16 @@ export default {
           {
             type: "bullet",
             count: 3,
-            size: 15,
+            size: 19, // Increased from 15 to 19 (1.25x)
             speed: 10,
             color: "#44ff44",
             damage: 1,
             angleOffset: 0.1, // ±0.1 radians spread for outer bullets
-            positionOffset: { x: 0, y: 0 }
-          }
-        ]
+            positionOffset: { x: 0, y: 0 },
+          },
+        ],
       },
-      // Level 5: Rainbow laser
+      // Level 5: Rainbow laaaaaser
       {
         id: 5,
         fireRate: 3,
@@ -101,14 +92,14 @@ export default {
             type: "laser",
             count: 1,
             size: 10,
-            speed: 80,
+            speed: 50,
             color: "rainbow",
-            damage: 0.33,
+            damage: 0.5,
             angleOffset: 0,
-            positionOffset: { x: 0, y: 0 }
-          }
-        ]
-      }
+            positionOffset: { x: 0, y: 0 },
+          },
+        ],
+      },
     ],
 
     // Secondary weapon level configurations - diagonal shots and homing missiles
@@ -117,9 +108,9 @@ export default {
       {
         id: 0,
         fireRate: 30,
-        projectiles: []
+        projectiles: [],
       },
-      // Level 1: Single diagonal bullet
+      // Level 1: Two diagonal bullets
       {
         id: 1,
         fireRate: 30,
@@ -127,16 +118,26 @@ export default {
           {
             type: "bullet",
             count: 1,
-            size: 12,
+            size: 15,
             speed: 6,
             color: "#00ccaa",
             damage: 1,
             angleOffset: 0.785, // 45 degrees in radians (Math.PI / 4)
-            positionOffset: { x: 0, y: 0 }
-          }
-        ]
+            positionOffset: { x: 0, y: 0 },
+          },
+          {
+            type: "bullet",
+            count: 1,
+            size: 15, // Increased from 12 to 15 (1.25x)
+            speed: 6,
+            color: "#00ccaa",
+            damage: 1,
+            angleOffset: -0.785, // 45 degrees in radians (Math.PI / 4)
+            positionOffset: { x: 0, y: 0 },
+          },
+        ],
       },
-      // Level 2: Two diagonal bullets + 2 homing missiles
+      // Level 2: 4 diagonal bullets + 2 homing missiles
       {
         id: 2,
         fireRate: 30,
@@ -144,35 +145,55 @@ export default {
           {
             type: "bullet",
             count: 1,
-            size: 12,
+            size: 15,
             speed: 6,
             color: "#00ccaa",
             damage: 1,
             angleOffset: 0.785, // 45 degrees
-            positionOffset: { x: 0, y: 0 }
+            positionOffset: { x: 0, y: 0 },
           },
           {
             type: "bullet",
             count: 1,
-            size: 12,
+            size: 15,
+            speed: 6,
+            color: "#00ccaa",
+            damage: 1,
+            angleOffset: 0.524, 
+            positionOffset: { x: 0, y: 0 },
+          },
+          {
+            type: "bullet",
+            count: 1,
+            size: 15,
+            speed: 6,
+            color: "#00ccaa",
+            damage: 1,
+            angleOffset: -0.524, 
+            positionOffset: { x: 0, y: 0 },
+          },
+          {
+            type: "bullet",
+            count: 1,
+            size: 15,
             speed: 6,
             color: "#00ccaa",
             damage: 1,
             angleOffset: -0.785, // -45 degrees
-            positionOffset: { x: 0, y: 0 }
-          }
+            positionOffset: { x: 0, y: 0 },
+          },
         ],
         homingMissiles: {
           enabled: true,
           count: 2,
           fireRate: 60,
-          size: 13.5,
+          size: 17, // Increased from 13.5 to 17 (1.25x)
           color: "#00ff44",
           damage: 1,
-          angleSpread: 0.2 // ±0.2 radians from primary angle
-        }
+          angleSpread: 0.2, // ±0.2 radians from primary angle
+        },
       },
-      // Level 3: Two diagonal bullets + 4 homing missiles
+      // Level 3: Four diagonal bullets + 4 homing missiles
       {
         id: 3,
         fireRate: 30,
@@ -180,35 +201,55 @@ export default {
           {
             type: "bullet",
             count: 1,
-            size: 12,
+            size: 15,
             speed: 6,
             color: "#00ccaa",
             damage: 1,
             angleOffset: 0.785, // 45 degrees
-            positionOffset: { x: 0, y: 0 }
+            positionOffset: { x: 0, y: 0 },
           },
           {
             type: "bullet",
             count: 1,
-            size: 12,
+            size: 15,
+            speed: 6,
+            color: "#00ccaa",
+            damage: 1,
+            angleOffset: 0.524, // 60 degrees
+            positionOffset: { x: 0, y: 0 },
+          },
+          {
+            type: "bullet",
+            count: 1,
+            size: 15,
+            speed: 6,
+            color: "#00ccaa",
+            damage: 1,
+            angleOffset: -0.524, // 60 degrees
+            positionOffset: { x: 0, y: 0 },
+          },
+          {
+            type: "bullet",
+            count: 1,
+            size: 15,
             speed: 6,
             color: "#00ccaa",
             damage: 1,
             angleOffset: -0.785, // -45 degrees
-            positionOffset: { x: 0, y: 0 }
-          }
+            positionOffset: { x: 0, y: 0 },
+          },
         ],
         homingMissiles: {
           enabled: true,
           count: 4,
           fireRate: 60,
-          size: 13.5,
+          size: 17, // Increased from 13.5 to 17 (1.25x)
           color: "#00ff44",
           damage: 1,
-          angleSpread: 0.4 // ±0.4 radians from primary angle
-        }
+          angleSpread: 0.4, // ±0.4 radians from primary angle
+        },
       },
-      // Level 4: Four diagonal bullets + 6 homing missiles (ultimate level)
+      // Level 4: Four diagonal bullets + 8 homing missiles (ultimate level)
       {
         id: 4,
         fireRate: 30,
@@ -216,55 +257,55 @@ export default {
           {
             type: "bullet",
             count: 1,
-            size: 12,
+            size: 15, // Increased from 12 to 15 (1.25x)
             speed: 6,
             color: "#00ccaa",
             damage: 1,
             angleOffset: 0.785, // 45 degrees
-            positionOffset: { x: 0, y: 0 }
+            positionOffset: { x: 0, y: 0 },
           },
           {
             type: "bullet",
             count: 1,
-            size: 12,
+            size: 15, // Increased from 12 to 15 (1.25x)
             speed: 6,
             color: "#00ccaa",
             damage: 1,
             angleOffset: -0.785, // -45 degrees
-            positionOffset: { x: 0, y: 0 }
+            positionOffset: { x: 0, y: 0 },
           },
           {
             type: "bullet",
             count: 1,
-            size: 12,
+            size: 15, // Increased from 12 to 15 (1.25x)
             speed: 6,
             color: "#00ccaa",
             damage: 1,
             angleOffset: 0.524, // 30 degrees
-            positionOffset: { x: 0, y: 0 }
+            positionOffset: { x: 0, y: 0 },
           },
           {
             type: "bullet",
             count: 1,
-            size: 12,
+            size: 15, // Increased from 12 to 15 (1.25x)
             speed: 6,
             color: "#00ccaa",
             damage: 1,
             angleOffset: -0.524, // -30 degrees
-            positionOffset: { x: 0, y: 0 }
-          }
+            positionOffset: { x: 0, y: 0 },
+          },
         ],
         homingMissiles: {
           enabled: true,
-          count: 6,
+          count: 8,
           fireRate: 60,
-          size: 13.5,
+          size: 17, // Increased from 13.5 to 17 (1.25x)
           color: "#00ff44",
           damage: 1,
-          angleSpread: 0.6 // ±0.6 radians from primary angle
-        }
-      }
-    ]
+          angleSpread: 0.6, // ±0.6 radians from primary angle
+        },
+      },
+    ],
   },
 
   // World settings
@@ -290,16 +331,13 @@ export default {
     explosionParticles: 12,
     explosionSpeed: 4,
     explosionLife: 80,
-    enemyExplosionScale: 3,
+    enemyExplosionScale: 5,
     particleLife: 60,
-    particleMaxLife: 60,
-    floatingTextLife: 60,
+    particleMaxLife: 100,
+    floatingTextLife: 100,
     bulletLife: 2000,
 
     // Laser entity settings
-    laserWidth: 8,
-    laserLength: 100,
-    laserLife: 600,
 
     // State management timers
     timeSlowDuration: 300,
@@ -344,6 +382,7 @@ export default {
       sideWeapon: "#00ccaa",
       secondShip: "#44ff44",
       bomb: "#ff4444",
+      rainbowStar: "#ffaa00",
     },
     powerupTypes: [
       "shield",
@@ -351,233 +390,272 @@ export default {
       "sideWeapon",
       "secondShip",
       "bomb",
-      "rainbowStar"
-    ]
+      "rainbowStar",
+    ],
+
+    // Powerup configurations - define behavior and properties for each powerup type
+    powerupConfigs: {
+      shield: {
+        duration: 0, // Instant effect
+      },
+      mainWeapon: {
+        duration: 0, // Instant effect
+      },
+      sideWeapon: {
+        duration: 0, // Instant effect
+      },
+      secondShip: {
+        duration: 0, // Instant effect
+      },
+      bomb: {
+        duration: 0, // Instant effect
+      },
+      rainbowStar: {
+        duration: 360, // 6 seconds of invulnerability (moved from player.rainbowInvulnerableTime)
+      },
+    },
   },
 
   // Enemy definitions - fully configurable data-driven enemies
   enemies: {
     // Base enemy defaults - inherited by all enemies
-    defaults: {
+    "*": {
       // Core properties
+      name: "Default Enemy",
       health: 1,
       size: 24,
       speed: 2,
       color: "#ffffff",
       fadeInTime: 60,
-      
+
       // Visual appearance
       shape: "triangle", // triangle, circle, square, rounded-square, equal-triangle, sharp-triangle, two-circles, ring, or custom SVG path
       strokeColor: "#ff4444",
       strokeWidth: 3,
-      
-      // Movement behavior
-      movementPattern: "straight", // straight, sine, zigzag, circle, dive, stationary
-      movementSpeed: 1.0, // Multiplier for base speed
-      
-      // Attack behavior
-      attackPattern: "simple", // simple, burst, circular, spreading, laser, pulse, none
-      shootCooldown: 60,
-      canShoot: true,
-      
-      // Projectile properties
-      bulletType: "normal", // normal, circular, spreading, laser
-      bulletSize: 6,
-      bulletSpeed: 3,
-      bulletColor: null, // Uses enemy color if null
-      bulletDamage: 1,
-      
-      // Special behaviors
-      canClone: false,
-      cloneInterval: 90,
-      maxClones: 3,
-      maxGenerations: 5,
-      
+
+      // Movement configuration
+      movement: {
+        type: "straight", // straight, sine, zigzag, circle, dive, stationary
+        speed: 1.0, // Multiplier for base speed
+      },
+
+      // Attack configuration
+      attack: {
+        pattern: "simple", // simple, burst, circular, spreading, laser, pulse, none
+        cooldown: 60,
+        canShoot: true,
+        bulletType: "normal", // normal, circular, spreading, laser
+        bulletSize: 6,
+        bulletSpeed: 3,
+        bulletColor: null, // Uses enemy color if null
+        bulletDamage: 1,
+      },
+
+      // Clone configuration
+      clone: {
+        enabled: false,
+        interval: 90,
+        maxClones: 3,
+        maxGenerations: 5,
+      },
+
+      // Rotation configuration
+      rotation: 0, // Default rotation speed (0 = no rotation)
+
       // Physics
       invulnerable: false,
-      invulnerabilityDuration: 0
+      invulnerabilityDuration: 0,
     },
-    
+
     // Regular enemy types - fully data-driven configurations
     straightBasic: {
       name: "Basic Fighter",
       shape: "triangle",
       color: "#ff4444",
-      movementPattern: "straight",
-      attackPattern: "simple",
-      shootCooldown: 150,
-      bulletType: "normal",
-      bulletSize: 10,
-      bulletColor: "#ff4444"
+      movement: {
+        type: "straight",
+      },
+      attack: {
+        pattern: "simple",
+        cooldown: 150,
+        bulletType: "normal",
+        bulletSize: 10,
+        bulletColor: "#ff4444",
+      },
     },
-    
+
     sineBasic: {
       name: "Wave Rider",
       shape: "two-circles",
       color: "#ff6644",
-      movementPattern: "sine",
-      movementConfig: {
+      movement: {
+        type: "sine",
         amplitude: { min: 30, max: 70 },
-        frequency: { min: 0.01, max: 0.03 }
+        frequency: { min: 0.01, max: 0.03 },
       },
-      attackPattern: "burst",
-      attackConfig: {
+      attack: {
+        pattern: "burst",
+        cooldown: 150,
         burstCount: 2,
         burstSpread: 0,
         shootFromMultiplePoints: true,
         shootPoints: [
           { x: 0, y: -0.6 }, // Top circle
-          { x: 0, y: 0.6 }   // Bottom circle
-        ]
+          { x: 0, y: 0.6 }, // Bottom circle
+        ],
+        bulletType: "normal",
+        bulletSize: 10,
+        bulletSpeed: 5,
+        bulletColor: "#ff6644",
       },
-      shootCooldown: 150,
-      bulletType: "normal",
-      bulletSize: 10,
-      bulletSpeed: 5,
-      bulletColor: "#ff6644"
     },
-    
+
     zigzagBasic: {
       name: "Zigzag Bomber",
       shape: "triangle",
       color: "#ff8844",
-      movementPattern: "zigzag",
-      movementConfig: {
+      movement: {
+        type: "zigzag",
         zigzagTimer: 30,
-        zigzagSpeed: 2
+        zigzagSpeed: 2,
       },
-      attackPattern: "spreading",
-      attackConfig: {
-        spreadBulletSize: 5,
+      attack: {
+        pattern: "spreading",
+        cooldown: 300,
+        bulletType: "spreading",
+        bulletSize: 15,
+        bulletSpeed: 1.5,
+        bulletColor: "#ff8844",
+        spreadBulletSize: 13, 
         spreadBulletSpeed: 3,
         spreadBulletCount: 8,
-        spreadExplosionTime: 120
+        spreadExplosionTime: 120,
       },
-      shootCooldown: 300,
-      bulletType: "spreading",
-      bulletSize: 15,
-      bulletSpeed: 1.5,
-      bulletColor: "#ff8844"
     },
-    
+
     circleBasic: {
       name: "Orbital Cloner",
       shape: "ring",
       color: "#ffaa44",
       size: 24,
-      movementPattern: "circle",
-      movementConfig: {
+      movement: {
+        type: "circle",
         radius: { min: 40, max: 70 },
         angularSpeed: { min: 0.04, max: 0.06 },
-        driftSpeed: 0.5
+        driftSpeed: 0.5,
       },
-      attackPattern: "simple",
-      shootCooldown: 300,
-      bulletType: "normal",
-      bulletSize: 10,
-      bulletSpeed: 5,
-      bulletColor: "#ffaa44",
-      canClone: true,
-      cloneInterval: 90,
-      maxClones: 3,
-      maxGenerations: 5
+      attack: {
+        pattern: "simple",
+        cooldown: 300,
+        bulletType: "normal",
+        bulletSize: 10,
+        bulletSpeed: 5,
+        bulletColor: "#ffaa44",
+      },
+      clone: {
+        enabled: true,
+        interval: 90,
+        maxClones: 3,
+        maxGenerations: 5,
+      },
     },
-    
+
     diveBasic: {
       name: "Dive Bomber",
       shape: "sharp-triangle",
       color: "#ffcc44",
       size: 24,
-      movementPattern: "dive",
-      movementConfig: {
+      movement: {
+        type: "dive",
         lockDuration: 60,
-        diveSpeed: 8
+        diveSpeed: 8,
       },
-      attackPattern: "none", // Doesn't shoot, only dives
-      canShoot: false
+      attack: {
+        pattern: "none",
+        canShoot: false,
+      },
     },
-    
+
     laserBasic: {
       name: "Laser Sniper",
       shape: "circle", // Will have custom laser cannon rendering
       color: "#ffaa44",
       speed: 1,
-      movementPattern: "straight",
-      movementConfig: {
-        speedMultiplier: 0.8
+      movement: {
+        type: "straight",
+        speedMultiplier: 0.8,
       },
-      attackPattern: "laser",
-      attackConfig: {
+      attack: {
+        pattern: "laser",
+        cooldown: 400, // Total cycle time
         chargeTime: 60,
         previewTime: 90,
         firingTime: 60,
         laserSpeed: 80,
-        targetingAccuracy: 30 // 30px radius inaccuracy
+        targetingAccuracy: 30, // 30px radius inaccuracy
+        bulletType: "laser",
+        bulletColor: "#ffaa44",
       },
-      shootCooldown: 400, // Total cycle time
-      bulletType: "laser",
-      bulletColor: "#ffaa44"
     },
-    
+
     pulseBasic: {
       name: "Pulse Ring",
       shape: "ring",
       color: "#ffcc44",
       size: 33.6, // 1.4x normal size
       speed: 1.5,
-      movementPattern: "straight",
-      movementConfig: {
-        speedMultiplier: 0.6
+      movement: {
+        type: "straight",
+        speedMultiplier: 0.6,
       },
-      attackPattern: "pulse",
-      attackConfig: {
+      attack: {
+        pattern: "pulse",
         pulseInterval: { min: 240, max: 360 },
         pulseBulletCount: 8,
         pulseRadius: 0, // Shoots from center
-        warningTime: 30 // Warning effect before pulse
+        warningTime: 30, // Warning effect before pulse
+        bulletType: "circular",
+        bulletSize: 8,
+        bulletSpeed: 3,
+        bulletColor: "#ffcc44",
       },
-      shootCooldown: 400, // Not used for pulse
-      bulletType: "circular",
-      bulletSize: 8,
-      bulletSpeed: 3,
-      bulletColor: "#ffcc44"
     },
-    
+
     squareBasic: {
       name: "Corner Gunner",
       shape: "square",
       color: "#ff6644",
       size: 30,
       speed: 1,
-      movementPattern: "sine",
-      movementConfig: {
+      movement: {
+        type: "sine",
         amplitude: { min: 30, max: 40 },
         frequency: 0.05,
-        speedMultiplier: 0.7
+        speedMultiplier: 0.7,
       },
-      attackPattern: "burst",
-      attackConfig: {
+      attack: {
+        pattern: "burst",
+        cooldown: 150,
         burstCount: 4,
         burstSpread: 0,
         shootFromMultiplePoints: true,
         shootPoints: [
           { x: 0.7, y: -0.7 }, // Top right
-          { x: 0.7, y: 0.7 },  // Bottom right
+          { x: 0.7, y: 0.7 }, // Bottom right
           { x: -0.7, y: 0.7 }, // Bottom left
-          { x: -0.7, y: -0.7 } // Top left
+          { x: -0.7, y: -0.7 }, // Top left
         ],
-        randomDirection: true // Each corner shoots in random direction
+        randomDirection: true, // Each corner shoots in random direction
+        bulletType: "circular",
+        bulletSize: 12,
+        bulletSpeed: 4,
+        bulletColor: "#ff6644",
       },
-      shootCooldown: 150,
-      bulletType: "circular",
-      bulletSize: 12,
-      bulletSpeed: 4,
-      bulletColor: "#ff6644",
       visualConfig: {
-        rotationSpeed: 0.1 // Spinning square
-      }
+        rotationSpeed: 0.1, // Spinning square
+      },
     },
-    
+
     // Variations - demonstrate different configurations
     zigzagFast: {
       name: "Speed Bomber",
@@ -586,25 +664,25 @@ export default {
       speed: 3.5,
       size: 20,
       fadeInTime: 30,
-      movementPattern: "zigzag",
-      movementConfig: {
+      movement: {
+        type: "zigzag",
         zigzagTimer: 20,
-        zigzagSpeed: 3
+        zigzagSpeed: 3,
       },
-      attackPattern: "spreading",
-      attackConfig: {
-        spreadBulletSize: 4,
+      attack: {
+        pattern: "spreading",
+        cooldown: 250,
+        spreadBulletSize: 8, // Increased from 4 to 8 (2x)
         spreadBulletSpeed: 4,
         spreadBulletCount: 12,
-        spreadExplosionTime: 90
+        spreadExplosionTime: 90,
+        bulletType: "spreading",
+        bulletSize: 12,
+        bulletSpeed: 2.5,
+        bulletColor: "#ff8844",
       },
-      shootCooldown: 250,
-      bulletType: "spreading",
-      bulletSize: 12,
-      bulletSpeed: 2.5,
-      bulletColor: "#ff8844"
     },
-    
+
     squareHeavy: {
       name: "Heavy Gunner",
       shape: "square",
@@ -613,14 +691,15 @@ export default {
       speed: 0.7,
       size: 40,
       fadeInTime: 90,
-      movementPattern: "sine",
-      movementConfig: {
+      movement: {
+        type: "sine",
         amplitude: { min: 30, max: 40 },
         frequency: 0.05,
-        speedMultiplier: 0.7
+        speedMultiplier: 0.7,
       },
-      attackPattern: "burst",
-      attackConfig: {
+      attack: {
+        pattern: "burst",
+        cooldown: 120,
         burstCount: 4,
         burstSpread: 0,
         shootFromMultiplePoints: true,
@@ -628,19 +707,18 @@ export default {
           { x: 0.7, y: -0.7 },
           { x: 0.7, y: 0.7 },
           { x: -0.7, y: 0.7 },
-          { x: -0.7, y: -0.7 }
-        ]
+          { x: -0.7, y: -0.7 },
+        ],
+        bulletType: "circular",
+        bulletSize: 15,
+        bulletSpeed: 4,
+        bulletColor: "#ff4444",
       },
-      shootCooldown: 120,
-      bulletType: "circular",
-      bulletSize: 15,
-      bulletSpeed: 4,
-      bulletColor: "#ff4444",
       visualConfig: {
-        rotationSpeed: 0.1
-      }
+        rotationSpeed: 0.1,
+      },
     },
-    
+
     // Boss-level enemies (minibosses and bosses use different system)
     alphaMiniBoss: {
       type: "miniboss",
@@ -663,11 +741,11 @@ export default {
       patrolRange: 150,
       targetYPortrait: 150,
       targetXLandscape: 150,
-      secondaryWeaponChargeTime: 60
+      secondaryWeaponChargeTime: 60,
     },
-    
+
     betaMiniBoss: {
-      type: "miniboss", 
+      type: "miniboss",
       sprite: "beta-miniboss",
       spriteScale: 1,
       spriteColor: "#ffaa44",
@@ -688,15 +766,15 @@ export default {
       patrolRange: 150,
       targetYPortrait: 150,
       targetXLandscape: 150,
-      secondaryWeaponChargeTime: 60
+      secondaryWeaponChargeTime: 60,
     },
-    
+
     mainBoss: {
       type: "boss",
-      spriteColor: "#ffdd44" // Red/orange/yellow for boss
-    }
+      spriteColor: "#ffdd44", // Red/orange/yellow for boss
+    },
   },
-  
+
   // Configurable game phases with phase-specific enemy configs
   phases: [
     {
@@ -704,19 +782,19 @@ export default {
       id: 1,
       type: "basic",
       name: "Initial Assault",
-      
+
       transitionCondition: "time",
       transitionValue: 20000, // 20 seconds
-      
+
       // Phase-specific spawn rates and settings
       asteroidSpawnRate: 120,
       powerupSpawnRate: 500,
-      metalSpawnRate: 1800,
-      
+      metalSpawnRate: 1000,
+
       asteroidTypes: ["small", "medium", "large"],
       powerupEnabled: true,
       metalEnabled: true,
-      
+
       // Phase-specific powerup weights
       powerups: {
         shield: { weight: 25 },
@@ -724,9 +802,9 @@ export default {
         mainWeapon: { weight: 50 },
         sideWeapon: { weight: 20 },
         secondShip: { weight: 10 },
-        rainbowStar: { weight: 5 }
+        rainbowStar: { weight: 5 },
       },
-      
+
       // Phase-specific enemy configurations
       enemies: {
         straightBasic: {
@@ -738,53 +816,53 @@ export default {
               startTime: 0,
               endTime: 20000,
               startRate: 200,
-              endRate: 120
-            }
+              endRate: 120,
+            },
           },
-          weight: 0.4 // 40% of enemy spawns
+          weight: 0.4, // 40% of enemy spawns
         },
         sineBasic: {
           spawnRate: {
             base: 400,
-            variance: 50
+            variance: 50,
           },
-          weight: 0.3 // 30% of enemy spawns
+          weight: 0.3, // 30% of enemy spawns
         },
         zigzagBasic: {
           spawnRate: {
             base: 400,
-            variance: 60
+            variance: 60,
           },
-          weight: 0.2 // 20% of enemy spawns
+          weight: 0.2, // 20% of enemy spawns
         },
         diveBasic: {
           spawnRate: {
             base: 100,
-            variance: 80
+            variance: 80,
           },
-          weight: 0.1 // 10% of enemy spawns
-        }
+          weight: 0.1, // 10% of enemy spawns
+        },
       },
-      
-      events: []
+
+      events: [],
     },
     {
       // Phase 2: First miniboss - single miniboss encounter
       id: 2,
       type: "basic",
       name: "First Guardian",
-      
+
       transitionCondition: "miniboss_defeated",
       transitionValue: null,
-      
+
       asteroidSpawnRate: 200,
       powerupSpawnRate: 300,
-      metalSpawnRate: 1800,
-      
+      metalSpawnRate: 99900,
+
       asteroidTypes: ["small", "medium", "large"],
       powerupEnabled: true,
       metalEnabled: true,
-      
+
       // Phase 2: Increased shield and bomb weights for miniboss fight
       powerups: {
         shield: { weight: 35 },
@@ -792,61 +870,61 @@ export default {
         mainWeapon: { weight: 20 },
         sideWeapon: { weight: 15 },
         secondShip: { weight: 5 },
-        rainbowStar: { weight: 3 }
+        rainbowStar: { weight: 3 },
       },
-      
+
       // Reduced enemy spawning during miniboss fight
       enemies: {
         straightBasic: {
           spawnRate: {
             base: 500,
-            variance: 100
+            variance: 100,
           },
-          weight: 0.5
+          weight: 0.5,
         },
         sineBasic: {
           spawnRate: {
             base: 600,
-            variance: 120
+            variance: 120,
           },
-          weight: 0.3
+          weight: 0.3,
         },
         zigzagBasic: {
           spawnRate: {
             base: 700,
-            variance: 140
+            variance: 140,
           },
-          weight: 0.2
-        }
+          weight: 0.2,
+        },
       },
-      
+
       events: [
         {
           type: "spawn_enemy",
           enemyId: "alphaMiniBoss",
           condition: "time",
           value: 3000, // 3 seconds into phase
-          onlyOnce: true
-        }
-      ]
+          onlyOnce: true,
+        },
+      ],
     },
     {
       // Phase 3: Asteroid storm - lots of asteroids, no enemies
       id: 3,
       type: "basic",
       name: "Asteroid Storm",
-      
+
       transitionCondition: "time",
       transitionValue: 15000, // 15 seconds of asteroid storm
-      
+
       asteroidSpawnRate: 40, // Very fast asteroid spawning
       powerupSpawnRate: 200,
       metalSpawnRate: 999999,
-      
+
       asteroidTypes: ["small", "medium", "large"],
       powerupEnabled: true,
       metalEnabled: false,
-      
+
       // Phase 3: Higher weapon powerup rates during asteroid storm
       powerups: {
         shield: { weight: 20 },
@@ -854,31 +932,31 @@ export default {
         mainWeapon: { weight: 35 },
         sideWeapon: { weight: 25 },
         secondShip: { weight: 8 },
-        rainbowStar: { weight: 7 }
+        rainbowStar: { weight: 7 },
       },
-      
+
       // No enemies during asteroid storm
       enemies: {},
-      
-      events: []
+
+      events: [],
     },
     {
       // Phase 4: Dual minibosses - both minibosses spawn
       id: 4,
       type: "basic",
       name: "Twin Guardians",
-      
+
       transitionCondition: "miniboss_defeated",
       transitionValue: null,
-      
+
       asteroidSpawnRate: 300,
       powerupSpawnRate: 250,
-      metalSpawnRate: 2000,
-      
+      metalSpawnRate: 999999,
+
       asteroidTypes: ["small", "medium"],
       powerupEnabled: true,
       metalEnabled: true,
-      
+
       // Phase 4: Heavy defensive focus for dual miniboss fight
       powerups: {
         shield: { weight: 40 },
@@ -886,61 +964,61 @@ export default {
         mainWeapon: { weight: 15 },
         sideWeapon: { weight: 10 },
         secondShip: { weight: 3 },
-        rainbowStar: { weight: 5 }
+        rainbowStar: { weight: 5 },
       },
-      
+
       // Minimal enemy spawning during dual miniboss fight
       enemies: {
         straightBasic: {
           spawnRate: {
             base: 600,
-            variance: 120
+            variance: 120,
           },
-          weight: 0.7
+          weight: 0.7,
         },
         circleBasic: {
           spawnRate: {
             base: 800,
-            variance: 160
+            variance: 160,
           },
-          weight: 0.3
-        }
+          weight: 0.3,
+        },
       },
-      
+
       events: [
         {
           type: "spawn_enemy",
           enemyId: "alphaMiniBoss",
           condition: "time",
           value: 3000, // 3 seconds into phase
-          onlyOnce: true
+          onlyOnce: true,
         },
         {
           type: "spawn_enemy",
           enemyId: "betaMiniBoss",
           condition: "time",
           value: 3000, // 3 seconds into phase
-          onlyOnce: true
-        }
-      ]
+          onlyOnce: true,
+        },
+      ],
     },
     {
       // Phase 5: Second asteroid storm
       id: 5,
       type: "basic",
       name: "Final Storm",
-      
+
       transitionCondition: "time",
       transitionValue: 12000, // 12 seconds of final asteroid storm
-      
+
       asteroidSpawnRate: 35, // Even faster asteroids
       powerupSpawnRate: 150,
       metalSpawnRate: 999999,
-      
+
       asteroidTypes: ["small", "medium", "large"],
       powerupEnabled: true,
       metalEnabled: false,
-      
+
       // Phase 5: More weapons and rainbowStar for final storm
       powerups: {
         shield: { weight: 15 },
@@ -948,30 +1026,30 @@ export default {
         mainWeapon: { weight: 30 },
         sideWeapon: { weight: 25 },
         secondShip: { weight: 10 },
-        rainbowStar: { weight: 15 }
+        rainbowStar: { weight: 15 },
       },
-      
+
       enemies: {}, // No enemies
-      
-      events: []
+
+      events: [],
     },
     {
       // Phase 6: Cleanup phase
       id: 6,
-      type: "cleanup", 
+      type: "cleanup",
       name: "Preparation",
-      
+
       transitionCondition: "time",
       transitionValue: 6000,
-      
+
       asteroidSpawnRate: 999999, // No asteroids during cleanup
       powerupSpawnRate: 100,
       metalSpawnRate: 999999,
-      
+
       asteroidTypes: [],
       powerupEnabled: true,
       metalEnabled: false,
-      
+
       // Phase 6: Prepare for boss with equal powerup distribution
       powerups: {
         shield: { weight: 20 },
@@ -979,43 +1057,43 @@ export default {
         mainWeapon: { weight: 20 },
         sideWeapon: { weight: 20 },
         secondShip: { weight: 15 },
-        rainbowStar: { weight: 10 }
+        rainbowStar: { weight: 10 },
       },
-      
+
       enemies: {}, // No enemies
-      
+
       events: [
         {
           type: "explode_enemies",
           condition: "phase_start",
           value: 0,
-          onlyOnce: true
+          onlyOnce: true,
         },
         {
           type: "spawn_powerups",
           condition: "time",
           value: 2000,
-          onlyOnce: true
-        }
-      ]
+          onlyOnce: true,
+        },
+      ],
     },
     {
       // Phase 7: Boss dialog
       id: 7,
       type: "dialog",
       name: "Boss Approaches",
-      
+
       transitionCondition: "dialog_complete",
       transitionValue: null,
-      
+
       asteroidSpawnRate: 999999,
       powerupSpawnRate: 999999,
       metalSpawnRate: 999999,
-      
+
       asteroidTypes: [],
       powerupEnabled: false,
       metalEnabled: false,
-      
+
       // Phase 7: No powerups during dialog (powerupEnabled: false)
       powerups: {
         shield: { weight: 0 },
@@ -1023,48 +1101,48 @@ export default {
         mainWeapon: { weight: 0 },
         sideWeapon: { weight: 0 },
         secondShip: { weight: 0 },
-        rainbowStar: { weight: 0 }
+        rainbowStar: { weight: 0 },
       },
-      
+
       enemies: {}, // No enemies
-      
+
       events: [
         {
           type: "trigger_dialog",
           condition: "enemies_cleared",
           value: 0,
-          onlyOnce: true
-        }
-      ]
+          onlyOnce: true,
+        },
+      ],
     },
     {
       // Phase 8: Boss fight
       id: 8,
       type: "boss",
       name: "Final Confrontation",
-      
+
       transitionCondition: "boss_defeated",
       transitionValue: null,
-      
+
       asteroidSpawnRate: 999999,
       powerupSpawnRate: 200,
       metalSpawnRate: 999999,
-      
+
       asteroidTypes: [],
       powerupEnabled: true,
       metalEnabled: false,
-      
+
       enemies: {}, // No regular enemies during boss fight
-      
+
       events: [
         {
           type: "spawn_enemy",
           enemyId: "mainBoss",
           condition: "phase_start",
           value: 0,
-          onlyOnce: true
-        }
-      ]
-    }
-  ]
+          onlyOnce: true,
+        },
+      ],
+    },
+  ],
 };

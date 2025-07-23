@@ -1,20 +1,29 @@
 // Laser entity for Rainboids: Blitz
 
 export class Laser {
-  constructor(x, y, angle, speed, color, game = null, isPlayerLaser = false, damage = null) {
+  constructor(
+    x,
+    y,
+    angle,
+    speed,
+    color,
+    game = null,
+    isPlayerLaser = false,
+    damage = null
+  ) {
     this.x = x;
     this.y = y;
     this.angle = angle;
-    this.speed = speed || game?.level?.config?.laserSpeed || 50; // Use passed speed, level config, or default to 50
+    this.speed = speed || game?.level?.config?.player?.laserSpeed || 50; // Use passed speed, level config, or default to 50
     this.color = color;
     this.game = game;
     this.isPlayerLaser = isPlayerLaser; // Flag to distinguish player lasers from enemy lasers
     // Use player laserWidth for player lasers, or world laserWidth for enemy lasers
-    this.width = isPlayerLaser 
-      ? (game?.level?.config?.player?.laserWidth || 8)
-      : (game?.level?.config?.world?.laserWidth || 8);
-    this.length = game?.level?.config?.laserLength || 100; // Length of laser beam for collision detection
-    this.life = game?.level?.config?.laserLife || 60; // Longer life (1 second)
+    this.width = isPlayerLaser
+      ? game?.level?.config?.player?.laserWidth || 8
+      : game?.level?.config?.world?.laserWidth || 8;
+    this.length = game?.level?.config?.player?.laserLength || 50; // Length of laser beam for collision detection
+    this.life = game?.level?.config?.player?.laserLife || 60; // Longer life (1 second)
     this.colorIndex = 0;
     this.penetrationCount = 0; // Track how many targets this laser has hit
     this.maxPenetration = 3; // Maximum targets before laser is destroyed
@@ -29,10 +38,10 @@ export class Laser {
       "#4400ff",
       "#ff00ff",
     ];
-    
+
     // Damage property - use custom damage or fallback to reduced power for player lasers
-    this.damage = damage !== null ? damage : (isPlayerLaser ? 0.33 : 1);
-    
+    this.damage = damage !== null ? damage : isPlayerLaser ? 0.33 : 1;
+
     // Velocity tracking (dx/dy per second)
     this.dx = 0;
     this.dy = 0;
@@ -42,11 +51,11 @@ export class Laser {
     // Store previous position for velocity calculation
     const prevX = this.x;
     const prevY = this.y;
-    
+
     this.x += Math.cos(this.angle) * this.speed * slowdownFactor;
     this.y += Math.sin(this.angle) * this.speed * slowdownFactor;
     this.life -= slowdownFactor;
-    
+
     // Calculate velocity (pixels per frame * 60 = pixels per second)
     this.dx = (this.x - prevX) * 60;
     this.dy = (this.y - prevY) * 60;
@@ -56,15 +65,18 @@ export class Laser {
     }
 
     // Check screen boundaries with 50px buffer
-    const withinBounds = this.x > -50 && 
-                        this.x < window.innerWidth + 50 && 
-                        this.y > -50 && 
-                        this.y < window.innerHeight + 50;
+    const withinBounds =
+      this.x > -50 &&
+      this.x < window.innerWidth + 50 &&
+      this.y > -50 &&
+      this.y < window.innerHeight + 50;
 
-    return this.life > 0 && 
-           this.penetrationCount < this.maxPenetration && 
-           this.bounceCount < this.maxBounces && 
-           withinBounds;
+    return (
+      this.life > 0 &&
+      this.penetrationCount < this.maxPenetration &&
+      this.bounceCount < this.maxBounces &&
+      withinBounds
+    );
   }
 
   // Called when laser hits a target

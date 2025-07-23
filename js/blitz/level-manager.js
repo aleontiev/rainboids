@@ -44,6 +44,10 @@ export class LevelManager {
     this.cleanupPhaseTimer = 0;
     this.cleanupEnemiesExploded = false;
     this.cleanupPowerupsSpawned = false;
+    
+    // Initialize game state with current level and phase
+    this.game.state.level = 1; // Currently hardcoded to level 1
+    this.game.state.phase = this.getCurrentPhase().id;
   }
 
   // Initialize tracking for all phases
@@ -65,7 +69,7 @@ export class LevelManager {
     
     // Merge with defaults
     return {
-      ...this.config.enemies.defaults,
+      ...(this.config.enemies['*'] || {}),
       ...baseConfig
     };
   }
@@ -267,7 +271,6 @@ export class LevelManager {
   }
 
   executeEvent(event) {
-    console.log(`Executing event: ${event.type} in phase ${this.phase}`);
     
     switch (event.type) {
       case "spawn_enemy":
@@ -343,7 +346,6 @@ export class LevelManager {
       if (this.game[`${enemyName}SpawnTimer`] > spawnRate) {
         // Check weight-based probability
         if (Math.random() < (phaseEnemyConfig.weight || 1.0)) {
-          console.log(`Spawning phase enemy: ${enemyName}, timer=${this.game[`${enemyName}SpawnTimer`]}, rate=${spawnRate}`);
           this.trackEnemySpawned(enemyName);
           this.game.entities.spawnCustomEnemy(enemyName, this.getEnemyConfig(enemyName));
           this.game[`${enemyName}SpawnTimer`] = 0;
@@ -431,7 +433,9 @@ export class LevelManager {
     this.phaseTimer = 0;
     this.phaseStartTime = this.game.state.time;
     
-    console.log(`Phase transition: ${oldPhase.name} (${oldPhase.id}) → ${newPhase.name} (${newPhase.id})`);
+    // Update game state to sync with UI display
+    this.game.state.phase = newPhase.id;
+    
   }
 
   handleSpecialPhaseLogic(deltaTime) {
@@ -453,7 +457,6 @@ export class LevelManager {
       }
       // Clear all enemies immediately
       this.game.entities.enemies.length = 0;
-      this.game.entities.updateAllEnemiesList();
     }
   }
 

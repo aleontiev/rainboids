@@ -18,13 +18,11 @@ export class DeathManager {
   }
 
   startAnimation(x, y) {
-    console.log("Death animation starting at position:", x, y);
     this.fadeOutStarted = false;
     this.fadeOutTimer = 0;
     this.animationActive = true;
     this.animationTimer = 0;
     this.position = { x: x, y: y };
-    console.log("Death animation initialized - active:", this.animationActive);
   }
   update() {
     if (!this.animationActive) {
@@ -40,7 +38,6 @@ export class DeathManager {
     if (this.animationTimer >= this.animationDuration) {
       // Start fade out/in phase
       if (!this.fadeOutStarted) {
-        console.log("Starting fade out phase - setting up game over modal");
         this.fadeOutStarted = true;
         this.fadeOutTimer = 0;
 
@@ -49,12 +46,6 @@ export class DeathManager {
 
         // Update scores before showing game over
         this.game.state.saveHighScore(this.game.state.score);
-        console.log(
-          "Scores updated - final:",
-          this.game.state.score,
-          "high:",
-          this.game.state.highScore
-        );
 
         // Game over UI is now handled by canvas renderer
         // Scores are available via this.game.state.score and this.game.state.highScore
@@ -91,13 +82,9 @@ export class DeathManager {
       this.game.state.state === "DYING" ||
       this.game.state.state === "GAME_OVER"
     ) {
-      console.log(
-        "Death animation already in progress, ignoring retrigger attempt"
-      );
       return;
     }
 
-    console.log("Starting death sequence");
 
     // Play dramatic player explosion sound
     this.game.audio.play(this.game.audio.sounds.playerExplosion);

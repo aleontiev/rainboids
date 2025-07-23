@@ -78,7 +78,11 @@ export class UIRenderer {
     
     if (isPaused) {
       const pausedY = isPortrait ? titleY + 80 : titleY + 60;
-      this.renderText(ctx, "PAUSED", 
+      const gameTime = this.game.state.time || 0;
+      const minutes = Math.floor(gameTime / 60);
+      const seconds = (gameTime % 60).toFixed(1);
+      const timeText = `${minutes}:${seconds.padStart(4, '0')}`;
+      this.renderText(ctx, timeText, 
         ctx.canvas.width / 2, pausedY, 24, "#ffffff", "center");
     }
 
@@ -126,7 +130,7 @@ export class UIRenderer {
     this.renderIconButton(ctx, "upgrades", "upgrade", 
       row1StartX + buttonSpacing * 3, row1Y, buttonSize, buttonSize,
       () => this.game.toggleUpgrades(),
-      "rgba(200, 100, 255, 0.2)", "rgba(200, 100, 255, 0.3)", false, this.game.cheats?.allUpgrades || false);
+      "rgba(200, 100, 255, 0.2)", "rgba(200, 100, 255, 0.3)", false, this.game.cheats?.allUprades !== null);
     
     this.renderIconButton(ctx, "autoaim", "crosshair", 
       row1StartX + buttonSpacing * 4, row1Y, buttonSize, buttonSize,
@@ -221,8 +225,19 @@ export class UIRenderer {
     const score = this.game.state.score || 0;
     const timer = this.game.state.timer || 0;
     
-    // Level/Phase
-    this.renderText(ctx, `LVL ${level}-${phase}`, 
+    // Level/Phase with boss sub-phase if applicable
+    let phaseDisplay = `LVL ${level}-${phase}`;
+    
+    // Check if there's an active boss and show its internal phase
+    const boss = this.game.entities.boss || this.game.entities.bosses?.[0];
+    if (boss && !boss.isDefeated) {
+      const bossPhase = boss.getCurrentPhase();
+      if (bossPhase && bossPhase.id) {
+        phaseDisplay = `LVL ${level}-${phase}-${bossPhase.id}`;
+      }
+    }
+    
+    this.renderText(ctx, phaseDisplay, 
       padding, padding + 20, 18, "#ffffff");
     
     // Score

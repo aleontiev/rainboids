@@ -29,7 +29,16 @@ export class MovementCalculator {
   /**
    * SURVIVAL-FIRST movement calculation - prioritizes staying alive above all else
    */
-  calculateDodgeVector(collidables, powerups = [], timeSlowActive = false) {
+  calculateDodgeVector(enemies, miniBosses, boss, enemyBullets, enemyLasers, asteroids, powerups = [], timeSlowActive = false) {
+    // Create collidables array for internal threat assessment
+    const collidables = [];
+    enemies.forEach(e => collidables.push({...e, collidableType: "enemy"}));
+    miniBosses.forEach(e => collidables.push({...e, collidableType: "enemy"}));
+    if (boss) collidables.push({...boss, collidableType: "boss"});
+    enemyBullets.forEach(e => collidables.push({...e, collidableType: "enemyBullet"}));
+    enemyLasers.forEach(e => collidables.push({...e, collidableType: "enemyLaser"}));
+    asteroids.forEach(e => collidables.push({...e, collidableType: "asteroid"}));
+
     // Calculate slowdown factor for time slow mode
     const slowdownFactor = timeSlowActive ? 0.3 : 1.0;
 

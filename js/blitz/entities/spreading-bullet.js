@@ -10,7 +10,8 @@ export class SpreadingBullet {
     isPortrait,
     speed = 8, // Default bullet speed
     explosionTime = 120, // 2 seconds at 60fps
-    game = null
+    game = null,
+    spreadConfig = null // Configuration for spread bullets when exploding
   ) {
     this.x = x;
     this.y = y;
@@ -25,6 +26,7 @@ export class SpreadingBullet {
     this.exploded = false;
     this.health = 1; // Can be damaged by player
     this.game = game;
+    this.spreadConfig = spreadConfig;
     
     // Velocity tracking (dx/dy per second)
     this.dx = 0;
@@ -49,7 +51,6 @@ export class SpreadingBullet {
 
     // Explode if time is up or health is 0
     if (this.time >= this.explosionTime || this.health <= 0) {
-      console.log(`SpreadingBullet exploding: time=${this.time}/${this.explosionTime}, health=${this.health}, callback=${typeof addEnemyBulletCallback}`);
       if (typeof addEnemyBulletCallback === 'function') {
         this.explode(addEnemyBulletCallback);
       } else {
@@ -69,7 +70,6 @@ export class SpreadingBullet {
 
   explode(addEnemyBulletCallback) {
     this.exploded = true;
-    console.log('SpreadingBullet explode() called, creating spread bullets');
     
     // Guard against missing callback
     if (typeof addEnemyBulletCallback !== 'function') {
@@ -77,11 +77,10 @@ export class SpreadingBullet {
       return;
     }
     
-    // Get config for spread bullets - fallback to zigzagBasic
-    const config = this.game?.levelManager?.config?.enemies?.zigzagBasic;
-    const numBullets = config?.spreadBulletCount || 8;
-    const bulletSpeed = config?.spreadBulletSpeed || 4;
-    const bulletSize = config?.spreadBulletSize || this.size * 0.3;
+    // Use provided spread config or defaults
+    const numBullets = this.spreadConfig?.count || 8;
+    const bulletSpeed = this.spreadConfig?.speed || 4;
+    const bulletSize = this.spreadConfig?.size || this.size * 0.3;
 
     for (let i = 0; i < numBullets; i++) {
       const angle = (i / numBullets) * Math.PI * 2; // Evenly spaced around circle
@@ -96,10 +95,8 @@ export class SpreadingBullet {
         false,
         this.game
       );
-      console.log(`Creating spread bullet ${i}: angle=${angle.toFixed(2)}, size=${bulletSize}, speed=${bulletSpeed}`);
       addEnemyBulletCallback(bullet);
     }
-    console.log('SpreadingBullet explosion complete, created', numBullets, 'bullets');
   }
 
   takeDamage(damage) {

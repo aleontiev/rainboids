@@ -21,20 +21,19 @@ export class AbilityManager {
   /**
    * Handle strategic ability usage for autoplay with laser threat awareness
    */
-  handleAutoplayAbilities(collidables, keys, powerups = [], game = null) {
+  handleAutoplayAbilities(enemies, miniBosses, boss, enemyBullets, enemyLasers, asteroids, keys, powerups = [], game = null) {
     this.autoplayShieldTimer++;
     this.autoplaySlowTimer++;
     this.autoplayBombTimer++;
 
-    // Extract different types of collidables for threat assessment
-    const enemies = collidables.filter((c) => c.collidableType === "enemy");
-    const enemyBullets = collidables.filter(
-      (c) => c.collidableType === "enemyBullet"
-    );
-    const enemyLasers = collidables.filter(
-      (c) => c.collidableType === "enemyLaser"
-    );
-    const boss = collidables.find((c) => c.collidableType === "boss");
+    // Create collidables array only when needed for threat assessment
+    const collidables = [];
+    enemies.forEach(e => collidables.push({...e, collidableType: "enemy"}));
+    miniBosses.forEach(e => collidables.push({...e, collidableType: "enemy"}));
+    if (boss) collidables.push({...boss, collidableType: "boss"});
+    enemyBullets.forEach(e => collidables.push({...e, collidableType: "enemyBullet"}));
+    enemyLasers.forEach(e => collidables.push({...e, collidableType: "enemyLaser"}));
+    asteroids.forEach(e => collidables.push({...e, collidableType: "asteroid"}));
 
     // Calculate immediate threat level and collision predictions
     const threatLevel = this.autoplayer.calculateThreatLevel(collidables);

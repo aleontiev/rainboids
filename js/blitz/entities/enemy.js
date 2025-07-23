@@ -35,9 +35,9 @@ export class Enemy {
     this.color = this.config.color;
     this.angle = isPortrait ? Math.PI / 2 : Math.PI; // Face down or left
 
-    // Attack properties
+    // Attack properties (support both old and new format)
     this.shootCooldown = 0;
-    this.canShoot = this.config.canShoot;
+    this.canShoot = this.config.attack?.canShoot ?? this.config.canShoot ?? true;
 
     // Handle clone fade-in effect
     this.fadeInTimer = isClone ? 0 : this.config.fadeInTime;
@@ -64,33 +64,7 @@ export class Enemy {
 
   // Merge provided config with defaults
   mergeWithDefaults(config) {
-    const defaults = this.game?.level?.getEnemyConfig("defaults") || {
-      // Fallback defaults if level config is not available
-      health: 1,
-      size: 24,
-      speed: 2,
-      color: "#ffffff",
-      fadeInTime: 60,
-      shape: "triangle",
-      strokeColor: "#ffffff",
-      strokeWidth: 2,
-      movementPattern: "straight",
-      movementSpeed: 1.0,
-      attackPattern: "simple",
-      shootCooldown: 60,
-      canShoot: true,
-      bulletType: "normal",
-      bulletSize: 6,
-      bulletSpeed: 3,
-      bulletColor: null,
-      bulletDamage: 1,
-      canClone: false,
-      cloneInterval: 90,
-      maxClones: 3,
-      maxGenerations: 4,
-      invulnerable: false,
-      invulnerabilityDuration: 0,
-    };
+    const defaults = this.game?.level?.getEnemyConfig("*");
 
     return {
       ...defaults,
@@ -105,8 +79,13 @@ export class Enemy {
 
   // Initialize movement-specific properties based on pattern
   initializeMovementProperties() {
-    const pattern = this.config.movementPattern;
-    const movementConfig = this.config.movementConfig || {};
+    // Use nested config structure
+    const movement = this.config.movement || {};
+    const pattern = movement.type || "straight";
+    const movementConfig = movement || {};
+
+    // Store the pattern for other parts of the code
+    this.movementPattern = pattern;
 
     switch (pattern) {
       case "sine":
@@ -146,8 +125,13 @@ export class Enemy {
 
   // Initialize attack-specific properties based on pattern
   initializeAttackProperties() {
-    const pattern = this.config.attackPattern;
-    const attackConfig = this.config.attackConfig || {};
+    // Use nested config structure
+    const attack = this.config.attack || {};
+    const pattern = attack.pattern || "simple";
+    const attackConfig = attack || {};
+
+    // Store the pattern for other parts of the code
+    this.attackPattern = pattern;
 
     switch (pattern) {
       case "laser":
@@ -195,10 +179,20 @@ export class Enemy {
 
   // Initialize cloning properties
   initializeCloningProperties() {
-    if (this.config.canClone) {
+    // Use nested config structure
+    const clone = this.config.clone || {};
+    const canClone = clone.enabled ?? this.config.canClone ?? false;
+    
+    if (canClone) {
       this.cloneTimer = 0;
       this.clonesCreated = 0;
-      this.maxClones = Math.max(0, this.config.maxClones - this.generation);
+      const maxClones = clone.maxClones ?? this.config.maxClones ?? 3;
+      const maxGenerations = clone.maxGenerations ?? this.config.maxGenerations ?? 4;
+      const cloneInterval = clone.interval ?? this.config.cloneInterval ?? 90;
+      
+      this.maxClones = Math.max(0, maxClones - this.generation);
+      this.maxGenerations = maxGenerations;
+      this.cloneInterval = cloneInterval;
     }
   }
 
@@ -231,7 +225,7 @@ export class Enemy {
     }
 
     // Make enemies face the player (unless overridden by movement pattern)
-    if (this.config.movementPattern !== "dive" || this.phase !== "dive") {
+    if (this.movementPattern !== "dive" || this.phase !== "dive") {
       this.angle = Math.atan2(playerY - this.y, playerX - this.x);
     }
 
@@ -262,9 +256,11 @@ export class Enemy {
     const prevY = this.y;
 
     // Apply movement pattern based on configuration
-    const effectiveSpeed = this.speed * (this.config.movementSpeed || 1.0);
+    const movement = this.config.movement || {};
+    const speedMultiplier = movement.speedMultiplier ?? movement.speed ?? this.config.movementSpeed ?? 1.0;
+    const effectiveSpeed = this.speed * speedMultiplier;
 
-    switch (this.config.movementPattern) {
+    switch (this.movementPattern) {
       case "straight":
         this.updateStraightMovement(effectiveSpeed, slowdownFactor);
         break;
@@ -296,6 +292,10 @@ export class Enemy {
 
       case "stationary":
         // No movement
+        break;
+
+      case "bouncing":
+        this.updateBouncingMovement(slowdownFactor);
         break;
 
       default:
@@ -361,8 +361,10 @@ export class Enemy {
     this.x = this.centerX + Math.cos(angle) * this.radius;
     this.y = this.centerY + Math.sin(angle) * this.radius;
 
-    // Handle cloning
-    if (this.config.canClone && addEnemyCallback) {
+    // Handle cloning (support both old and new config)
+    const clone = this.config.clone || {};
+    const canClone = clone.enabled ?? this.config.canClone ?? false;
+    if (canClone && addEnemyCallback) {
       this.handleCloning(addEnemyCallback, slowdownFactor);
     }
   }
@@ -392,13 +394,46 @@ export class Enemy {
     }
   }
 
+  updateBouncingMovement(slowdownFactor) {
+    // Handle bouncing movement after hitting metal
+    if (this.bounceTimer > 0 && this.bounceVelocityX !== undefined && this.bounceVelocityY !== undefined) {
+      // Apply bounce velocity (already in px/sec)
+      this.x += (this.bounceVelocityX / 60) * slowdownFactor;
+      this.y += (this.bounceVelocityY / 60) * slowdownFactor;
+      
+      // Decay the bounce velocity over time
+      this.bounceVelocityX *= this.bounceDecay;
+      this.bounceVelocityY *= this.bounceDecay;
+      
+      // Update bounce timer
+      this.bounceTimer -= slowdownFactor;
+      
+      // When bounce timer expires, restore original movement
+      if (this.bounceTimer <= 0) {
+        this.movementPattern = this.originalMovementPattern || "straight";
+        this.speed = this.originalSpeed || this.speed;
+        
+        // Clean up bounce properties
+        delete this.bounceVelocityX;
+        delete this.bounceVelocityY;
+        delete this.bounceTimer;
+        delete this.bounceDecay;
+        delete this.originalMovementPattern;
+        delete this.originalSpeed;
+      }
+    } else {
+      // Fallback to original movement if bounce data is missing
+      this.movementPattern = this.originalMovementPattern || "straight";
+    }
+  }
+
   handleCloning(addEnemyCallback, slowdownFactor) {
     this.cloneTimer += slowdownFactor;
     if (
-      this.cloneTimer >= this.config.cloneInterval &&
+      this.cloneTimer >= this.cloneInterval &&
       this.clonesCreated < this.maxClones &&
       this.isOnScreen() &&
-      this.generation < this.config.maxGenerations
+      this.generation < this.maxGenerations
     ) {
       this.cloneTimer = 0;
       this.clonesCreated++;
@@ -437,7 +472,7 @@ export class Enemy {
     }
 
     // Handle different attack patterns
-    switch (this.config.attackPattern) {
+    switch (this.attackPattern) {
       case "simple":
         this.handleSimpleAttack(bullets, player);
         break;
@@ -474,7 +509,10 @@ export class Enemy {
 
   handleSimpleAttack(bullets, player) {
     this.shootCooldown++;
-    if (this.shootCooldown > this.config.shootCooldown) {
+    const attack = this.config.attack || {};
+    const cooldown = attack.cooldown ?? this.config.shootCooldown ?? 60;
+    
+    if (this.shootCooldown > cooldown) {
       this.shootCooldown = 0;
       const angle = Math.atan2(player.y - this.y, player.x - this.x);
 
@@ -484,7 +522,10 @@ export class Enemy {
 
   handleBurstAttack(bullets, player) {
     this.shootCooldown++;
-    if (this.shootCooldown > this.config.shootCooldown) {
+    const attack = this.config.attack || {};
+    const cooldown = attack.cooldown ?? this.config.shootCooldown ?? 60;
+    
+    if (this.shootCooldown > cooldown) {
       this.shootCooldown = 0;
 
       if (this.shootFromMultiplePoints && this.shootPoints) {
@@ -523,7 +564,10 @@ export class Enemy {
 
   handleCircularAttack(bullets, player) {
     this.shootCooldown++;
-    if (this.shootCooldown > this.config.shootCooldown) {
+    const attack = this.config.attack || {};
+    const cooldown = attack.cooldown ?? this.config.shootCooldown ?? 60;
+    
+    if (this.shootCooldown > cooldown) {
       this.shootCooldown = 0;
 
       // Create ring of bullets
@@ -537,21 +581,34 @@ export class Enemy {
 
   handleSpreadingAttack(bullets, player) {
     this.shootCooldown++;
-    if (this.shootCooldown > this.config.shootCooldown) {
+    const attack = this.config.attack || {};
+    const cooldown = attack.cooldown ?? this.config.shootCooldown ?? 60;
+    
+    if (this.shootCooldown > cooldown) {
       this.shootCooldown = 0;
       const angle = Math.atan2(player.y - this.y, player.x - this.x);
+
+      // Support both old and new config structure for bullet properties
+      const bulletSize = attack.bulletSize ?? this.config.bulletSize ?? 6;
+      const bulletSpeed = attack.bulletSpeed ?? this.config.bulletSpeed ?? 3;
+      const bulletColor = attack.bulletColor ?? this.config.bulletColor ?? this.color;
 
       bullets.push(
         new SpreadingBullet(
           this.x,
           this.y,
           angle,
-          this.config.bulletSize,
-          this.config.bulletColor || this.color,
+          bulletSize,
+          bulletColor,
           this.isPortrait,
-          this.config.bulletSpeed,
+          bulletSpeed,
           this.spreadExplosionTime,
-          this.game
+          this.game,
+          {
+            count: this.spreadBulletCount,
+            speed: this.spreadBulletSpeed,
+            size: this.spreadBulletSize,
+          }
         )
       );
     }
@@ -593,14 +650,17 @@ export class Enemy {
           );
 
           // Create laser projectile
-          const laserSpeed = this.config.attackConfig?.laserSpeed || 80;
+          const attack = this.config.attack || {};
+          const laserSpeed = attack.laserSpeed ?? 80;
+          const bulletColor = attack.bulletColor ?? this.config.bulletColor ?? "#ff0000";
+          
           lasers.push(
             new Laser(
               this.x,
               this.y,
               this.laserAngle,
               laserSpeed,
-              this.config.bulletColor || "#ff0000",
+              bulletColor,
               this.game
             )
           );
@@ -631,19 +691,25 @@ export class Enemy {
   }
 
   createBullet(bullets, x, y, angle) {
-    const bulletColor = this.config.bulletColor || this.color;
+    // Support both old and new config structure for bullet properties
+    const attack = this.config.attack || {};
+    const bulletColor = attack.bulletColor ?? this.config.bulletColor ?? this.color;
+    const bulletType = attack.bulletType ?? this.config.bulletType ?? "normal";
+    const bulletSize = attack.bulletSize ?? this.config.bulletSize ?? 6;
+    const bulletSpeed = attack.bulletSpeed ?? this.config.bulletSpeed ?? 3;
+    const bulletDamage = attack.bulletDamage ?? this.config.bulletDamage ?? 1;
 
-    switch (this.config.bulletType) {
+    switch (bulletType) {
       case "circular":
         bullets.push(
           new CircularBullet(
             x,
             y,
             angle,
-            this.config.bulletSize,
+            bulletSize,
             bulletColor,
             this.isPortrait,
-            this.config.bulletSpeed
+            bulletSpeed
           )
         );
         break;
@@ -655,13 +721,13 @@ export class Enemy {
             x,
             y,
             angle,
-            this.config.bulletSize,
+            bulletSize,
             bulletColor,
             this.isPortrait,
-            this.config.bulletSpeed,
+            bulletSpeed,
             false, // isPlayerBullet
             this.game,
-            this.config.bulletDamage
+            bulletDamage
           )
         );
         break;
@@ -671,7 +737,7 @@ export class Enemy {
   render(ctx) {
     // Draw laser warning line BEFORE transformations (for laser enemies)
     if (
-      this.config.attackPattern === "laser" &&
+      this.attackPattern === "laser" &&
       this.laserState === "preview"
     ) {
       this.renderLaserWarning(ctx);
@@ -691,7 +757,7 @@ export class Enemy {
 
     // Draw charging effects for laser enemies
     if (
-      this.config.attackPattern === "laser" &&
+      this.attackPattern === "laser" &&
       this.laserState === "charging"
     ) {
       this.renderChargingEffect(ctx);
@@ -699,7 +765,7 @@ export class Enemy {
 
     // Draw pulse warning for pulse enemies
     if (
-      this.config.attackPattern === "pulse" &&
+      this.attackPattern === "pulse" &&
       this.pulseTimer > this.pulseInterval - this.warningTime
     ) {
       this.renderPulseWarning(ctx);
@@ -833,7 +899,7 @@ export class Enemy {
     if (this.config.strokeWidth > 0) ctx.stroke();
 
     // Add laser cannon for laser enemies
-    if (this.config.attackPattern === "laser") {
+    if (this.attackPattern === "laser") {
       ctx.beginPath();
       ctx.rect(
         this.size * 0.3,
@@ -948,7 +1014,7 @@ export class Enemy {
     }
 
     // Add rotating orbital elements for circle enemies
-    if (this.config.movementPattern === "circle") {
+    if (this.movementPattern === "circle") {
       const thrusterAngle = this.time * 0.1;
       for (let i = 0; i < 3; i++) {
         const angle = (i * Math.PI * 2) / 3 + thrusterAngle;

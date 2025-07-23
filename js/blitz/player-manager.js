@@ -16,15 +16,13 @@ export class PlayerManager {
     }
     // Handle autoplay abilities BEFORE processing input
     if (this.game.autoplay) {
-      const collidables = this.game.createCollidables(
-        this.game.entities.allEnemies,
+      this.game.player.autoplayer.handleAutoplayAbilities(
+        this.game.entities.enemies,
+        this.game.entities.miniBosses,
+        this.game.entities.boss,
         this.game.entities.enemyBullets,
         this.game.entities.enemyLasers,
         this.game.entities.asteroids,
-        this.game.entities.boss
-      );
-      this.game.player.autoplayer.handleAutoplayAbilities(
-        collidables,
         input,
         this.game.entities.powerups,
         this.game // Pass game object for cooldown checks
@@ -45,13 +43,14 @@ export class PlayerManager {
     // Update player
     this.game.player.update(
       input,
-      this.game.entities.allEnemies,
+      this.game.entities.enemies,
+      this.game.entities.miniBosses,
+      this.game.entities.boss,
       this.game.entities.asteroids,
       this.game.isPortrait,
       this.game.cheats.autoaim,
       this.game.player.mainWeaponLevel,
       this.game.state.timeSlowActive,
-      this.game.entities.boss,
       this.game.cheats.autoplay,
       this.game.entities.enemyBullets,
       this.game.entities.enemyLasers,
@@ -66,20 +65,21 @@ export class PlayerManager {
     // For autoplay, only fire when there are valid targets on screen
     let shouldAutoplayFire = false;
     if (this.game.cheats.autoplay) {
-      const collidables = this.game.createCollidables(
-        this.game.entities.allEnemies,
-        this.game.entities.enemyBullets,
-        this.game.entities.enemyLasers,
-        this.game.entities.asteroids,
-        this.game.entities.boss
+      shouldAutoplayFire = this.game.player.autoplayer.hasValidTargets(
+        this.game.entities.enemies,
+        this.game.entities.miniBosses,
+        this.game.entities.boss,
+        this.game.entities.asteroids
       );
-      shouldAutoplayFire =
-        this.game.player.autoplayer.hasValidTargets(collidables);
     }
 
+    // Check if autoaim should suppress firing when no valid targets
+    const shouldAutoaimSuppress = this.game.cheats.autoaim && !this.game.player.shouldAutoFire;
+    
     if (
       (input.fire || (this.game.cheats.autoplay && shouldAutoplayFire)) &&
-      this.game.state.state !== "DYING"
+      this.game.state.state !== "DYING" &&
+      !shouldAutoaimSuppress
     ) {
       const weaponType = this.game.player.shoot(
         this.game.entities.bullets,

@@ -213,12 +213,8 @@ export class MiniBoss extends Enemy {
     // Handle invulnerable timer
     if (this.invulnerable) {
       this.invulnerableTimer += slowdownFactor;
-      console.log(
-        `MiniBoss ${this.type} invulnerable timer: ${this.invulnerableTimer}/${this.invulnerableDuration}`
-      );
       if (this.invulnerableTimer >= this.invulnerableDuration) {
         this.invulnerable = false;
-        console.log(`MiniBoss ${this.type} is no longer invulnerable`);
       }
     }
 
@@ -295,9 +291,6 @@ export class MiniBoss extends Enemy {
   }
 
   takeDamage(damage = 1) {
-    console.log(
-      `MiniBoss ${this.type} taking damage: ${damage}, health: ${this.health}, shield: ${this.shield}, invulnerable: ${this.invulnerable}, dying: ${this.dying}`
-    );
 
     // Validate damage parameter
     if (typeof damage !== 'number' || isNaN(damage)) {
@@ -307,13 +300,11 @@ export class MiniBoss extends Enemy {
 
     // Invulnerable prevents all damage
     if (this.invulnerable) {
-      console.log(`MiniBoss ${this.type} is invulnerable, no damage taken`);
       return "invulnerable";
     }
 
     // Already dying, ignore further damage
     if (this.dying) {
-      console.log(`MiniBoss ${this.type} is already dying, ignoring damage`);
       return "dying";
     }
 
@@ -326,12 +317,8 @@ export class MiniBoss extends Enemy {
         this.shield = 0;
       }
       this.hitFlash = 10;
-      console.log(
-        `MiniBoss ${this.type} shield damaged, new shield: ${this.shield}`
-      );
       if (this.shield <= 0) {
         this.shield = 0;
-        console.log(`MiniBoss ${this.type} shield destroyed`);
         return "shield_destroyed";
       }
       return "shield_damaged";
@@ -345,13 +332,9 @@ export class MiniBoss extends Enemy {
       this.health = 0;
     }
     this.hitFlash = 10;
-    console.log(
-      `MiniBoss ${this.type} health damaged, new health: ${this.health}`
-    );
     if (this.health <= 0 || isNaN(this.health)) {
       this.dying = true;
       this.deathTimer = 0;
-      console.log(`MiniBoss ${this.type} is now dying`);
       return "dying";
     }
     return "damaged";
@@ -390,14 +373,14 @@ export class MiniBoss extends Enemy {
     };
   }
 
-  // Get alternating bullet color (half sprite color, half black/white)
+  // Get alternating bullet color (half sprite color, half white/red - no black for visibility)
   getProjectileColor() {
     this.projectileColorCounter++;
     if (this.projectileColorCounter % 2 === 0) {
       return this.spriteColor; // Use miniboss color
     } else {
-      // Alternate between black and white
-      return Math.random() < 0.5 ? "#ffffff" : "#000000";
+      // Alternate between white and red (both visible against black background)
+      return Math.random() < 0.5 ? "#ffffff" : "#ff4444";
     }
   }
 

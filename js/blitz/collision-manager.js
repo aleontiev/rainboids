@@ -1,6 +1,5 @@
 // CollisionManager - Handles all collision detection and responses
 
-import { MiniBoss } from "./entities/miniboss.js";
 import { Boss } from "./entities/boss.js";
 
 export class CollisionManager {
@@ -32,11 +31,13 @@ export class CollisionManager {
     // Metal bouncing collisions
     this.handleMetalBounceCollisions();
 
-    // Metal physics collisions
-    if (!skipPlayerCollisions) {
-      this.handlePlayerMetalCollisions();
-    }
     this.handleEnemyMetalCollisions();
+    
+    // Metal-to-metal collisions
+    this.handleMetalToMetalCollisions();
+    
+    // Metal-to-asteroid collisions
+    this.handleMetalAsteroidCollisions();
 
     // Special collisions
     this.handlePlayerPowerupCollisions();
@@ -46,7 +47,7 @@ export class CollisionManager {
   // Handle all collisions that can damage the player
   handlePlayerCollisions() {
     const player = this.game.player;
-    if (!player) return;
+    if (!player || player.isDefeated) return;
 
     // Define all damage sources with their properties
     const damageSources = [
@@ -68,7 +69,9 @@ export class CollisionManager {
         isLaser: true,
       },
       {
-        entities: this.entities.missiles.filter(missile => !missile.isPlayerMissile),
+        entities: this.entities.missiles.filter(
+          (missile) => !missile.isPlayerMissile
+        ),
         damage: 2,
         type: "missile",
         remove: true,
@@ -94,6 +97,11 @@ export class CollisionManager {
 
   // Handle all collisions that can damage enemies
   handleEnemyCollisions() {
+    // Early exit if no bullets to process
+    if (this.entities.bullets.length === 0 && this.entities.missiles.length === 0) {
+      return;
+    }
+
     // Player bullets vs all enemy types
     this.checkBulletEnemyCollisions(
       this.entities.bullets,
@@ -110,6 +118,26 @@ export class CollisionManager {
       this.entities.bosses,
       1
     );
+
+    // Player homing missiles vs all enemy types (only if missiles exist)
+    const playerMissiles = this.entities.missiles.filter(missile => missile.isPlayerMissile);
+    if (playerMissiles.length > 0) {
+      this.checkBulletEnemyCollisions(
+        playerMissiles,
+        this.entities.enemies,
+        2 // Missiles do more damage than bullets
+      );
+      this.checkBulletEnemyCollisions(
+        playerMissiles,
+        this.entities.miniBosses,
+        2
+      );
+      this.checkBulletEnemyCollisions(
+        playerMissiles,
+        this.entities.bosses,
+        2
+      );
+    }
   }
 
   // Handle all asteroid-related collisions
@@ -129,21 +157,61 @@ export class CollisionManager {
     // Check asteroid-to-asteroid collisions (separate pass to avoid double processing)
     this.checkAsteroidToAsteroidCollisions();
 
-    // All bullet/laser bouncing off metals
-    this.handleMetalBounceCollisions();
   }
-  
+
   // Check all possible collisions for a single asteroid
   checkAsteroidCollisions(asteroid, asteroidIndex) {
     // Define all potential collision sources
     const collisionSources = [
-      { entities: this.entities.bullets, type: 'playerBullet', damage: 1, remove: true },
-      { entities: this.entities.enemyBullets, type: 'enemyBullet', damage: 1, remove: true },
-      { entities: this.entities.enemyLasers, type: 'enemyLaser', damage: 1, remove: true, isLaser: true },
-      { entities: [this.game.player], type: 'player', damage: 1, remove: false },
-      { entities: this.entities.enemies, type: 'enemy', damage: 1, remove: false },
-      { entities: this.entities.miniBosses, type: 'miniBoss', damage: 2, remove: false },
-      { entities: this.entities.bosses, type: 'boss', damage: 3, remove: false }
+      {
+        entities: this.entities.bullets,
+        type: "playerBullet",
+        damage: 1,
+        remove: true,
+      },
+      {
+        entities: this.entities.missiles.filter(missile => missile.isPlayerMissile),
+        type: "playerMissile",
+        damage: 2,
+        remove: true,
+      },
+      {
+        entities: this.entities.enemyBullets,
+        type: "enemyBullet",
+        damage: 1,
+        remove: true,
+      },
+      {
+        entities: this.entities.enemyLasers,
+        type: "enemyLaser",
+        damage: 1,
+        remove: true,
+        isLaser: true,
+      },
+      {
+        entities: [this.game.player],
+        type: "player",
+        damage: 1,
+        remove: false,
+      },
+      {
+        entities: this.entities.enemies,
+        type: "enemy",
+        damage: 1,
+        remove: false,
+      },
+      {
+        entities: this.entities.miniBosses,
+        type: "miniBoss",
+        damage: 2,
+        remove: false,
+      },
+      {
+        entities: this.entities.bosses,
+        type: "boss",
+        damage: 3,
+        remove: false,
+      },
     ];
 
     for (const source of collisionSources) {
@@ -152,203 +220,260 @@ export class CollisionManager {
       }
     }
   }
-  
+
   // Check collisions between asteroid and a specific entity type
   checkAsteroidSourceCollisions(asteroid, asteroidIndex, source) {
     // Check if entities array exists and has items
     if (!source.entities || source.entities.length === 0) {
       return false;
     }
-    
+
     for (let i = source.entities.length - 1; i >= 0; i--) {
       const entity = source.entities[i];
       if (!entity) continue;
-      
+
       let collision = false;
-      
+
       if (source.isLaser) {
         collision = this.lineCircleCollision(entity, asteroid);
       } else {
-        const distance = Math.sqrt(
-          Math.pow(asteroid.x - entity.x, 2) + Math.pow(asteroid.y - entity.y, 2)
-        );
-        collision = distance < asteroid.size + (entity.radius || entity.hitboxSize || entity.size || 10);
+        const dx = asteroid.x - entity.x;
+        const dy = asteroid.y - entity.y;
+        const distanceSquared = dx * dx + dy * dy;
+        
+        const asteroidRadius = asteroid.size;
+        const entityRadius = entity.radius || entity.hitboxSize || entity.size || 10;
+        const radiusSum = asteroidRadius + entityRadius;
+        const radiusSumSquared = radiusSum * radiusSum;
+        
+        collision = distanceSquared < radiusSumSquared;
       }
-      
+
       if (collision) {
         // Handle collision based on entity type
-        if (source.type === 'player') {
+        if (source.type === "player") {
           // Player collision handled elsewhere, just damage asteroid
-          return this.handleAsteroidDamage(asteroid, asteroidIndex, source.damage, entity.x, entity.y);
-        } else if (source.type.includes('enemy') || source.type.toLowerCase().includes('boss')) {
+          return this.handleAsteroidDamage(
+            asteroid,
+            asteroidIndex,
+            source.damage,
+            entity.x,
+            entity.y
+          );
+        } else if (
+          source.type.includes("enemy") ||
+          source.type.toLowerCase().includes("boss")
+        ) {
           // Enemy collision - damage both
           this.handleEnemyAsteroidCollision(entity, asteroid, asteroidIndex);
           return false; // Don't destroy asteroid immediately, let damage system handle it
         } else {
           // Bullet/laser collision
           // Entity removal handled by caller via array splice
-          return this.handleAsteroidDamage(asteroid, asteroidIndex, source.damage, entity.x, entity.y);
+          return this.handleAsteroidDamage(
+            asteroid,
+            asteroidIndex,
+            source.damage,
+            entity.x,
+            entity.y
+          );
         }
       }
     }
     return false;
   }
-  
+
   // Handle asteroid-to-asteroid collisions with physics
   checkAsteroidToAsteroidCollisions() {
     const asteroids = this.entities.asteroids;
     
+    // Early exit if not enough asteroids for collisions
+    if (asteroids.length < 2) return;
+
     for (let i = 0; i < asteroids.length - 1; i++) {
       const asteroid1 = asteroids[i];
       // All asteroids in array are alive
-      
+
       for (let j = i + 1; j < asteroids.length; j++) {
         const asteroid2 = asteroids[j];
         // All asteroids in array are alive
+
+        const dx = asteroid1.x - asteroid2.x;
+        const dy = asteroid1.y - asteroid2.y;
         
-        const distance = Math.sqrt(
-          Math.pow(asteroid1.x - asteroid2.x, 2) + Math.pow(asteroid1.y - asteroid2.y, 2)
-        );
+        // Quick bounding box check first
+        const radiusSum = asteroid1.radius + asteroid2.radius;
         
-        if (distance < asteroid1.radius + asteroid2.radius) {
+        if (Math.abs(dx) > radiusSum || Math.abs(dy) > radiusSum) {
+          continue; // Skip expensive distance calculation
+        }
+        
+        const distanceSquared = dx * dx + dy * dy;
+        const radiusSumSquared = radiusSum * radiusSum;
+
+        if (distanceSquared < radiusSumSquared) {
           this.handleAsteroidToAsteroidCollision(asteroid1, asteroid2, i, j);
         }
       }
     }
   }
-  
+
   // Handle collision between two asteroids
   handleAsteroidToAsteroidCollision(asteroid1, asteroid2, index1, index2) {
     // Calculate collision vector
     const dx = asteroid2.x - asteroid1.x;
     const dy = asteroid2.y - asteroid1.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    
+
     if (distance === 0) return; // Avoid division by zero
-    
+
     // Normalize collision vector
     const nx = dx / distance;
     const ny = dy / distance;
-    
+
     // Calculate relative velocity
     const dvx = asteroid2.vx - asteroid1.vx;
     const dvy = asteroid2.vy - asteroid1.vy;
-    
+
     // Calculate relative velocity in collision normal direction
     const dvn = dvx * nx + dvy * ny;
-    
+
     // Do not resolve if velocities are separating
     if (dvn > 0) return;
-    
+
     // Calculate restitution (bounciness)
     const restitution = 0.8;
-    
+
     // Calculate impulse scalar
     const impulse = -(1 + restitution) * dvn;
-    
+
     // Calculate masses (based on size)
     const mass1 = this.getAsteroidMass(asteroid1);
     const mass2 = this.getAsteroidMass(asteroid2);
     const totalMass = mass1 + mass2;
-    
+
     // Apply impulse
-    const impulse1 = impulse * mass2 / totalMass;
-    const impulse2 = impulse * mass1 / totalMass;
-    
+    const impulse1 = (impulse * mass2) / totalMass;
+    const impulse2 = (impulse * mass1) / totalMass;
+
     // Update velocities
     asteroid1.vx -= impulse1 * nx;
     asteroid1.vy -= impulse1 * ny;
     asteroid2.vx += impulse2 * nx;
     asteroid2.vy += impulse2 * ny;
-    
+
     // Separate asteroids to prevent overlap
     const overlap = asteroid1.radius + asteroid2.radius - distance;
     const separationDistance = overlap / 2 + 1;
-    
+
     asteroid1.x -= nx * separationDistance;
     asteroid1.y -= ny * separationDistance;
     asteroid2.x += nx * separationDistance;
     asteroid2.y += ny * separationDistance;
-    
+
     // Apply minor damage based on impact velocity
     const impactSpeed = Math.abs(dvn);
     const damage = Math.min(1, Math.floor(impactSpeed / 3)); // Minor damage for collisions
-    
+
     if (damage > 0) {
       // Both asteroids take minor damage
-      this.handleAsteroidDamage(asteroid1, index1, damage, asteroid1.x, asteroid1.y);
-      this.handleAsteroidDamage(asteroid2, index2, damage, asteroid2.x, asteroid2.y);
+      this.handleAsteroidDamage(
+        asteroid1,
+        index1,
+        damage,
+        asteroid1.x,
+        asteroid1.y
+      );
+      this.handleAsteroidDamage(
+        asteroid2,
+        index2,
+        damage,
+        asteroid2.x,
+        asteroid2.y
+      );
     }
-    
+
     // Visual/audio effects
-    this.game.effects.createAsteroidHitEffect((asteroid1.x + asteroid2.x) / 2, (asteroid1.y + asteroid2.y) / 2);
+    this.game.effects.createAsteroidHitEffect(
+      (asteroid1.x + asteroid2.x) / 2,
+      (asteroid1.y + asteroid2.y) / 2
+    );
     if (impactSpeed > 2) {
       this.game.audio.play(this.game.audio.sounds.hit);
     }
   }
-  
+
   // Get asteroid mass for physics calculations
   getAsteroidMass(asteroid) {
     switch (asteroid.size || asteroid.type) {
-      case 'large': return 3;
-      case 'medium': return 2;
-      case 'small': return 1;
-      default: return 2; // Default to medium
+      case "large":
+        return 3;
+      case "medium":
+        return 2;
+      case "small":
+        return 1;
+      default:
+        return 2; // Default to medium
     }
   }
-  
+
   // Handle enemy-asteroid collision
   handleEnemyAsteroidCollision(enemy, asteroid, asteroidIndex) {
     // Damage the enemy
     if (enemy.takeDamage) {
       const result = enemy.takeDamage(1, asteroid.x, asteroid.y);
-      if (result === 'destroyed') {
+      if (result === "destroyed") {
         this.game.handleEnemyDamage(enemy, 1, asteroid.x, asteroid.y);
       }
     }
-    
+
     // Damage the asteroid
     this.handleAsteroidDamage(asteroid, asteroidIndex, 1, enemy.x, enemy.y);
-    
+
     // Visual effects
     this.game.effects.createExplosion(asteroid.x, asteroid.y, 5, 2);
   }
-  
+
   // Unified asteroid damage handler
   handleAsteroidDamage(asteroid, asteroidIndex, damage, impactX, impactY) {
-    const damageResult = asteroid.takeDamage ? asteroid.takeDamage(damage, impactX, impactY) : 'destroyed';
-    
+    const damageResult = asteroid.takeDamage
+      ? asteroid.takeDamage(damage, impactX, impactY)
+      : "destroyed";
+
     this.game.effects.createAsteroidHitEffect(impactX, impactY);
-    
-    if (damageResult && damageResult !== 'damaged') {
+
+    if (damageResult && damageResult !== "damaged") {
       // Asteroid destroyed - remove and handle breakup
       this.entities.asteroids.splice(asteroidIndex, 1);
       this.game.effects.createDebris(asteroid.x, asteroid.y, "#ffffff");
       this.game.audio.play(this.game.audio.sounds.asteroidExplosion);
       this.game.state.addScore(50);
-      
+
       // Handle breakup
       if (damageResult === "breakIntoMedium") {
         this.createAsteroidBreakup(asteroid, "medium", 2);
       } else if (damageResult === "breakIntoSmall") {
         this.createAsteroidBreakup(asteroid, "small", 2);
       }
-      
+
       return true; // Asteroid was destroyed
     }
-    
+
     return false; // Asteroid still alive
   }
-  
+
   // Create asteroid breakup fragments
   createAsteroidBreakup(originalAsteroid, newSize, count) {
     for (let k = 0; k < count; k++) {
       const baseAngle = Math.atan2(originalAsteroid.vy, originalAsteroid.vx);
       const splitAngle = baseAngle + (k === 0 ? -0.3 : 0.3); // ±17 degrees
-      const speed = Math.sqrt(
-        originalAsteroid.vx * originalAsteroid.vx + originalAsteroid.vy * originalAsteroid.vy
-      ) * (0.8 + Math.random() * 0.4); // 80-120% of original speed
-      
+      const speed =
+        Math.sqrt(
+          originalAsteroid.vx * originalAsteroid.vx +
+            originalAsteroid.vy * originalAsteroid.vy
+        ) *
+        (0.8 + Math.random() * 0.4); // 80-120% of original speed
+
       this.entities.spawnAsteroid(
         newSize,
         originalAsteroid.x + (Math.random() - 0.5) * 40,
@@ -367,7 +492,7 @@ export class CollisionManager {
     if (!source.entities || source.entities.length === 0) {
       return false;
     }
-    
+
     for (let i = source.entities.length - 1; i >= 0; i--) {
       const entity = source.entities[i];
       // Entities in arrays are alive - no need to check alive property
@@ -382,8 +507,9 @@ export class CollisionManager {
         const distance = Math.sqrt(
           Math.pow(player.x - entity.x, 2) + Math.pow(player.y - entity.y, 2)
         );
-        collision = distance < player.hitboxSize + (entity.radius || entity.size || 10);
-        
+        collision =
+          distance < player.hitboxSize + (entity.radius || entity.size || 10);
+
         // Collision detection working properly
       }
 
@@ -404,19 +530,16 @@ export class CollisionManager {
 
   // Apply damage to player
   applyPlayerDamage(player, damage, type, sourceEntity) {
-    console.log(`🎯 Player hit by ${type}! Current shields: ${player.shield}, godMode: ${player.godMode}, isShielding: ${player.isShielding}, rainbowInvulnerable: ${player.rainbowInvulnerable}`);
-    
     // Check for godmode
     if (player.godMode) {
-      console.log("⚡ Damage blocked by god mode");
       return; // God mode blocks all damage
     }
-    
+
     // Check for rainbow invulnerability
     if (player.rainbowInvulnerable) {
       return; // Rainbow invulnerability blocks damage
     }
-    
+
     // Check for active shielding
     if (player.isShielding) {
       return; // Active shield blocks damage
@@ -427,7 +550,7 @@ export class CollisionManager {
       const destroyedShip = player.secondShip.pop();
       this.game.effects.createExplosion(destroyedShip.x, destroyedShip.y);
       this.game.progress.update();
-      
+
       // Audio and visual feedback
       this.game.audio.play(this.game.audio.sounds.hit);
       return; // Second ship absorbed the hit
@@ -438,22 +561,12 @@ export class CollisionManager {
       player.shield -= damage;
       this.game.effects.createExplosion(player.x, player.y);
       this.game.progress.update();
-      
+
       // Audio and visual feedback
       this.game.audio.play(this.game.audio.sounds.hit);
       return; // Shield absorbed the hit
     }
 
-    // No protection - player dies
-    console.log("🔥 PLAYER DEATH: No shields left", {
-      type: type,
-      sourceEntity: {
-        x: sourceEntity.x,
-        y: sourceEntity.y,
-        size: sourceEntity.size || sourceEntity.radius,
-      }
-    });
-    
     this.game.death.start();
   }
 
@@ -462,7 +575,7 @@ export class CollisionManager {
     if (!bullets || bullets.length === 0 || !enemies || enemies.length === 0) {
       return;
     }
-    
+
     for (let i = bullets.length - 1; i >= 0; i--) {
       const bullet = bullets[i];
       // All bullets in array are alive
@@ -471,23 +584,77 @@ export class CollisionManager {
         const enemy = enemies[j];
         // All enemies in array are alive
 
-        const distance = Math.sqrt(
-          Math.pow(bullet.x - enemy.x, 2) + Math.pow(bullet.y - enemy.y, 2)
-        );
+        let hasCollision = false;
+        
+        // Use appropriate collision detection based on entity type
+        if (enemy.constructor.name === "Boss" && bullet.isPlayerLaser) {
+          // Use laser collision detection for boss
+          hasCollision = this.checkLaserCollision(bullet, enemy);
+        } else if (enemy.constructor.name === "Boss") {
+          // Use boss's multi-part collision detection for regular bullets
+          hasCollision = enemy.getHitPart(bullet.x, bullet.y) !== null;
+        } else {
+          // Standard circular collision for other entities
+          const dx = bullet.x - enemy.x;
+          const dy = bullet.y - enemy.y;
+          
+          const bulletRadius = bullet.size || bullet.radius || 5;
+          const enemyRadius = enemy.radius || enemy.size || 10;
+          const radiusSum = bulletRadius + enemyRadius;
+          
+          if (Math.abs(dx) > radiusSum || Math.abs(dy) > radiusSum) {
+            continue; // Skip expensive distance calculation
+          }
+          
+          const distanceSquared = dx * dx + dy * dy;
+          const radiusSumSquared = radiusSum * radiusSum;
+          hasCollision = distanceSquared < radiusSumSquared;
+        }
 
-        if (distance < (bullet.size || bullet.radius || 5) + (enemy.radius || enemy.size || 10)) {
+        if (hasCollision) {
           // Damage enemy and get result
-          const damageResult = this.game.handleEnemyDamage(enemy, damage, bullet.x, bullet.y);
+          const damageResult = this.game.handleEnemyDamage(
+            enemy,
+            damage,
+            bullet.x,
+            bullet.y
+          );
 
-          // Remove bullet
-          bullets.splice(i, 1);
+          // Handle bullet/laser removal based on type and enemy type
+          let shouldRemoveBullet = true;
+          
+          if (bullet.isPlayerLaser) {
+            // Player lasers: stop after hitting boss/miniboss, can penetrate regular enemies
+            const isBossOrMiniboss = enemy.type === "boss" || 
+                                   enemy.type === "miniboss" || 
+                                   enemy.constructor.name === "Boss" ||
+                                   enemy.constructor.name === "MiniBoss";
+            
+            if (isBossOrMiniboss) {
+              // Laser stops at boss/miniboss
+              shouldRemoveBullet = true;
+            } else {
+              // Laser can penetrate regular enemies
+              if (bullet.registerHit && typeof bullet.registerHit === 'function') {
+                shouldRemoveBullet = bullet.registerHit();
+              } else {
+                // Fallback if registerHit method doesn't exist
+                shouldRemoveBullet = false;
+              }
+            }
+          }
+          // Regular bullets always get removed (shouldRemoveBullet defaults to true)
+
+          if (shouldRemoveBullet) {
+            bullets.splice(i, 1);
+          }
 
           // Remove enemy if destroyed
           if (damageResult === "destroyed") {
             this.game.entities.removeDestroyedEnemy(enemy);
           }
 
-          break; // Bullet can only hit one enemy
+          break; // Bullet can only hit one enemy per iteration
         }
       }
     }
@@ -495,10 +662,15 @@ export class CollisionManager {
 
   // Helper for bullet-asteroid collisions
   checkBulletAsteroidCollisions(bullets, asteroids) {
-    if (!bullets || bullets.length === 0 || !asteroids || asteroids.length === 0) {
+    if (
+      !bullets ||
+      bullets.length === 0 ||
+      !asteroids ||
+      asteroids.length === 0
+    ) {
       return;
     }
-    
+
     for (let i = bullets.length - 1; i >= 0; i--) {
       const bullet = bullets[i];
       // All bullets in array are alive
@@ -507,12 +679,20 @@ export class CollisionManager {
         const asteroid = asteroids[j];
         // All asteroids in array are alive
 
-        const distance = Math.sqrt(
-          Math.pow(bullet.x - asteroid.x, 2) +
-            Math.pow(bullet.y - asteroid.y, 2)
-        );
+        const dx = bullet.x - asteroid.x;
+        const dy = bullet.y - asteroid.y;
+        
+        // Quick bounding box check first
+        const radiusSum = bullet.radius + asteroid.radius;
+        
+        if (Math.abs(dx) > radiusSum || Math.abs(dy) > radiusSum) {
+          continue; // Skip expensive distance calculation
+        }
+        
+        const distanceSquared = dx * dx + dy * dy;
+        const radiusSumSquared = radiusSum * radiusSum;
 
-        if (distance < bullet.radius + asteroid.radius) {
+        if (distanceSquared < radiusSumSquared) {
           // Handle asteroid destruction
           this.handleAsteroidDestruction(asteroid, bullet.x, bullet.y);
 
@@ -545,7 +725,7 @@ export class CollisionManager {
   handleMetalBounceCollisions() {
     // Player bullets and lasers bouncing off metals (handled by specific method)
     this.handlePlayerBulletMetalCollisions();
-    
+
     // Enemy bullets bouncing off metals
     this.checkBulletMetalBouncing(
       this.entities.enemyBullets,
@@ -559,27 +739,34 @@ export class CollisionManager {
     );
   }
 
-  // Helper for bullet-metal bouncing
+  // Helper for bullet-metal bouncing using unified physics
   checkBulletMetalBouncing(bullets, metals) {
-    for (const bullet of bullets) {
-      // All bullets in array are alive
+    // Early exit if no bullets or metals
+    if (bullets.length === 0 || metals.length === 0) return;
+    
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const bullet = bullets[i];
 
       for (const metal of metals) {
-        // All metals in array are alive
-
         // Use metal's proper collision detection method
         const hitSegment = metal.checkBulletCollision(bullet);
         if (hitSegment) {
-          // Use metal's bounce calculation method
-          const bounceResult = metal.calculateBounceDirection(bullet, hitSegment);
-          if (bounceResult) {
-            // Update bullet angle and optionally position
-            bullet.angle = bounceResult.angle;
-            if (bounceResult.x !== undefined && bounceResult.y !== undefined) {
-              bullet.x = bounceResult.x;
-              bullet.y = bounceResult.y;
+          // Use metal's unified physics bounce calculation
+          const bounceResult = metal.handleBulletCollision(bullet, hitSegment);
+          if (bounceResult && bounceResult.newAngle !== undefined) {
+            // Update bullet properties
+            bullet.angle = bounceResult.newAngle;
+            bullet.x = bounceResult.newPosition.x;
+            bullet.y = bounceResult.newPosition.y;
+            
+            // Update bullet speed if velocity is provided
+            if (bounceResult.newVelocity) {
+              const vx = bounceResult.newVelocity.x;
+              const vy = bounceResult.newVelocity.y;
+              bullet.speed = Math.sqrt(vx * vx + vy * vy);
             }
           }
+          break; // Only process one collision per bullet per frame
         }
       }
     }
@@ -587,6 +774,9 @@ export class CollisionManager {
 
   // Helper for laser-metal bouncing (for projectile-style lasers)
   checkLaserMetalBouncing(lasers, metals) {
+    // Early exit if no lasers or metals
+    if (lasers.length === 0 || metals.length === 0) return;
+    
     for (let i = lasers.length - 1; i >= 0; i--) {
       const laser = lasers[i];
       // All lasers in array are alive
@@ -601,20 +791,22 @@ export class CollisionManager {
             laser,
             collisionSegment
           );
-          
+
           // Check if laser has registerBounce method (like player lasers)
-          if (laser.registerBounce && typeof laser.registerBounce === 'function') {
+          if (
+            laser.registerBounce &&
+            typeof laser.registerBounce === "function"
+          ) {
             const shouldDestroy = laser.registerBounce(bounceResult.angle);
             if (shouldDestroy) {
               // Laser exceeded max bounces, remove it
               lasers.splice(i, 1);
             }
           } else {
-            // For enemy lasers without bounce tracking, just update angle
+            // For enemy lasers without bounce tracking, update angle and position
             laser.angle = bounceResult.angle;
-            // Move laser away from metal to prevent multiple bounces
-            laser.x += Math.cos(laser.angle) * laser.speed * 3;
-            laser.y += Math.sin(laser.angle) * laser.speed * 3;
+            laser.x = bounceResult.x;
+            laser.y = bounceResult.y;
           }
           break;
         }
@@ -626,7 +818,7 @@ export class CollisionManager {
     if (!this.entities.powerups || this.entities.powerups.length === 0) {
       return;
     }
-    
+
     for (let i = this.entities.powerups.length - 1; i >= 0; i--) {
       if (this.checkCollision(this.game.player, this.entities.powerups[i])) {
         this.game.powerup.collect(this.entities.powerups[i]);
@@ -635,120 +827,133 @@ export class CollisionManager {
     }
   }
 
+  /**
+   * Handles collisions between the player and rotating metal objects
+   * using a 2D rigid body physics model for a realistic bounce effect.
+   */
   handlePlayerMetalCollisions() {
     for (const metal of this.entities.metals) {
       const collisionSegment = metal.checkPlayerCollision(this.game.player);
       if (collisionSegment) {
-        // Calculate segment properties
+        // 1. CALCULATE COLLISION GEOMETRY
+        // ---------------------------------
+        const player = this.game.player;
         const dx = collisionSegment.x2 - collisionSegment.x1;
         const dy = collisionSegment.y2 - collisionSegment.y1;
-        const length = Math.sqrt(dx * dx + dy * dy);
+        const lengthSq = dx * dx + dy * dy;
 
-        if (length > 0) {
-          // Get perpendicular normal vector (pointing outward from metal)
-          const nx = -dy / length;
-          const ny = dx / length;
+        if (lengthSq > 0) {
+          const length = Math.sqrt(lengthSq);
 
-          // Determine which side of the line the player is on
-          const playerRelativeX = this.game.player.x - collisionSegment.x1;
-          const playerRelativeY = this.game.player.y - collisionSegment.y1;
-          const side = playerRelativeX * nx + playerRelativeY * ny > 0 ? 1 : -1;
+          // Find the closest point on the segment to the player's center
+          const t = Math.max(
+            0,
+            Math.min(
+              1,
+              ((player.x - collisionSegment.x1) * dx +
+                (player.y - collisionSegment.y1) * dy) /
+                lengthSq
+            )
+          );
+          const collisionPointX = collisionSegment.x1 + t * dx;
+          const collisionPointY = collisionSegment.y1 + t * dy;
 
-          // Calculate collision point on the segment
-          const segmentFraction = Math.max(0, Math.min(1, 
-            ((this.game.player.x - collisionSegment.x1) * dx + 
-             (this.game.player.y - collisionSegment.y1) * dy) / (length * length)
-          ));
-          const collisionPointX = collisionSegment.x1 + segmentFraction * dx;
-          const collisionPointY = collisionSegment.y1 + segmentFraction * dy;
+          // The collision normal should always point away from the metal towards the player
+          let collisionNormalX = player.x - collisionPointX;
+          let collisionNormalY = player.y - collisionPointY;
+          const dist = Math.sqrt(
+            collisionNormalX * collisionNormalX +
+              collisionNormalY * collisionNormalY
+          );
 
-          // Push player away from metal surface
-          const pushDistance = this.game.player.hitboxSize + metal.thickness / 2 + 2;
-          const collisionNormalX = nx * side;
-          const collisionNormalY = ny * side;
-          
-          // Set player position to safe distance from metal
-          this.game.player.x = collisionPointX + collisionNormalX * pushDistance;
-          this.game.player.y = collisionPointY + collisionNormalY * pushDistance;
+          if (dist > 0) {
+            collisionNormalX /= dist;
+            collisionNormalY /= dist;
+          } else {
+            // Edge case: player center is exactly on the line
+            // Use the segment's perpendicular as a fallback
+            collisionNormalX = -dy / length;
+            collisionNormalY = dx / length;
+          }
 
-          // Physics-based collision with proper mass ratios
-          // Ship mass = 0.5, Metal mass = 1.0 (ship weighs half as much as metal)
-          const playerMass = 0.5;
+          // 2. RESOLVE PENETRATION (Avoids "Jumpy" Behavior)
+          // ----------------------------------------------------
+          const penetrationDepth =
+            player.hitboxSize + metal.thickness / 2 - dist;
+          if (penetrationDepth > 0) {
+            // Push the player back along the normal by the exact overlap amount
+            player.x += collisionNormalX * penetrationDepth;
+            player.y += collisionNormalY * penetrationDepth;
+          }
+
+          // 3. CALCULATE RIGID BODY COLLISION RESPONSE
+          // --------------------------------------------
+
+          // Define physical properties
+          const playerMass = 100000.0; 
           const metalMass = 1.0;
-          const totalMass = playerMass + metalMass;
+          const restitution = 0.8; // Bounciness (0=inelastic, 1=perfectly elastic)
 
-          // Calculate relative velocity at collision point
-          const relativeVx = this.game.player.vx - metal.vx;
-          const relativeVy = this.game.player.vy - metal.vy;
+          // Radius vector from metal's center of mass to the collision point
+          const rX = collisionPointX - metal.x;
+          const rY = collisionPointY - metal.y;
 
-          // Component of relative velocity along collision normal
-          const relativeNormalSpeed = relativeVx * collisionNormalX + relativeVy * collisionNormalY;
+          // Velocity of the collision point on the metal (linear + angular)
+          // v_contact = v_linear + (angularVelocity × r)
+          const metalContactVx = metal.vx - metal.angularVelocity * rY;
+          const metalContactVy = metal.vy + metal.angularVelocity * rX;
 
-          // Only apply forces if objects are moving toward each other
+          // Relative velocity between player and the metal's contact point
+          const relativeVx = player.vx - metalContactVx;
+          const relativeVy = player.vy - metalContactVy;
+
+          // Relative velocity along the collision normal
+          const relativeNormalSpeed =
+            relativeVx * collisionNormalX + relativeVy * collisionNormalY;
+
+          // Only apply impulse if objects are moving towards each other
           if (relativeNormalSpeed < 0) {
-            // Restitution coefficient (bounciness) - reduced for more realistic feel
-            const restitution = 0.3;
-            
-            // Calculate impulse magnitude
-            const impulseMagnitude = -(1 + restitution) * relativeNormalSpeed / totalMass;
-            
-            // Apply impulse to velocities (conservation of momentum)
-            const playerImpulse = impulseMagnitude * metalMass;
-            const metalImpulse = impulseMagnitude * playerMass;
-            
-            this.game.player.vx += playerImpulse * collisionNormalX;
-            this.game.player.vy += playerImpulse * collisionNormalY;
-            
-            metal.vx -= metalImpulse * collisionNormalX;
-            metal.vy -= metalImpulse * collisionNormalY;
+            // Moment of inertia for a thin rod rotating around its center
+            const momentOfInertia = (metalMass * length * length) / 12;
 
-            // Calculate torque for metal spinning based on collision point
-            // Distance from metal center to collision point
-            const metalCenterX = metal.x;
-            const metalCenterY = metal.y;
-            const collisionOffsetX = collisionPointX - metalCenterX;
-            const collisionOffsetY = collisionPointY - metalCenterY;
-            
-            // Cross product gives torque direction and magnitude
-            // Torque = r × F (cross product of position vector and force)
-            const forceX = metalImpulse * collisionNormalX;
-            const forceY = metalImpulse * collisionNormalY;
-            const torque = collisionOffsetX * forceY - collisionOffsetY * forceX;
-            
-            // Apply angular velocity (spin) - scale by metal's moment of inertia
-            // For a rod: I = (1/12) * m * L^2, but we'll use a simpler approximation
-            const momentOfInertia = metalMass * length * length / 12;
-            const angularImpulse = torque / momentOfInertia;
-            
-            // Add spin to metal (ensure metal has angularVelocity property)
-            if (metal.angularVelocity === undefined) {
-              metal.angularVelocity = 0;
-            }
-            metal.angularVelocity += angularImpulse * 0.1; // Scale factor for playable spin rate
-            
-            // Add some friction to prevent metals from spinning forever
-            metal.angularVelocity *= 0.98;
+            // The term for rotational resistance in the impulse denominator
+            // is (r ⊥ n)² / I, where r ⊥ n is the 2D cross product
+            const rCrossNSq =
+              (rX * collisionNormalY - rY * collisionNormalX) ** 2;
+
+            // Calculate impulse magnitude (J) using the full rigid body formula
+            const j =
+              (-(1 + restitution) * relativeNormalSpeed) /
+              (1 / playerMass + 1 / metalMass + rCrossNSq / momentOfInertia);
+
+            // Apply impulse to linear velocities
+            player.vx += (j / playerMass) * collisionNormalX;
+            player.vy += (j / playerMass) * collisionNormalY;
+            metal.vx -= (j / metalMass) * collisionNormalX;
+            metal.vy -= (j / metalMass) * collisionNormalY;
+
+            // Apply torque and change angular velocity
+            // Torque = r × F, where F is the impulse vector (-j * n)
+            const torque =
+              rX * (-j * collisionNormalY) - rY * (-j * collisionNormalX);
+            metal.angularVelocity += torque / momentOfInertia;
           }
         }
-        break; // Only handle one collision per frame
+        break; // Process only one collision per frame for stability
       }
     }
   }
-
-  // Legacy method - now handled by consolidated handleEnemyCollisions()
-
-  // Legacy method - now handled by consolidated handleAsteroidCollisions()
 
   handlePlayerBulletMetalCollisions() {
     if (!this.entities.bullets || this.entities.bullets.length === 0) {
       return;
     }
-    
+
     for (let i = this.entities.bullets.length - 1; i >= 0; i--) {
       const bullet = this.entities.bullets[i];
 
       if (!this.entities.metals) continue;
-      
+
       for (const metal of this.entities.metals) {
         const collisionSegment = metal.checkBulletCollision(bullet);
         if (collisionSegment) {
@@ -759,6 +964,16 @@ export class CollisionManager {
               collisionSegment
             );
             const bounced = bullet.registerBounce(bounceResult.angle);
+
+            // Move laser away from metal to prevent sticking
+            if (
+              !bounced &&
+              bounceResult.x !== undefined &&
+              bounceResult.y !== undefined
+            ) {
+              bullet.x = bounceResult.x;
+              bullet.y = bounceResult.y;
+            }
 
             if (bounced) {
               // Laser exceeded max bounces, remove it
@@ -771,12 +986,9 @@ export class CollisionManager {
               collisionSegment
             );
             bullet.angle = bounceResult.angle;
-            bullet.vx = bounceResult.vx;
-            bullet.vy = bounceResult.vy;
-
-            // Move bullet away from metal to prevent multiple bounces
-            bullet.x += bullet.vx * 3;
-            bullet.y += bullet.vy * 3;
+            // Update bullet position to prevent sticking
+            bullet.x = bounceResult.x;
+            bullet.y = bounceResult.y;
           }
 
           break;
@@ -788,15 +1000,18 @@ export class CollisionManager {
   // Legacy method - now handled by consolidated handleAsteroidCollisions()
 
   handleEnemyBulletMetalCollisions() {
-    if (!this.entities.enemyBullets || this.entities.enemyBullets.length === 0) {
+    if (
+      !this.entities.enemyBullets ||
+      this.entities.enemyBullets.length === 0
+    ) {
       return;
     }
-    
+
     for (let i = this.entities.enemyBullets.length - 1; i >= 0; i--) {
       const bullet = this.entities.enemyBullets[i];
 
       if (!this.entities.metals) continue;
-      
+
       for (const metal of this.entities.metals) {
         const collisionSegment = metal.checkBulletCollision(bullet);
         if (collisionSegment) {
@@ -806,12 +1021,9 @@ export class CollisionManager {
             collisionSegment
           );
           bullet.angle = bounceResult.angle;
-          bullet.vx = bounceResult.vx;
-          bullet.vy = bounceResult.vy;
-
-          // Move bullet away from metal
-          bullet.x += bullet.vx * 3;
-          bullet.y += bullet.vy * 3;
+          // Update bullet position to prevent sticking
+          bullet.x = bounceResult.x;
+          bullet.y = bounceResult.y;
 
           break;
         }
@@ -822,10 +1034,9 @@ export class CollisionManager {
   // CONTINUOUS LASER BEAM COLLISIONS
 
   handleContinuousLaserCollisions() {
-    // Check all bosses for active continuous laser beams
-    for (const enemy of this.entities.allEnemies) {
-      if (!(enemy instanceof Boss)) continue;
-      const boss = enemy;
+    // Check boss for active continuous laser beams
+    if (this.entities.boss && this.entities.boss instanceof Boss) {
+      const boss = this.entities.boss;
       if (boss.leftArm && boss.leftArm.activeLaser) {
         const laser = boss.leftArm.activeLaser;
 
@@ -861,24 +1072,6 @@ export class CollisionManager {
               );
               this.game.progress.update();
             } else {
-              console.log(
-                "🔥 PLAYER DEATH: Collision with CONTINUOUS LASER BEAM",
-                {
-                  laser: {
-                    startX: laser.startX,
-                    startY: laser.startY,
-                    endX: laser.endX,
-                    endY: laser.endY,
-                    width: laser.width,
-                    color: laser.color,
-                  },
-                  player: {
-                    x: this.game.player.x,
-                    y: this.game.player.y,
-                    hitboxSize: this.game.player.hitboxSize,
-                  },
-                }
-              );
               this.game.effects.createExplosion(
                 this.game.player.x,
                 this.game.player.y
@@ -901,8 +1094,21 @@ export class CollisionManager {
         }
 
         // Enemy collisions (friendly fire)
-        for (let i = this.entities.allEnemies.length - 1; i >= 0; i--) {
-          const enemy = this.entities.allEnemies[i];
+        // Check regular enemies
+        for (let i = this.entities.enemies.length - 1; i >= 0; i--) {
+          const enemy = this.entities.enemies[i];
+          if (
+            enemy !== boss &&
+            laser.checkCollision(enemy.x, enemy.y, enemy.size)
+          ) {
+            this.entities.removeDestroyedEnemy(enemy);
+            this.game.effects.createExplosion(enemy.x, enemy.y);
+          }
+        }
+        
+        // Check minibosses
+        for (let i = this.entities.miniBosses.length - 1; i >= 0; i--) {
+          const enemy = this.entities.miniBosses[i];
           if (
             enemy !== boss &&
             laser.checkCollision(enemy.x, enemy.y, enemy.size)
@@ -1130,44 +1336,51 @@ export class CollisionManager {
     // Get circle properties - handle different property names across entity types
     const circleX = circleEntity.x;
     const circleY = circleEntity.y;
-    const circleRadius = circleEntity.hitboxSize || circleEntity.radius || circleEntity.size || 10;
-    
+    const circleRadius =
+      circleEntity.hitboxSize || circleEntity.radius || circleEntity.size || 10;
+
     // Get laser line endpoints
     const laserStartX = laser.x;
     const laserStartY = laser.y;
     const laserLength = laser.length || 100; // Default laser length
     const laserEndX = laser.x + Math.cos(laser.angle) * laserLength;
     const laserEndY = laser.y + Math.sin(laser.angle) * laserLength;
-    
+
     // Find the closest point on the line segment to the circle center
     const lineVecX = laserEndX - laserStartX;
     const lineVecY = laserEndY - laserStartY;
     const lineLengthSquared = lineVecX * lineVecX + lineVecY * lineVecY;
-    
+
     // Handle degenerate case where laser has zero length
     if (lineLengthSquared === 0) {
       const distance = Math.sqrt(
-        (circleX - laserStartX) * (circleX - laserStartX) + 
-        (circleY - laserStartY) * (circleY - laserStartY)
+        (circleX - laserStartX) * (circleX - laserStartX) +
+          (circleY - laserStartY) * (circleY - laserStartY)
       );
       return distance <= circleRadius;
     }
-    
+
     // Calculate parameter t for the closest point on the line
     const toCircleX = circleX - laserStartX;
     const toCircleY = circleY - laserStartY;
-    const t = Math.max(0, Math.min(1, (toCircleX * lineVecX + toCircleY * lineVecY) / lineLengthSquared));
-    
+    const t = Math.max(
+      0,
+      Math.min(
+        1,
+        (toCircleX * lineVecX + toCircleY * lineVecY) / lineLengthSquared
+      )
+    );
+
     // Find the closest point on the line segment
     const closestX = laserStartX + t * lineVecX;
     const closestY = laserStartY + t * lineVecY;
-    
+
     // Calculate distance from circle center to closest point
     const distance = Math.sqrt(
-      (circleX - closestX) * (circleX - closestX) + 
-      (circleY - closestY) * (circleY - closestY)
+      (circleX - closestX) * (circleX - closestX) +
+        (circleY - closestY) * (circleY - closestY)
     );
-    
+
     return distance <= circleRadius;
   }
 
@@ -1192,7 +1405,7 @@ export class CollisionManager {
           metal.handleEnemyCollision(enemy, collisionSegment);
         }
       }
-      
+
       // Check collisions with minibosses
       for (const miniBoss of this.entities.miniBosses) {
         const collisionSegment = metal.checkPlayerCollision(miniBoss); // Reuse player collision method
@@ -1200,12 +1413,101 @@ export class CollisionManager {
           metal.handleEnemyCollision(miniBoss, collisionSegment);
         }
       }
-      
+
       // Check collisions with boss (if present)
       if (this.entities.boss) {
         const collisionSegment = metal.checkPlayerCollision(this.entities.boss); // Reuse player collision method
         if (collisionSegment) {
           metal.handleEnemyCollision(this.entities.boss, collisionSegment);
+        }
+      }
+    }
+  }
+
+  // Handle metal-to-metal collisions with optimized iterations
+  handleMetalToMetalCollisions() {
+    const metals = this.entities.metals;
+    if (!metals || metals.length < 2) {
+      return; // Need at least 2 metals for collision
+    }
+
+    // Limit iterations based on number of metals to prevent excessive computation
+    const maxIterations = Math.min(3, Math.ceil(metals.length / 2));
+    
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      let collisionsFound = false;
+      let totalSeparations = 0;
+      
+      // Check all pairs of metals for collisions
+      for (let i = 0; i < metals.length - 1; i++) {
+        const metal1 = metals[i];
+        
+        for (let j = i + 1; j < metals.length; j++) {
+          const metal2 = metals[j];
+          
+          // Use proper metal-to-metal collision detection with contact points
+          const collisionInfo = metal1.checkMetalCollision(metal2);
+          if (collisionInfo) {
+            // Process collision between the two metals
+            metal1.handleMetalCollision(metal2, collisionInfo);
+            collisionsFound = true;
+            totalSeparations++;
+            
+            // Continue checking other pairs in this iteration
+            // Don't break early to handle all simultaneous collisions
+          }
+        }
+      }
+      
+      // If no collisions were found in this iteration, we can stop early
+      if (!collisionsFound) {
+        break;
+      }
+      
+      // If we're making too many corrections in one iteration, 
+      // spread the corrections over multiple frames for stability
+      if (totalSeparations > metals.length * 2) {
+        break; // Prevent oscillations from over-correction
+      }
+    }
+  }
+
+  // Handle metal-to-asteroid collisions
+  handleMetalAsteroidCollisions() {
+    const metals = this.entities.metals;
+    const asteroids = this.entities.asteroids;
+    
+    if (!metals || metals.length === 0 || !asteroids || asteroids.length === 0) {
+      return;
+    }
+    
+    for (const metal of metals) {
+      for (let i = asteroids.length - 1; i >= 0; i--) {
+        const asteroid = asteroids[i];
+        
+        // Check collision between metal and asteroid
+        const collisionSegment = metal.checkPlayerCollision(asteroid); // Reuse circular collision detection
+        if (collisionSegment) {
+          // Apply physics collision to both objects
+          const result = metal.handleAsteroidCollision(asteroid, collisionSegment);
+          
+          if (result && result.velocityChange) {
+            // Apply velocity change to asteroid
+            asteroid.vx = (asteroid.vx || 0) + result.velocityChange.x;
+            asteroid.vy = (asteroid.vy || 0) + result.velocityChange.y;
+          }
+          
+          // Create subtle visual effects for metal-asteroid collision
+          if (result && result.contactPoint) {
+            // Create a small, brief effect instead of the full asteroid hit effect
+            this.game.effects.createDebris(
+              result.contactPoint.x, 
+              result.contactPoint.y, 
+              "#888888", // Gray debris for metal collision
+              3, // Small number of particles
+              15 // Short duration
+            );
+          }
         }
       }
     }

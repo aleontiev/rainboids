@@ -52,30 +52,37 @@ export class ActionsView {
       const entities = this.game.entities;
       
       // Create explosion effects for all enemies
-      entities.allEnemies.forEach(enemy => {
+      entities.enemies.forEach(enemy => {
         this.game.effects.createEnemyExplosion(enemy.x, enemy.y);
         this.game.effects.createDebris(enemy.x, enemy.y, "#ffaa00", 15);
       });
+      entities.miniBosses.forEach(enemy => {
+        this.game.effects.createEnemyExplosion(enemy.x, enemy.y);
+        this.game.effects.createDebris(enemy.x, enemy.y, "#ffaa00", 15);
+      });
+      if (entities.boss) {
+        this.game.effects.createEnemyExplosion(entities.boss.x, entities.boss.y);
+        this.game.effects.createDebris(entities.boss.x, entities.boss.y, "#ffaa00", 15);
+      }
       
       // Clear all enemies
       entities.enemies.length = 0;
       entities.miniBosses.length = 0;
-      entities.updateAllEnemiesList();
+      entities.boss = null;
       
       // Clear all enemy projectiles
       entities.enemyBullets.length = 0;
       entities.enemyLasers.length = 0;
       
-      console.log('Bomb used - cleared all enemies and projectiles');
     }
   }
 
   useShield() {
-    if (this.game.player && this.game.player.shieldCooldown <= 0) {
-      const maxShield = this.game.levelManager?.config?.player?.shieldCooldownMax || 300;
-      this.game.player.shield = Math.min(100, this.game.player.shield + 50); // Add 50 shield points
-      this.game.player.shieldCooldown = maxShield;
-      console.log('Shield activated - shield now:', this.game.player.shield);
+    if (this.game.player && this.game.player.activateShield()) {
+      // Player's activateShield() method handles isShielding, shieldFrames, and cooldown
+      
+      // Play shield sound if available
+      this.game.audio.play(this.game.audio.sounds.shield);
     }
   }
 
@@ -84,7 +91,10 @@ export class ActionsView {
       this.game.state.timeSlowActive = true;
       this.game.state.timeSlowTimer = 0;
       this.game.state.timeSlowCooldown = this.game.state.timeSlowCooldownMax;
-      console.log('Time slow activated');
+      
+      // Play time slow sound if available
+      this.game.audio.play(this.game.audio.sounds.timeSlow);
+      
     }
   }
 }

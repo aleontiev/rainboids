@@ -62,7 +62,11 @@ export class DialogManager {
     } else {
       // Close dialog and start boss fight
       this.hide();
-      this.game.level.phase = 5; // Boss fight phase
+      // Set the phase index directly since boss is phase 5 (index 4)
+      this.game.level.currentPhaseIndex = 4; // Boss fight phase (0-based index)
+      this.game.level.phaseTimer = 0;
+      this.game.level.phaseStartTime = this.game.state.time;
+      this.game.state.phase = 5; // Update state to sync with UI
       this.game.entities.spawnBoss();
     }
   }

@@ -76,30 +76,13 @@ export class PowerupManager {
   }
 
   activateShield() {
-    // Trigger the player's shield ability
-    const success = this.game.player.activateShield();
-    if (success) {
-      // Play shield sound if available
-      this.game.audio.play(this.game.audio.sounds.shield);
-    }
+    // Use the same shield logic as the action buttons
+    this.game.actions.useShield();
   }
 
   activateTimeSlow() {
-    // Activate time slow if not on cooldown
-    if (
-      this.game.state.timeSlowCooldown <= 0 &&
-      !this.game.state.timeSlowActive
-    ) {
-      this.game.state.timeSlowActive = true;
-      this.game.state.timeSlowTimer = 0;
-      this.game.state.timeSlowCooldown = this.game.state.timeSlowCooldownMax;
-
-      // Play time slow sound if available
-      this.game.audio.play(this.game.audio.sounds.timeSlow);
-
-      return true; // Ability was activated
-    }
-    return false; // Ability was on cooldown
+    // Use the same time slow logic as the action buttons
+    this.game.actions.useTimeSlow();
   }
 
   activateBomb() {

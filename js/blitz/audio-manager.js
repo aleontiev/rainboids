@@ -234,7 +234,6 @@ export class AudioManager {
         try {
           sfxr.play(synthdef);
         } catch (e) {
-          console.log("Sfx: audio play failed:", e);
         }
       },
     };
@@ -262,7 +261,7 @@ export class AudioManager {
     if (this.backgroundMusic && !this.backgroundMusic.muted) {
       this.backgroundMusic
         .play()
-        .catch((e) => console.log("Background: audio play failed:", e));
+        .catch((e) => {});
     }
   }
 
@@ -280,7 +279,7 @@ export class AudioManager {
     ) {
       this.backgroundMusic
         .play()
-        .catch((e) => console.log("Background: audio resume failed:", e));
+        .catch((e) => {});
     }
   }
 
@@ -290,7 +289,7 @@ export class AudioManager {
       if (!this.backgroundMusic.muted) {
         this.backgroundMusic
           .play()
-          .catch((e) => console.log("Background: audio restart failed:", e));
+          .catch((e) => {});
       }
     }
   }

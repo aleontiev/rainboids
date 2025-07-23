@@ -12,14 +12,14 @@ export class Player {
     this.speed = this.getPlayerSpeed();
     this.angle = 0;
     this.shootCooldown = 0;
-    this.homingMissileCooldown = 0;
     this.sideWeaponCooldown = 0; // Separate cooldown for side weapons
     this.secondShipCooldown = 0; // Separate cooldown for second ship
+    this.homingMissileCooldown = 0; // Cooldown for homing missiles based on level config
     this.isShielding = false;
     this.shieldFrames = 0;
     this.shield = 0;
     this.shieldCooldown = 0;
-    this.shieldCooldownMax = 300;
+    this.shieldCooldownMax = 100;
     this.mainWeaponLevel = 1;
     this.sideWeaponLevel = 0;
     this.secondShip = []; // Change to an array
@@ -29,7 +29,6 @@ export class Player {
     // Rainbow invulnerability powerup
     this.rainbowInvulnerable = false;
     this.rainbowInvulnerableTimer = 0;
-    this.rainbowInvulnerableDuration = 360; // 6 seconds at 60fps
 
     // Velocity tracking for predictive aiming
     this.vx = 0;
@@ -75,12 +74,13 @@ export class Player {
   update(
     keys,
     enemies,
+    miniBosses,
+    boss,
     asteroids,
     isPortrait,
     autoaimEnabled = true,
     mainWeaponLevel = 1,
     timeSlowActive = false,
-    boss = null,
     autoplayEnabled = false,
     enemyBullets = [],
     enemyLasers = [],
@@ -126,18 +126,14 @@ export class Player {
 
     // Handle movement - autoplay overrides manual input
     if (autoplayEnabled) {
-      // Create unified collidables array with consistent interface
-      const collidables = this.createCollidables(
+      // Autoplay: automatically dodge threats and collect powerups
+      const dodgeVector = this.autoplayer.calculateDodgeVector(
         enemies,
+        miniBosses,
+        boss,
         enemyBullets,
         enemyLasers,
         asteroids,
-        boss
-      );
-
-      // Autoplay: automatically dodge threats and collect powerups
-      const dodgeVector = this.autoplayer.calculateDodgeVector(
-        collidables,
         powerups,
         timeSlowActive
       );
@@ -191,29 +187,33 @@ export class Player {
 
     // Autoplay strategic ability usage
     if (autoplayEnabled) {
-      // Create unified collidables array with consistent interface
-      const collidables = this.createCollidables(
+      this.autoplayer.handleAutoplayAbilities(
         enemies,
+        miniBosses,
+        boss,
         enemyBullets,
         enemyLasers,
         asteroids,
-        boss
+        keys,
+        powerups
       );
-
-      this.autoplayer.handleAutoplayAbilities(collidables, keys, powerups);
     }
 
     // Handle aiming using the Autoaimer class
-    this.angle = this.autoaimer.calculateAimAngle(
+    const aimResult = this.autoaimer.calculateAimAngle(
       enemies,
-      asteroids,
+      miniBosses,
       boss,
+      asteroids,
       keys,
       autoaimEnabled,
       autoplayEnabled,
       mainWeaponLevel,
       isPortrait
     );
+    
+    this.angle = aimResult.angle;
+    this.shouldAutoFire = aimResult.shouldFire;
 
     // Player shoots at normal speed even during time slow
     if (this.shootCooldown > 0) {
@@ -422,170 +422,172 @@ export class Player {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle + this.rollAngle);
-    const shipOpacity = 1;
-
-    ctx.globalAlpha = shipOpacity;
-
     const visualSize = this.size * 2.5; // 2.5x larger visual size
 
-    // Draw filled arrow with different colors based on state
-    if (this.rainbowInvulnerable) {
-      // Fast rainbow gradient when invulnerable
-      const gradient = ctx.createLinearGradient(
-        -visualSize,
-        -visualSize,
-        visualSize,
-        visualSize
-      );
-      const time = Date.now() * 0.005;
-      gradient.addColorStop(0, `hsl(${(time * 60) % 360}, 100%, 50%)`);
-      gradient.addColorStop(0.25, `hsl(${(time * 60 + 90) % 360}, 100%, 50%)`);
-      gradient.addColorStop(0.5, `hsl(${(time * 60 + 180) % 360}, 100%, 50%)`);
-      gradient.addColorStop(0.75, `hsl(${(time * 60 + 270) % 360}, 100%, 50%)`);
-      gradient.addColorStop(1, `hsl(${(time * 60 + 360) % 360}, 100%, 50%)`);
-      ctx.fillStyle = gradient;
-    } else if (this.isShielding) {
-      ctx.fillStyle = "#ffff00"; // Yellow when shielding
-    } else if (this.timeSlowActive) {
-      ctx.fillStyle = "#00ff00"; // Bright green during time slow
-    } else {
-      // Default: slowly cycling color gradient
-      ctx.fillStyle = this.createColorGradient(ctx, visualSize);
-    }
-
-    // Simple arrow shape
-    ctx.beginPath();
-    ctx.moveTo(visualSize, 0); // Arrow tip
-    ctx.lineTo(-visualSize / 2, -visualSize / 2); // Top left
-    ctx.lineTo(-visualSize / 4, 0); // Middle left
-    ctx.lineTo(-visualSize / 2, visualSize / 2); // Bottom left
-    ctx.closePath();
-    ctx.fill();
-
-    // Dash trail effect removed for cleaner dash visual
-
-    // Draw shield if active
-    if (this.shield > 0) {
-      // Draw blue stroke around the player ship outline
-      ctx.globalAlpha = 0.8 * shipOpacity;
-      ctx.strokeStyle = "#0099ff"; // Bright blue
-      ctx.lineWidth = 3;
-
-      // Draw stroke around the ship shape
+    // Define ship shape path (used for both fill and stroke)
+    const drawShipPath = () => {
       ctx.beginPath();
       ctx.moveTo(visualSize, 0); // Arrow tip
       ctx.lineTo(-visualSize / 2, -visualSize / 2); // Top left
       ctx.lineTo(-visualSize / 4, 0); // Middle left
       ctx.lineTo(-visualSize / 2, visualSize / 2); // Bottom left
       ctx.closePath();
+    };
+
+    if (this.isShielding) {
+      // SHIELDING MODE: Only render thick gold stroke outline - nothing else
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#ffd700"; // Gold stroke
+      ctx.lineWidth = 5; // Thick stroke
+
+      drawShipPath();
       ctx.stroke();
+      
+    } else {
+      // NORMAL MODE: Render full ship with all effects
+      
+      // Draw filled ship body
+      ctx.globalAlpha = 1;
+      
+      // Draw filled arrow with different colors based on state
+      if (this.rainbowInvulnerable) {
+        // Fast rainbow gradient when invulnerable
+        const gradient = ctx.createLinearGradient(
+          -visualSize,
+          -visualSize,
+          visualSize,
+          visualSize
+        );
+        const time = Date.now() * 0.005;
+        gradient.addColorStop(0, `hsl(${(time * 60) % 360}, 100%, 50%)`);
+        gradient.addColorStop(0.25, `hsl(${(time * 60 + 90) % 360}, 100%, 50%)`);
+        gradient.addColorStop(0.5, `hsl(${(time * 60 + 180) % 360}, 100%, 50%)`);
+        gradient.addColorStop(0.75, `hsl(${(time * 60 + 270) % 360}, 100%, 50%)`);
+        gradient.addColorStop(1, `hsl(${(time * 60 + 360) % 360}, 100%, 50%)`);
+        ctx.fillStyle = gradient;
+      } else if (this.timeSlowActive) {
+        ctx.fillStyle = "#00ff00"; // Bright green during time slow
+      } else {
+        // Default: slowly cycling color gradient
+        ctx.fillStyle = this.createColorGradient(ctx, visualSize);
+      }
 
-      // Additional shield strokes for multiple shields
-      if (this.shield > 1) {
-        for (let i = 1; i < this.shield; i++) {
-          ctx.globalAlpha = (0.6 - i * 0.15) * shipOpacity;
-          ctx.strokeStyle = "#0099ff";
-          ctx.lineWidth = 3;
+      drawShipPath();
+      ctx.fill();
 
-          // Draw larger outline for each additional shield
-          const extraSize = visualSize + i * 3;
-          ctx.beginPath();
-          ctx.moveTo(extraSize, 0);
-          ctx.lineTo(-extraSize / 2, -extraSize / 2);
-          ctx.lineTo(-extraSize / 4, 0);
-          ctx.lineTo(-extraSize / 2, extraSize / 2);
-          ctx.closePath();
-          ctx.stroke();
+      // Draw shield if active (passive shield powerup)
+      if (this.shield > 0) {
+        // Draw blue stroke around the player ship outline
+        ctx.globalAlpha = 0.8;
+        ctx.strokeStyle = "#0099ff"; // Bright blue
+        ctx.lineWidth = 3;
+
+        drawShipPath();
+        ctx.stroke();
+
+        // Additional shield strokes for multiple shields
+        if (this.shield > 1) {
+          for (let i = 1; i < this.shield; i++) {
+            ctx.globalAlpha = 0.6 - i * 0.15;
+            ctx.strokeStyle = "#0099ff";
+            ctx.lineWidth = 3;
+
+            // Draw larger outline for each additional shield
+            const extraSize = visualSize + i * 3;
+            ctx.beginPath();
+            ctx.moveTo(extraSize, 0);
+            ctx.lineTo(-extraSize / 2, -extraSize / 2);
+            ctx.lineTo(-extraSize / 4, 0);
+            ctx.lineTo(-extraSize / 2, extraSize / 2);
+            ctx.closePath();
+            ctx.stroke();
+          }
         }
       }
+
+      // Draw godmode golden shield
+      if (this.godMode) {
+        // Draw golden stroke around the player ship outline
+        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = "#ffcc00"; // Bright gold
+        ctx.lineWidth = 4;
+
+        drawShipPath();
+        ctx.stroke();
+
+        // Additional golden shield layers
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = "#ffdd44"; // Lighter gold
+        ctx.lineWidth = 3;
+
+        // Draw larger outline for second layer
+        const extraSize = visualSize + 4;
+        ctx.beginPath();
+        ctx.moveTo(extraSize, 0);
+        ctx.lineTo(-extraSize / 2, -extraSize / 2);
+        ctx.lineTo(-extraSize / 4, 0);
+        ctx.lineTo(-extraSize / 2, extraSize / 2);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Subtle pulsing outer layer
+        const pulseIntensity = 0.7 + 0.3 * Math.sin(Date.now() * 0.005);
+        ctx.globalAlpha = 0.5 * pulseIntensity;
+        ctx.strokeStyle = "#ffaa00"; // Deeper gold
+        ctx.lineWidth = 5;
+
+        // Draw even larger outline for third layer
+        const outerSize = visualSize + 8;
+        ctx.beginPath();
+        ctx.moveTo(outerSize, 0);
+        ctx.lineTo(-outerSize / 2, -outerSize / 2);
+        ctx.lineTo(-outerSize / 4, 0);
+        ctx.lineTo(-outerSize / 2, outerSize / 2);
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      // Draw simple teal-green glow (only when not shielding)
+      ctx.globalAlpha = 0.6;
+      const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.hitboxSize);
+
+      gradient.addColorStop(0, "#66ffcc"); // Center - bright teal-green
+      gradient.addColorStop(0.4, "#44ccaa"); // Mid - darker teal
+      gradient.addColorStop(0.8, "#22aa88"); // Outer - darker green
+      gradient.addColorStop(1, "transparent"); // Fade to transparent
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.hitboxSize, 0, Math.PI * 2);
+      ctx.fill();
     }
-
-    // Draw godmode golden shield
-    if (this.godMode) {
-      // Draw golden stroke around the player ship outline
-      ctx.globalAlpha = 0.9 * shipOpacity;
-      ctx.strokeStyle = "#ffcc00"; // Bright gold
-      ctx.lineWidth = 4;
-
-      // Draw stroke around the ship shape
-      ctx.beginPath();
-      ctx.moveTo(visualSize, 0); // Arrow tip
-      ctx.lineTo(-visualSize / 2, -visualSize / 2); // Top left
-      ctx.lineTo(-visualSize / 4, 0); // Middle left
-      ctx.lineTo(-visualSize / 2, visualSize / 2); // Bottom left
-      ctx.closePath();
-      ctx.stroke();
-
-      // Additional golden shield layers
-      ctx.globalAlpha = 0.7 * shipOpacity;
-      ctx.strokeStyle = "#ffdd44"; // Lighter gold
-      ctx.lineWidth = 3;
-
-      // Draw larger outline for second layer
-      const extraSize = visualSize + 4;
-      ctx.beginPath();
-      ctx.moveTo(extraSize, 0);
-      ctx.lineTo(-extraSize / 2, -extraSize / 2);
-      ctx.lineTo(-extraSize / 4, 0);
-      ctx.lineTo(-extraSize / 2, extraSize / 2);
-      ctx.closePath();
-      ctx.stroke();
-
-      // Subtle pulsing outer layer
-      const pulseIntensity = 0.7 + 0.3 * Math.sin(Date.now() * 0.005);
-      ctx.globalAlpha = 0.5 * pulseIntensity * shipOpacity;
-      ctx.strokeStyle = "#ffaa00"; // Deeper gold
-      ctx.lineWidth = 5;
-
-      // Draw even larger outline for third layer
-      const outerSize = visualSize + 8;
-      ctx.beginPath();
-      ctx.moveTo(outerSize, 0);
-      ctx.lineTo(-outerSize / 2, -outerSize / 2);
-      ctx.lineTo(-outerSize / 4, 0);
-      ctx.lineTo(-outerSize / 2, outerSize / 2);
-      ctx.closePath();
-      ctx.stroke();
-    }
-
-    // Draw simple teal-green glow
-    ctx.globalAlpha = shipOpacity * 0.6;
-    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.hitboxSize);
-
-    gradient.addColorStop(0, "#66ffcc"); // Center - bright teal-green
-    gradient.addColorStop(0.4, "#44ccaa"); // Mid - darker teal
-    gradient.addColorStop(0.8, "#22aa88"); // Outer - darker green
-    gradient.addColorStop(1, "transparent"); // Fade to transparent
-
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(0, 0, this.hitboxSize, 0, Math.PI * 2);
-    ctx.fill();
 
     ctx.restore();
 
-    // Draw second ships if active
-    this.secondShip.forEach((ship) => {
-      ctx.save();
-      ctx.translate(ship.x, ship.y);
-      ctx.rotate(ship.initialAngle); // Use initialAngle for rendering
+    // Draw second ships if active (only when not shielding)
+    if (!this.isShielding) {
+      this.secondShip.forEach((ship) => {
+        ctx.save();
+        ctx.translate(ship.x, ship.y);
+        ctx.rotate(ship.initialAngle); // Use initialAngle for rendering
 
-      ctx.globalAlpha = 0.7 * shipOpacity;
-      ctx.strokeStyle = "#8844ff"; // Cool purple
-      ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = "#8844ff"; // Cool purple
+        ctx.lineWidth = 2;
 
-      // Simplified second ship design (using same visual size scaling)
-      const secondShipVisualSize = this.size * 2.5 * 0.8; // Same scaling as main ship
-      ctx.beginPath();
-      ctx.moveTo(secondShipVisualSize, 0);
-      ctx.lineTo(-secondShipVisualSize, -secondShipVisualSize / 2.4);
-      ctx.lineTo(-secondShipVisualSize * 0.5, 0);
-      ctx.lineTo(-secondShipVisualSize, secondShipVisualSize / 2.4);
-      ctx.closePath();
-      ctx.stroke();
+        // Simplified second ship design (using same visual size scaling)
+        const secondShipVisualSize = this.size * 2.5 * 0.8; // Same scaling as main ship
+        ctx.beginPath();
+        ctx.moveTo(secondShipVisualSize, 0);
+        ctx.lineTo(-secondShipVisualSize, -secondShipVisualSize / 2.4);
+        ctx.lineTo(-secondShipVisualSize * 0.5, 0);
+        ctx.lineTo(-secondShipVisualSize, secondShipVisualSize / 2.4);
+        ctx.closePath();
+        ctx.stroke();
 
-      ctx.restore();
-    });
+        ctx.restore();
+      });
+    }
   }
 
   activateShield() {
@@ -600,70 +602,9 @@ export class Player {
 
   activateRainbowInvulnerability() {
     this.rainbowInvulnerable = true;
-    this.rainbowInvulnerableTimer = this.rainbowInvulnerableDuration;
+    this.rainbowInvulnerableTimer = this.getRainbowInvulnerableTime();
   }
 
-  // Create unified collidables array with consistent interface
-  createCollidables(enemies, enemyBullets, enemyLasers, asteroids, boss) {
-    const collidables = [];
-
-    // Add all enemies
-    for (const enemy of enemies) {
-      collidables.push({
-        ...enemy,
-        collidableType: "enemy",
-        // Ensure consistent velocity interface
-        dx: enemy.dx || 0,
-        dy: enemy.dy || 0,
-      });
-    }
-
-    // Add all enemy bullets
-    for (const bullet of enemyBullets) {
-      collidables.push({
-        ...bullet,
-        collidableType: "enemyBullet",
-        // Ensure consistent velocity interface
-        dx: bullet.dx || 0,
-        dy: bullet.dy || 0,
-      });
-    }
-
-    // Add all enemy lasers
-    for (const laser of enemyLasers) {
-      collidables.push({
-        ...laser,
-        collidableType: "enemyLaser",
-        // Ensure consistent velocity interface
-        dx: laser.dx || 0,
-        dy: laser.dy || 0,
-      });
-    }
-
-    // Add all asteroids
-    for (const asteroid of asteroids) {
-      collidables.push({
-        ...asteroid,
-        collidableType: "asteroid",
-        // Ensure consistent velocity interface
-        dx: asteroid.dx || 0,
-        dy: asteroid.dy || 0,
-      });
-    }
-
-    // Add boss if present
-    if (boss && !boss.isDefeated) {
-      collidables.push({
-        ...boss,
-        collidableType: "boss",
-        // Ensure consistent velocity interface
-        dx: boss.dx || 0,
-        dy: boss.dy || 0,
-      });
-    }
-
-    return collidables;
-  }
 
   // Helper methods to get player config values
   getPlayerSize() {
@@ -708,19 +649,11 @@ export class Player {
     }
   }
 
-  getPlayerLaserSize() {
-    try {
-      return this.game?.level?.config?.player?.laserSize || 10;
-    } catch (e) {
-      return 10;
-    }
-  }
-
   getPlayerLaserSpeed() {
     try {
-      return this.game?.level?.config?.player?.laserSpeed || 80;
+      return this.game?.level?.config?.player?.laserSpeed || 50;
     } catch (e) {
-      return 80;
+      return 50;
     }
   }
 
@@ -737,13 +670,6 @@ export class Player {
   getPlayerLevel4FireRate() { return this.getPlayerFireRate(4); }
   getPlayerLevel5FireRate() { return this.getPlayerFireRate(5); }
 
-  getPlayerHomingMissileCooldown() {
-    try {
-      return this.game?.level?.config?.player?.homingMissileCooldown || 60;
-    } catch (e) {
-      return 60;
-    }
-  }
 
   getPlayerShieldCooldownMax() {
     try {
@@ -755,7 +681,7 @@ export class Player {
 
   getRainbowInvulnerableTime() {
     try {
-      return this.game?.level?.config?.player?.rainbowInvulnerableTime || 360;
+      return this.game?.level?.config?.world?.powerupConfigs?.rainbowStar?.duration || 360;
     } catch (e) {
       return 360;
     }

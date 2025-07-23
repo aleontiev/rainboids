@@ -163,7 +163,6 @@ export class ContinuousLaserBeam {
             // Reverse direction for next sweep
             this.sweepDirection *= -1;
             this.currentSweep++;
-            console.log(`Boss laser starting sweep ${this.currentSweep} of ${this.maxSweeps}, direction: ${this.sweepDirection > 0 ? 'clockwise' : 'counter-clockwise'}`);
           }
         }
         

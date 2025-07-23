@@ -126,10 +126,12 @@ export class Autoaimer {
   }
 
   // Calculate the aim angle for the player based on current targets
+  // Returns { angle: number, shouldFire: boolean }
   calculateAimAngle(
     enemies,
-    asteroids,
+    miniBosses,
     boss,
+    asteroids,
     keys,
     autoaimEnabled,
     autoplayEnabled,
@@ -138,30 +140,44 @@ export class Autoaimer {
   ) {
     // Handle manual aiming when autoaim/autoplay is disabled
     if (!autoaimEnabled && !autoplayEnabled && keys.mousePosition) {
-      // Desktop: aim toward mouse cursor
+      // Desktop: aim toward mouse cursor - always allow firing in manual mode
       const dx = keys.mousePosition.x - this.player.x;
       const dy = keys.mousePosition.y - this.player.y;
-      return Math.atan2(dy, dx);
+      return { angle: Math.atan2(dy, dx), shouldFire: true };
     } else if (!autoaimEnabled && !autoplayEnabled) {
-      // Mobile: use default orientation when not using autoaim/autoplay
-      if (isPortrait) {
-        return -Math.PI / 2; // Face up
-      } else {
-        return 0; // Face right
-      }
+      // Mobile: use default orientation when not using autoaim/autoplay - always allow firing
+      const defaultAngle = isPortrait ? -Math.PI / 2 : 0; // Face up or right
+      return { angle: defaultAngle, shouldFire: true };
     }
 
-    // Build complete target list, filter out invulnerable targets
-    const allTargets = [...enemies, ...asteroids].filter((target) => {
-      // Check if target is vulnerable
-      if (
-        target.isVulnerable &&
-        typeof target.isVulnerable === "function"
-      ) {
-        return target.isVulnerable();
+    // Build complete target list without array concatenation
+    const allTargets = [];
+    
+    // Add vulnerable enemies
+    enemies.forEach((target) => {
+      if (target.isVulnerable && typeof target.isVulnerable === "function") {
+        if (target.isVulnerable()) allTargets.push(target);
+      } else if (!target.godMode && !target.invulnerable) {
+        allTargets.push(target);
       }
-      // For entities without isVulnerable method, check basic vulnerability
-      return !target.godMode && !target.invulnerable;
+    });
+    
+    // Add vulnerable miniBosses
+    miniBosses.forEach((target) => {
+      if (target.isVulnerable && typeof target.isVulnerable === "function") {
+        if (target.isVulnerable()) allTargets.push(target);
+      } else if (!target.godMode && !target.invulnerable) {
+        allTargets.push(target);
+      }
+    });
+    
+    // Add vulnerable asteroids
+    asteroids.forEach((target) => {
+      if (target.isVulnerable && typeof target.isVulnerable === "function") {
+        if (target.isVulnerable()) allTargets.push(target);
+      } else if (!target.godMode && !target.invulnerable) {
+        allTargets.push(target);
+      }
     });
 
     // Add boss targetable parts if boss exists
@@ -181,27 +197,30 @@ export class Autoaimer {
       const target = this.selectBestTarget(
         onScreenTargets,
         enemies,
+        miniBosses,
         mainWeaponLevel
       );
       if (target) {
         const bulletSpeed = this.getCurrentBulletSpeed(mainWeaponLevel);
-        return this.calculatePredictiveAim(target, bulletSpeed);
+        const aimAngle = this.calculatePredictiveAim(target, bulletSpeed);
+        return { angle: aimAngle, shouldFire: true };
       }
     }
 
-    // Default fallback angle
-    return isPortrait ? -Math.PI / 2 : 0;
+    // No valid targets found - don't fire
+    const defaultAngle = isPortrait ? -Math.PI / 2 : 0;
+    return { angle: defaultAngle, shouldFire: false };
   }
 
   // Enhanced target selection with threat prioritization
-  selectBestTarget(allTargets, enemies, mainWeaponLevel) {
+  selectBestTarget(allTargets, enemies, miniBosses, mainWeaponLevel) {
     const bulletSpeed = this.getCurrentBulletSpeed(mainWeaponLevel);
     
     // Get metal objects for bouncing calculations
     const metals = this.player.game?.entities?.metals || [];
 
     // Analyze all targets for threat levels
-    const threatAnalysis = this.analyzeThreatLevels(allTargets, enemies, metals, bulletSpeed);
+    const threatAnalysis = this.analyzeThreatLevels(allTargets, enemies, miniBosses, metals, bulletSpeed);
 
     // Priority 1: Collision threats - enemies about to collide with player
     const collisionThreats = threatAnalysis.filter(t => t.threatType === 'collision');
@@ -255,7 +274,7 @@ export class Autoaimer {
   }
 
   // Analyze threat levels for all targets
-  analyzeThreatLevels(allTargets, enemies, metals, bulletSpeed) {
+  analyzeThreatLevels(allTargets, enemies, miniBosses, metals, bulletSpeed) {
     const analysis = [];
 
     for (const target of allTargets) {
@@ -276,7 +295,7 @@ export class Autoaimer {
       };
 
       // Determine threat type based on enemy behavior
-      if (target.collidableType === 'enemy' || enemies.includes(target)) {
+      if (target.collidableType === 'enemy' || enemies.includes(target) || miniBosses.includes(target)) {
         threatInfo.threatType = this.classifyEnemyThreat(target);
         threatInfo.timeToCollision = this.calculateTimeToCollision(target);
       }
@@ -714,14 +733,32 @@ export class Autoaimer {
     return Math.max(0.1, Math.min(1.0, hitScore));
   }
 
-  // Helper function to check if target is within viewport
+  // Helper function to check if target is within viewport and not behind player
   isTargetInViewport(target) {
-    return (
+    // First check if target is within screen bounds
+    const inBounds = (
       target.x >= 0 &&
       target.x <= window.innerWidth &&
       target.y >= 0 &&
       target.y <= window.innerHeight
     );
+    
+    if (!inBounds) return false;
+    
+    // Check if target is in front of player based on game orientation
+    const isPortrait = this.player.game?.isPortrait;
+    
+    if (isPortrait) {
+      // Portrait mode: player faces up, so only target enemies above or at sides
+      // Allow some tolerance behind player to account for enemies moving toward player
+      const behindPlayerTolerance = 50; // pixels
+      return target.y <= this.player.y + behindPlayerTolerance;
+    } else {
+      // Landscape mode: player faces right, so only target enemies to the right or above/below
+      // Allow some tolerance to the left of player to account for enemies moving toward player
+      const behindPlayerTolerance = 50; // pixels
+      return target.x >= this.player.x - behindPlayerTolerance;
+    }
   }
 
   // Helper function to get current bullet speed based on weapon level

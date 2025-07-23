@@ -134,6 +134,9 @@ class BlitzGame {
     if (previousOrientation !== this.isPortrait) {
       this.repositionEnemies();
     }
+
+    // Regenerate background stars to fill the new screen dimensions
+    this.background.setup();
   }
 
   repositionEnemies() {
@@ -305,65 +308,6 @@ class BlitzGame {
     return null;
   }
 
-  createCollidables(enemies, enemyBullets, enemyLasers, asteroids, boss) {
-    const collidables = [];
-    // Add all enemies
-    for (const enemy of enemies) {
-      collidables.push({
-        ...enemy,
-        collidableType: "enemy",
-        // Ensure consistent velocity interface
-        dx: enemy.dx || 0,
-        dy: enemy.dy || 0,
-      });
-    }
-
-    // Add all enemy bullets
-    for (const bullet of enemyBullets) {
-      collidables.push({
-        ...bullet,
-        collidableType: "enemyBullet",
-        // Ensure consistent velocity interface
-        dx: bullet.dx || 0,
-        dy: bullet.dy || 0,
-      });
-    }
-
-    // Add all enemy lasers
-    for (const laser of enemyLasers) {
-      collidables.push({
-        ...laser,
-        collidableType: "enemyLaser",
-        // Ensure consistent velocity interface
-        dx: laser.dx || 0,
-        dy: laser.dy || 0,
-      });
-    }
-
-    // Add all asteroids
-    for (const asteroid of asteroids) {
-      collidables.push({
-        ...asteroid,
-        collidableType: "asteroid",
-        // Ensure consistent velocity interface
-        dx: asteroid.dx || 0,
-        dy: asteroid.dy || 0,
-      });
-    }
-
-    // Add boss if present
-    if (boss) {
-      collidables.push({
-        ...boss,
-        collidableType: "boss",
-        // Ensure consistent velocity interface
-        dx: boss.dx || 0,
-        dy: boss.dy || 0,
-      });
-    }
-
-    return collidables;
-  }
 
   // Convenience methods for UI renderer
   startGame() {

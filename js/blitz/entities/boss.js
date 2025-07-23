@@ -295,7 +295,6 @@ export class Boss extends MiniBoss {
       };
       
       this.parts.set(partId, part);
-      console.log(`Initialized boss part ${partId}: health=${part.health}, maxHealth=${part.maxHealth}`);
     }
 
     // Set up health tracking from body part
@@ -324,10 +323,25 @@ export class Boss extends MiniBoss {
     this.phaseTimer = 0;
     this.phaseStartTime = Date.now();
     
-    console.log(`Boss phase transition: ${oldPhase?.name || "None"} → ${newPhase.name}`);
     
     // Configure parts for new phase
     this.configureParts(newPhase);
+    
+    // Debug: Ensure arms are properly configured for phase 0
+    if (phaseIndex === 0) {
+      const leftArm = this.parts.get("leftArm");
+      const rightArm = this.parts.get("rightArm");
+      if (leftArm) {
+        leftArm.enabled = true;
+        leftArm.invulnerable = false;
+        leftArm.canAttack = true;
+      }
+      if (rightArm) {
+        rightArm.enabled = true;
+        rightArm.invulnerable = false;  
+        rightArm.canAttack = true;
+      }
+    }
   }
 
   configureParts(phase) {
@@ -350,7 +364,6 @@ export class Boss extends MiniBoss {
       part.invulnerabilityTimer = partConfig.invulnerabilityDuration || 0;
       part.canAttack = partConfig.canAttack !== false; // Default to true if not specified
       
-      console.log(`Configured part ${partId}: enabled=${part.enabled}, invulnerable=${part.invulnerable}, canAttack=${part.canAttack}, health=${part.health}`);
       
       // Special configurations
       if (partConfig.hasShield && part.type === "core") {
@@ -729,12 +742,16 @@ export class Boss extends MiniBoss {
   takeDamage(damage, bulletX, bulletY) {
     const hitPart = this.getHitPart(bulletX, bulletY);
     
-    if (!hitPart || hitPart.invulnerable) return "invulnerable";
-
+    if (!hitPart) return null; // No collision detected
+    
+    // Always apply visual hit flash when any part is hit (stops laser and shows feedback)
     this.hitFlash = 10;
     hitPart.hitFlash = 10;
+    
+    // If part is invulnerable, return early but still show visual feedback
+    if (hitPart.invulnerable) return "invulnerable";
 
-    // Apply damage based on part type
+    // Apply damage only to vulnerable parts
     if (hitPart.type === "core" && hitPart.shield > 0) {
       hitPart.shield -= damage;
       if (hitPart.shield < 0) {
@@ -761,7 +778,6 @@ export class Boss extends MiniBoss {
         return "destroyed";
       }
       
-      console.log(`Boss part ${hitPart.id} destroyed`);
     }
     
     return "damaged";

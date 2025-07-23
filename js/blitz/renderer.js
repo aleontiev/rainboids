@@ -102,7 +102,6 @@ export class Renderer {
       if (entities.boss) {
         renderer(entities.boss);
       }
-      entities.particles.forEach(renderer);
 
       // Draw player (on top of everything except UI)
       if (state.state !== "DYING") {
@@ -169,15 +168,18 @@ export class Renderer {
       let isOverTarget = false;
 
       // Check enemies
-      entities.allEnemies.forEach((enemy) => {
+      const checkEnemy = (enemy) => {
         const dist = Math.sqrt(
           (mouseX - enemy.x) ** 2 + (mouseY - enemy.y) ** 2
         );
         if (dist < enemy.size + 20) {
-          // Add 20px margin for easier targeting
           isOverTarget = true;
         }
-      });
+      };
+      
+      entities.enemies.forEach(checkEnemy);
+      entities.miniBosses.forEach(checkEnemy);
+      if (entities.boss) checkEnemy(entities.boss);
 
       // Check asteroids
       entities.asteroids.forEach((asteroid) => {
@@ -301,7 +303,7 @@ export class Renderer {
       this.renderIconButton(ctx, "upgrades", "upgrade", 
         row1StartX + buttonSpacing * 3, row1Y, buttonSize, buttonSize,
         () => this.game.toggleUpgrades(),
-        "rgba(200, 100, 255, 0.2)", "rgba(200, 100, 255, 0.3)", false, this.game.cheats?.allUpgrades !== null);
+        "rgba(200, 100, 255, 0.2)", "rgba(200, 100, 255, 0.3)", false, this.game.cheats?.allUprades !== null);
       
       // Row 2 buttons
       this.renderIconButton(ctx, "autoaim", "crosshair", 
@@ -344,7 +346,7 @@ export class Renderer {
       this.renderIconButton(ctx, "upgrades", "upgrade", 
         startX + buttonSpacing * 3, bottomY, buttonSize, buttonSize,
         () => this.game.toggleUpgrades(),
-        "rgba(200, 100, 255, 0.2)", "rgba(200, 100, 255, 0.3)", false, this.game.cheats?.allUpgrades !== null);
+        "rgba(200, 100, 255, 0.2)", "rgba(200, 100, 255, 0.3)", false, this.game.cheats?.allUprades !== null);
       
       this.renderIconButton(ctx, "autoaim", "crosshair", 
         startX + buttonSpacing * 4, bottomY, buttonSize, buttonSize,
@@ -417,6 +419,9 @@ export class Renderer {
     if (this.game.state.state === "PLAYING" || this.game.state.state === "DYING") {
       this.renderPauseButton(ctx);
     }
+    
+    // Dialog system (center screen when active)
+    this.renderDialog(ctx);
   }
   
   renderPauseButton(ctx) {
@@ -476,7 +481,7 @@ export class Renderer {
         x, baseY - buttonSize - spacing, buttonSize, buttonSize,
         () => this.game.useShield(),
         this.game.player?.shieldCooldown || 0,
-        this.game.levelManager?.config?.player?.shieldCooldownMax || 300);
+        this.game.level?.config?.player?.shieldCooldownMax || 300);
       
       // Bomb button (top)
       this.renderActionButton(ctx, "bomb", "bomb", 
@@ -501,7 +506,7 @@ export class Renderer {
         baseX - buttonSize - spacing, y, buttonSize, buttonSize,
         () => this.game.useShield(),
         this.game.player?.shieldCooldown || 0,
-        this.game.levelManager?.config?.player?.shieldCooldownMax || 300);
+        this.game.level?.config?.player?.shieldCooldownMax || 300);
       
       // Bomb button (left)
       this.renderActionButton(ctx, "bomb", "bomb", 
@@ -755,7 +760,6 @@ export class Renderer {
     
     // Debug logging for toggle states
     if (isToggled) {
-      console.log(`Button ${id} is toggled ON, isToggled=${isToggled}`);
     }
     
     ctx.save();
@@ -1198,5 +1202,61 @@ export class Renderer {
       this.renderText(ctx, line, modalX + 40, textY, fontSize, color, "left");
       textY += line === "" ? 10 : 25;
     }
+  }
+
+  renderDialog(ctx) {
+    // Check if dialog is active
+    const dialogMessage = this.game.dialog?.getCurrentMessage();
+    if (!dialogMessage) return;
+    
+    ctx.save();
+    
+    // Dialog background - semi-transparent dark overlay
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    
+    // Dialog box - center of screen
+    const dialogWidth = Math.min(600, ctx.canvas.width * 0.8);
+    const dialogHeight = 150;
+    const dialogX = (ctx.canvas.width - dialogWidth) / 2;
+    const dialogY = (ctx.canvas.height - dialogHeight) / 2;
+    
+    // Dialog background
+    ctx.fillStyle = "rgba(20, 20, 40, 0.95)";
+    ctx.fillRect(dialogX, dialogY, dialogWidth, dialogHeight);
+    
+    // Dialog border
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(dialogX, dialogY, dialogWidth, dialogHeight);
+    
+    // Dialog text
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "24px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(dialogMessage, ctx.canvas.width / 2, ctx.canvas.height / 2);
+    
+    // "Press SPACE or ENTER to continue" hint (for states 2 and 3)
+    const dialogState = this.game.dialog?.dialogState;
+    if (dialogState >= 2) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+      ctx.font = "14px Arial";
+      ctx.fillText("Press SPACE or ENTER to continue", ctx.canvas.width / 2, ctx.canvas.height / 2 + 40);
+    }
+    
+    // Make the entire dialog area clickable
+    this.buttons.set("dialog", {
+      x: dialogX,
+      y: dialogY,
+      width: dialogWidth,
+      height: dialogHeight,
+      onClick: () => this.game.dialog?.advance(),
+      enabled: true,
+      isVisible: true,
+      isClickable: true
+    });
+    
+    ctx.restore();
   }
 }

@@ -23,6 +23,10 @@ export class State {
 
     this.lives = 1;
     this.score = 0;
+    
+    // Level and phase tracking for UI display
+    this.level = 1;
+    this.phase = 1;
   }
   loadHighScore() {
     try {

@@ -59,27 +59,23 @@ export class Autoplayer {
   /**
    * Handle strategic ability usage for autoplay
    */
-  handleAutoplayAbilities(collidables, keys, powerups = [], game = null) {
-    return this.abilityManager.handleAutoplayAbilities(collidables, keys, powerups, game);
+  handleAutoplayAbilities(enemies, miniBosses, boss, enemyBullets, enemyLasers, asteroids, keys, powerups = [], game = null) {
+    return this.abilityManager.handleAutoplayAbilities(enemies, miniBosses, boss, enemyBullets, enemyLasers, asteroids, keys, powerups, game);
   }
 
   /**
    * Calculate movement vector for dodging threats
    */
-  calculateDodgeVector(collidables, powerups = [], timeSlowActive = false) {
+  calculateDodgeVector(enemies, miniBosses, boss, enemyBullets, enemyLasers, asteroids, powerups = [], timeSlowActive = false) {
     this.autoplayMovementTimer++;
-    return this.movementCalculator.calculateDodgeVector(collidables, powerups, timeSlowActive);
+    return this.movementCalculator.calculateDodgeVector(enemies, miniBosses, boss, enemyBullets, enemyLasers, asteroids, powerups, timeSlowActive);
   }
 
   /**
    * Check if there are valid targets to shoot at
    */
-  hasValidTargets(collidables) {
-    const enemies = collidables.filter(c => c.collidableType === 'enemy');
-    const asteroids = collidables.filter(c => c.collidableType === 'asteroid');
-    const boss = collidables.find(c => c.collidableType === 'boss');
-    
-    return enemies.length > 0 || asteroids.length > 0 || (boss && !boss.isDefeated);
+  hasValidTargets(enemies, miniBosses, boss, asteroids) {
+    return enemies.length > 0 || miniBosses.length > 0 || asteroids.length > 0 || (boss && !boss.isDefeated);
   }
 
   // THREAT ASSESSMENT METHODS

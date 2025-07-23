@@ -1,9 +1,6 @@
 // EntityManager - Handles all entity lifecycle, spawning, and updates
 
-import {
-  Enemy,
-  createEnemyFromConfig,
-} from "./entities/enemy.js";
+import { Enemy, createEnemyFromConfig } from "./entities/enemy.js";
 import { MiniBoss } from "./entities/miniboss.js";
 import { Boss } from "./entities/boss.js";
 import { Asteroid } from "./entities/asteroid.js";
@@ -22,7 +19,6 @@ export class EntityManager {
     this.enemies = [];
     this.miniBosses = [];
     this.boss = null;
-    this.allEnemies = []; // Unified enemy list for collision detection
     this.asteroids = [];
     this.metals = [];
     this.powerups = [];
@@ -96,7 +92,6 @@ export class EntityManager {
     this.enemies = [];
     this.miniBosses = [];
     this.boss = null;
-    this.allEnemies = [];
     this.asteroids = [];
     this.metals = [];
     this.powerups = [];
@@ -182,7 +177,15 @@ export class EntityManager {
   }
 
   createEnemyFromConfig(configName, x, y, isClone = false, generation = 0) {
-    return createEnemyFromConfig(configName, x, y, this.game.isPortrait, this.game, isClone, generation);
+    return createEnemyFromConfig(
+      configName,
+      x,
+      y,
+      this.game.isPortrait,
+      this.game,
+      isClone,
+      generation
+    );
   }
 
   spawnEnemy() {
@@ -201,37 +204,30 @@ export class EntityManager {
     const enemyConfigs = this.game?.level?.config?.enemies;
     if (!enemyConfigs) {
       console.warn("No enemy configs found, falling back to default spawning");
-      throw new Error("No enemies, bad level config")
+      throw new Error("No enemies, bad level config");
     }
-    
-    const basicEnemyConfigs = Object.keys(enemyConfigs).filter(
-      name => {
-        const config = enemyConfigs[name];
-        return config !== enemyConfigs.defaults && !config.type?.includes("boss");
-      }
-    );
-    
+
+    const basicEnemyConfigs = Object.keys(enemyConfigs).filter((name) => {
+      const config = enemyConfigs[name];
+      return (
+        config !== enemyConfigs["*"] &&
+        !config.type?.toLowerCase().includes("boss")
+      );
+    });
+
     if (basicEnemyConfigs.length === 0) {
-      console.warn("No basic enemy configs found, using straightBasic");
-      const enemy = this.createEnemyFromConfig("straightBasic", spawnX, spawnY);
-      if (enemy) {
-        this.enemies.push(enemy);
-        this.updateAllEnemiesList();
-      }
-      return enemy;
+      console.warn("No basic enemy configs found spawning none");
+      return null;
     }
-    
-    const randomConfigName = basicEnemyConfigs[Math.floor(Math.random() * basicEnemyConfigs.length)];
+
+    const randomConfigName =
+      basicEnemyConfigs[Math.floor(Math.random() * basicEnemyConfigs.length)];
 
     // Create enemy using config system
     const enemy = this.createEnemyFromConfig(randomConfigName, spawnX, spawnY);
 
     if (enemy) {
-      console.log(
-        `Spawned enemy config: ${randomConfigName}, movement: ${enemy.config?.movementPattern}, attack: ${enemy.config?.attackPattern}`
-      );
       this.enemies.push(enemy);
-      this.updateAllEnemiesList();
     } else {
       console.warn(`Failed to create enemy from config: ${randomConfigName}`);
     }
@@ -274,7 +270,7 @@ export class EntityManager {
       (sum, weight) => sum + weight,
       0
     );
-    
+
     // If total weight is 0, don't spawn any powerups
     if (totalWeight <= 0) {
       return null;
@@ -317,12 +313,12 @@ export class EntityManager {
     // Randomly select metal type with weighted distribution
     const metalTypes = ["l", "L", "T"];
     const metalWeights = [50, 30, 20]; // l is most common, T is rarest
-    
+
     const totalWeight = metalWeights.reduce((sum, weight) => sum + weight, 0);
     const random = Math.random() * totalWeight;
     let currentWeight = 0;
     let selectedType = "l"; // Default fallback
-    
+
     for (let i = 0; i < metalTypes.length; i++) {
       currentWeight += metalWeights[i];
       if (random <= currentWeight) {
@@ -349,10 +345,10 @@ export class EntityManager {
     }
 
     const canvas = this.game.canvas;
-    
+
     // Calculate spawn position based on enemy type and count
     let x, y;
-    
+
     if (enemyDef.type === "miniboss") {
       // For minibosses, offset based on current miniboss count
       const minibossCount = this.getMiniBossCount();
@@ -363,10 +359,16 @@ export class EntityManager {
         x = canvas.width - 150;
         y = canvas.height / 2 + (minibossCount % 2 === 0 ? -100 : 100);
       }
-      
+
       // Create miniboss with configuration
-      const miniBoss = new MiniBoss(x, y, this.game.isPortrait, canvas.width, this.game);
-      
+      const miniBoss = new MiniBoss(
+        x,
+        y,
+        this.game.isPortrait,
+        canvas.width,
+        this.game
+      );
+
       // Apply enemy definition properties
       if (enemyDef.health) miniBoss.health = enemyDef.health;
       if (enemyDef.maxHealth) miniBoss.maxHealth = enemyDef.maxHealth;
@@ -374,7 +376,7 @@ export class EntityManager {
       if (enemyDef.maxShield) miniBoss.maxShield = enemyDef.maxShield;
       if (enemyDef.speed) miniBoss.speed = enemyDef.speed;
       if (enemyDef.size) miniBoss.size = enemyDef.size;
-      
+
       // Set sprite if defined
       if (enemyDef.sprite) {
         miniBoss.setCustomSVGSprite(
@@ -386,14 +388,13 @@ export class EntityManager {
           miniBoss.spriteRotation = enemyDef.spriteRotation;
         }
       }
-      
+
       // Configure weapons
       if (enemyDef.weapons) {
         this.configureMiniBossWeapons(miniBoss, enemyDef.weapons);
       }
-      
+
       this.miniBosses.push(miniBoss);
-      
     } else if (enemyDef.type === "boss") {
       // Spawn boss (reuse existing logic)
       if (this.boss) {
@@ -401,19 +402,17 @@ export class EntityManager {
         return;
       }
       this.spawnBoss();
-      
     } else {
       // Handle regular enemy types
       this.spawnEnemyWithConfig(enemyDef);
     }
-    
-    this.updateAllEnemiesList();
+
   }
 
-  // Spawn regular enemy with configuration  
+  // Spawn regular enemy with configuration
   spawnEnemyWithConfig(enemyDef) {
     const canvas = this.game.canvas;
-    
+
     // Calculate spawn position
     let x, y;
     if (this.game.isPortrait) {
@@ -425,18 +424,26 @@ export class EntityManager {
     }
 
     // Create enemy using new data-driven system
-    const enemy = new Enemy(x, y, this.game.isPortrait, enemyDef, false, 0, this.game);
+    const enemy = new Enemy(
+      x,
+      y,
+      this.game.isPortrait,
+      enemyDef,
+      false,
+      0,
+      this.game
+    );
 
     if (enemy) {
       this.enemies.push(enemy);
     }
   }
-  
+
   configureMiniBossWeapons(miniBoss, weapons) {
     // Override the default weapon firing methods based on configuration
     weapons.forEach((weapon, index) => {
       miniBoss.addAttack(weapon.name || `weapon_${index}`, weapon);
-      
+
       // Update cooldowns if specified
       if (weapon.name === "primary" && weapon.cooldown) {
         miniBoss.primaryWeaponCooldown = weapon.cooldown;
@@ -461,7 +468,6 @@ export class EntityManager {
       canvas.height,
       this.game
     );
-    this.updateAllEnemiesList();
     return this.boss;
   }
 
@@ -482,7 +488,12 @@ export class EntityManager {
         this.game.isPortrait,
         speed,
         bulletData.explosionTime || 120, // Use provided explosion time or default
-        this.game
+        this.game,
+        {
+          count: bulletData.spreadBulletCount || 8,
+          speed: bulletData.spreadBulletSpeed || 4,
+          size: bulletData.spreadBulletSize || bulletData.size * 0.3,
+        }
       );
       this.spreadingBullets.push(bullet);
     } else if (bulletData.type === "homingMissile") {
@@ -521,12 +532,6 @@ export class EntityManager {
 
   // UPDATE METHODS
 
-  updateAllEnemiesList() {
-    this.allEnemies = [...this.enemies, ...this.miniBosses];
-    if (this.boss) {
-      this.allEnemies.push(this.boss);
-    }
-  }
 
   update(deltaTime, slowdownFactor) {
     // Update player bullets
@@ -565,18 +570,23 @@ export class EntityManager {
   updateBullets(slowdownFactor) {
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const bullet = this.bullets[i];
-      
+
       // Handle different bullet types with appropriate parameters
       let shouldRemove = false;
-      if (bullet.constructor.name === 'HomingMissile') {
+      if (bullet.constructor.name === "HomingMissile") {
         // HomingMissile needs enemies array - this shouldn't happen but handle gracefully
-        console.warn('HomingMissile found in bullets array instead of missiles array');
-        shouldRemove = !bullet.update(this.allEnemies, slowdownFactor);
+        console.warn(
+          "HomingMissile found in bullets array instead of missiles array"
+        );
+        // This shouldn't happen, but pass a proper enemy array if needed
+        const allEnemies = [...this.enemies, ...this.miniBosses];
+        if (this.boss) allEnemies.push(this.boss);
+        shouldRemove = !bullet.update(allEnemies, slowdownFactor);
       } else {
         // Regular bullets only need slowdownFactor
         shouldRemove = !bullet.update(slowdownFactor);
       }
-      
+
       if (shouldRemove) {
         this.bullets.splice(i, 1);
       }
@@ -586,9 +596,9 @@ export class EntityManager {
   updateEnemyBullets(slowdownFactor) {
     for (let i = this.enemyBullets.length - 1; i >= 0; i--) {
       const bullet = this.enemyBullets[i];
-      
+
       // Handle SpreadingBullet which needs a callback
-      if (bullet.constructor.name === 'SpreadingBullet') {
+      if (bullet.constructor.name === "SpreadingBullet") {
         const addEnemyBulletCallback = (enemyBullet) => {
           this.enemyBullets.push(enemyBullet);
         };
@@ -626,12 +636,14 @@ export class EntityManager {
 
   getTargetableEnemies() {
     // Filter out invulnerable enemies
-    const vulnerableEnemies = [...this.enemies, ...this.miniBosses].filter((enemy) => {
-      if (enemy.isVulnerable && typeof enemy.isVulnerable === "function") {
-        return enemy.isVulnerable();
+    const vulnerableEnemies = [...this.enemies, ...this.miniBosses].filter(
+      (enemy) => {
+        if (enemy.isVulnerable && typeof enemy.isVulnerable === "function") {
+          return enemy.isVulnerable();
+        }
+        return !enemy.godMode && !enemy.invulnerable;
       }
-      return !enemy.godMode && !enemy.invulnerable;
-    });
+    );
 
     // Add boss targetable parts if boss exists
     if (this.boss && !this.boss.isDefeated && this.boss.getTargetableParts) {
@@ -657,13 +669,12 @@ export class EntityManager {
   updateEnemies(slowdownFactor) {
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
-      
+
       // Create callback for clone enemies to add new clones
       const addEnemyCallback = (newEnemy) => {
         this.enemies.push(newEnemy);
-        this.updateAllEnemiesList();
       };
-      
+
       enemy.update(
         this.game.player.x,
         this.game.player.y,
@@ -684,7 +695,6 @@ export class EntityManager {
 
       if (isOffScreen || enemy.health <= 0) {
         this.enemies.splice(i, 1);
-        this.updateAllEnemiesList();
       } else {
         // Handle enemy weapons
         this.handleEnemyWeapons(enemy);
@@ -705,7 +715,6 @@ export class EntityManager {
         this.game.effects.createExplosion(miniBoss.x, miniBoss.y, 15, 3.0);
         this.game.audio.play(this.game.audio.sounds.explosion);
         this.miniBosses.splice(i, 1);
-        this.updateAllEnemiesList();
 
         // Miniboss defeat state is now determined dynamically by checking this.miniBosses.length
       } else if (result === "rain_explosion") {
@@ -716,9 +725,17 @@ export class EntityManager {
           2.0
         );
         this.game.audio.play(this.game.audio.sounds.enemyExplosion);
-      } else if (result && typeof result === 'object' && result.type === 'death_explosion') {
+      } else if (
+        result &&
+        typeof result === "object" &&
+        result.type === "death_explosion"
+      ) {
         // Handle new death explosion format
-        this.game.effects.createRainbowExplosion(result.x, result.y, result.size);
+        this.game.effects.createRainbowExplosion(
+          result.x,
+          result.y,
+          result.size
+        );
         this.game.audio.play(this.game.audio.sounds.enemyExplosion);
       } else if (!miniBoss.dying) {
         // Handle miniboss weapons if not dying
@@ -739,7 +756,6 @@ export class EntityManager {
     if (result === "defeated") {
       this.game.startBossDeathSequence();
       this.boss = null;
-      this.updateAllEnemiesList();
     } else {
       // Handle boss weapons
       this.handleEnemyWeapons(this.boss);
@@ -838,26 +854,43 @@ export class EntityManager {
   handleBossWeapons(boss) {
     // Fire weapons for all enabled parts
     for (const part of boss.parts.values()) {
-      if (!part.enabled || part.destroyed || part.cooldown > 0 || !part.canAttack) continue;
-      
-      const weaponData = boss.firePartWeapon(part.id, this.game.player.x, this.game.player.y);
-      
+      if (
+        !part.enabled ||
+        part.destroyed ||
+        part.cooldown > 0 ||
+        !part.canAttack
+      )
+        continue;
+
+      const weaponData = boss.firePartWeapon(
+        part.id,
+        this.game.player.x,
+        this.game.player.y
+      );
+
       // Handle projectiles
       if (weaponData.projectiles) {
         weaponData.projectiles.forEach((bulletData) => {
           this.createEnemyBullet(bulletData);
         });
       }
-      
+
       // Handle lasers
       if (weaponData.lasers) {
         weaponData.lasers.forEach((data) => {
           this.enemyLasers.push(
-            new Laser(data.x, data.y, data.angle, data.speed, data.color, this.game)
+            new Laser(
+              data.x,
+              data.y,
+              data.angle,
+              data.speed,
+              data.color,
+              this.game
+            )
           );
         });
       }
-      
+
       // Handle enemy spawns
       if (weaponData.enemies) {
         weaponData.enemies.forEach((enemyData) => {
@@ -873,19 +906,18 @@ export class EntityManager {
             )
           );
         });
-        
+
         if (weaponData.enemies.length > 0) {
-          this.updateAllEnemiesList();
-        }
+          }
       }
     }
-    
+
     // Update continuous laser beams for all parts
     for (const part of boss.parts.values()) {
       if (part.activeLaser && !part.destroyed) {
         // Keep laser aligned with part position
         part.activeLaser.updateOrigin(part.x, part.y);
-        
+
         const stillActive = part.activeLaser.update(
           1.0,
           this.metals,
@@ -959,7 +991,6 @@ export class EntityManager {
             this.game
           )
         );
-        this.updateAllEnemiesList();
       }
     }
   }
@@ -972,15 +1003,6 @@ export class EntityManager {
       enemy.shoot(this.enemyBullets, this.enemyLasers, this.game.player);
       const bulletCountAfter = this.enemyBullets.length;
       const laserCountAfter = this.enemyLasers.length;
-      if (bulletCountAfter > bulletCountBefore || laserCountAfter > laserCountBefore) {
-        console.log(
-          `Enemy ${enemy.config?.movementPattern || 'unknown'} shot ${
-            bulletCountAfter - bulletCountBefore
-          } bullets and ${laserCountAfter - laserCountBefore} lasers`
-        );
-      }
-    } else {
-      console.error("Enemy missing shoot method:", enemy);
     }
   }
 
@@ -989,14 +1011,14 @@ export class EntityManager {
   removeDestroyedEnemy(enemy) {
     // Remove from appropriate array
     let removed = false;
-    let enemyType = 'regular';
+    let enemyType = "regular";
 
     // Check enemies array
     const enemyIndex = this.enemies.indexOf(enemy);
     if (enemyIndex !== -1) {
       this.enemies.splice(enemyIndex, 1);
       removed = true;
-      enemyType = enemy.type || 'regular';
+      enemyType = enemy.type || "regular";
     }
 
     // Check minibosses array
@@ -1004,7 +1026,7 @@ export class EntityManager {
     if (miniBossIndex !== -1) {
       this.miniBosses.splice(miniBossIndex, 1);
       removed = true;
-      enemyType = 'miniboss';
+      enemyType = "miniboss";
 
       // Miniboss defeat state is now determined dynamically by checking this.miniBosses.length
     }
@@ -1013,7 +1035,7 @@ export class EntityManager {
     if (this.boss === enemy) {
       this.boss = null;
       removed = true;
-      enemyType = 'boss';
+      enemyType = "boss";
     }
 
     if (removed) {
@@ -1021,7 +1043,6 @@ export class EntityManager {
       if (this.game.level) {
         this.game.level.trackEnemyKilled(enemyType);
       }
-      this.updateAllEnemiesList();
     }
 
     return removed;
