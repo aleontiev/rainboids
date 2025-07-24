@@ -197,7 +197,21 @@ export class Asteroid {
         
     }
     
+    // Legacy render method for backward compatibility
     render(ctx) {
+        // If ctx looks like a Canvas 2D context, use Canvas rendering
+        if (ctx && ctx.fillStyle !== undefined) {
+            return this.renderCanvas(ctx);
+        } else if (ctx && ctx.scene !== undefined) {
+            // If ctx has scene (WebGL context object), use WebGL rendering
+            return this.renderWebGL(ctx.scene, ctx.materials);
+        } else {
+            // Fallback to Canvas with basic context
+            return this.renderCanvas(ctx);
+        }
+    }
+
+    renderCanvas(ctx) {
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
@@ -298,5 +312,50 @@ export class Asteroid {
         
         
         ctx.restore();
+    }
+
+    renderWebGL(scene, materials) {
+        // Create unique mesh name for this asteroid
+        const meshName = `asteroid_${this.id || Math.random().toString(36)}`;
+        let asteroidMesh = scene.getObjectByName(meshName);
+        
+        if (!asteroidMesh) {
+            // Create irregular geometry for asteroid
+            const geometry = new THREE.DodecahedronGeometry(this.size * 0.7);
+            
+            // Apply some randomness to vertices for more irregular shape
+            const vertices = geometry.attributes.position.array;
+            for (let i = 0; i < vertices.length; i += 3) {
+                const factor = 0.8 + Math.random() * 0.4; // Random scale factor
+                vertices[i] *= factor;     // x
+                vertices[i + 1] *= factor; // y  
+                vertices[i + 2] *= factor; // z
+            }
+            geometry.attributes.position.needsUpdate = true;
+            
+            // Create material with damage-based coloring
+            const damageRatio = Math.max(0, 1 - (this.craterCount * 0.1));
+            const grayValue = damageRatio * 0.2 + 0.08; // Darker in WebGL
+            
+            const material = new THREE.MeshLambertMaterial({
+                color: new THREE.Color(grayValue, grayValue, grayValue),
+                transparent: true,
+                opacity: 1.0
+            });
+            
+            asteroidMesh = new THREE.Mesh(geometry, material);
+            asteroidMesh.name = meshName;
+            asteroidMesh.userData = { isDynamic: true, entityType: 'asteroid' };
+            scene.add(asteroidMesh);
+        }
+        
+        // Update position and rotation
+        asteroidMesh.position.set(this.x, -this.y, 0); // Flip Y for screen coordinates
+        asteroidMesh.rotation.set(this.angle, this.angle * 0.7, this.angle * 0.3); // Multi-axis rotation
+        
+        // Update material color based on damage
+        const damageRatio = Math.max(0, 1 - (this.craterCount * 0.1));
+        const grayValue = damageRatio * 0.2 + 0.08;
+        asteroidMesh.material.color.setRGB(grayValue, grayValue, grayValue);
     }
 }

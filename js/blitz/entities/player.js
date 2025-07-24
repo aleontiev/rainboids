@@ -418,7 +418,21 @@ export class Player {
     }
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle + this.rollAngle);
@@ -588,6 +602,111 @@ export class Player {
         ctx.restore();
       });
     }
+  }
+
+  renderWebGL(scene, materials) {
+    // Check if we already have a mesh for this player
+    let playerMesh = scene.getObjectByName('player');
+    
+    if (!playerMesh) {
+      // Create player mesh if it doesn't exist
+      const geometry = new THREE.ConeGeometry(this.size * 2.5, this.size * 3.5, 3);
+      let material;
+      
+      if (this.rainbowInvulnerable) {
+        // Rainbow material for invulnerability
+        material = new THREE.MeshLambertMaterial({ 
+          color: 0xffffff,
+          transparent: true,
+          emissive: 0x333333
+        });
+      } else if (this.timeSlowActive) {
+        // Green material for time slow
+        material = new THREE.MeshLambertMaterial({ 
+          color: 0x00ff00,
+          transparent: true,
+          emissive: 0x003300
+        });
+      } else {
+        // Default player material
+        material = materials.get('player') || new THREE.MeshLambertMaterial({ 
+          color: 0x00ff88,
+          transparent: true,
+          emissive: 0x002200
+        });
+      }
+      
+      playerMesh = new THREE.Mesh(geometry, material);
+      playerMesh.name = 'player';
+      playerMesh.userData = { isDynamic: true, entityType: 'player' };
+      scene.add(playerMesh);
+    }
+    
+    // Update position and rotation
+    playerMesh.position.set(this.x, -this.y, 0); // Flip Y for screen coordinates
+    playerMesh.rotation.z = -(this.angle + this.rollAngle); // Flip rotation for screen coordinates
+    
+    // Update material properties based on current state
+    if (this.isShielding) {
+      // Gold shield effect
+      playerMesh.material.color.setHex(0xffd700);
+      playerMesh.material.emissive.setHex(0x333300);
+    } else if (this.rainbowInvulnerable) {
+      // Animate rainbow effect
+      const time = Date.now() * 0.005;
+      const hue = (time * 60) % 360;
+      playerMesh.material.color.setHSL(hue / 360, 1, 0.5);
+    } else {
+      // Default colors
+      playerMesh.material.color.setHex(0x00ff88);
+      playerMesh.material.emissive.setHex(0x002200);
+    }
+    
+    // Handle shield visualization
+    let shieldMesh = scene.getObjectByName('playerShield');
+    if (this.shield > 0 && !this.isShielding) {
+      if (!shieldMesh) {
+        const shieldGeometry = new THREE.SphereGeometry(this.size * 4, 16, 12);
+        const shieldMaterial = new THREE.MeshLambertMaterial({
+          color: 0x00aaff,
+          transparent: true,
+          opacity: 0.3,
+          emissive: 0x001133
+        });
+        shieldMesh = new THREE.Mesh(shieldGeometry, shieldMaterial);
+        shieldMesh.name = 'playerShield';
+        shieldMesh.userData = { isDynamic: true, entityType: 'playerShield' };
+        scene.add(shieldMesh);
+      }
+      
+      shieldMesh.position.copy(playerMesh.position);
+      shieldMesh.visible = true;
+    } else if (shieldMesh) {
+      shieldMesh.visible = false;
+    }
+    
+    // Handle second ships in 3D
+    this.secondShip.forEach((ship, index) => {
+      const shipName = `secondShip${index}`;
+      let secondShipMesh = scene.getObjectByName(shipName);
+      
+      if (!secondShipMesh) {
+        const geometry = new THREE.ConeGeometry(this.size * 1.5, this.size * 2.5, 3);
+        const material = new THREE.MeshLambertMaterial({ 
+          color: 0x00ff88,
+          transparent: true,
+          opacity: 0.8
+        });
+        secondShipMesh = new THREE.Mesh(geometry, material);
+        secondShipMesh.name = shipName;
+        secondShipMesh.userData = { isDynamic: true, entityType: 'secondShip' };
+        scene.add(secondShipMesh);
+      }
+      
+      secondShipMesh.position.set(ship.x, -ship.y, -0.5);
+      secondShipMesh.rotation.z = -ship.initialAngle;
+      secondShipMesh.visible = !this.isShielding;
+    });
   }
 
   activateShield() {

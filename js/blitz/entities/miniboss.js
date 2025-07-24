@@ -508,7 +508,21 @@ export class MiniBoss extends Enemy {
     return bullets;
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle); // Add this line for rotation
@@ -593,6 +607,85 @@ export class MiniBoss extends Enemy {
     // Remove red charging outline effect
 
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    // Create unique mesh name for this miniboss
+    const meshName = `miniboss_${this.id || Math.random().toString(36)}`;
+    let minibossMesh = scene.getObjectByName(meshName);
+    
+    if (!minibossMesh) {
+      // Create larger enemy geometry with angular design
+      const geometry = new THREE.OctahedronGeometry(this.size * 0.8, 1);
+      
+      // Create material with miniboss color
+      const material = new THREE.MeshBasicMaterial({
+        color: this.spriteColor || '#ff4444',
+        transparent: true,
+        opacity: this.opacity || 1.0
+      });
+      
+      minibossMesh = new THREE.Mesh(geometry, material);
+      minibossMesh.name = meshName;
+      minibossMesh.userData = { isDynamic: true, entityType: 'miniboss' };
+      scene.add(minibossMesh);
+      
+      // Add shield effect as child mesh
+      if (this.shield > 0) {
+        const shieldGeometry = new THREE.SphereGeometry(this.size * 1.2, 16, 12);
+        const shieldMaterial = new THREE.MeshBasicMaterial({
+          color: 0x0088ff,
+          transparent: true,
+          opacity: 0.3,
+          wireframe: true
+        });
+        const shieldMesh = new THREE.Mesh(shieldGeometry, shieldMaterial);
+        shieldMesh.name = `${meshName}_shield`;
+        minibossMesh.add(shieldMesh);
+      }
+    }
+    
+    // Update position and rotation
+    minibossMesh.position.set(this.x, -this.y, 0);
+    minibossMesh.rotation.z = -this.angle;
+    
+    // Update material opacity for death effects
+    if (this.dying && !this.isDefeated) {
+      minibossMesh.material.opacity = this.opacity;
+      
+      // Add red death glow
+      if (this.showRedFlash) {
+        minibossMesh.material.color.setHex(0xff0000);
+        minibossMesh.material.emissive.setHex(0xff0000);
+        minibossMesh.material.emissive.multiplyScalar(0.5);
+      }
+    } else {
+      minibossMesh.material.opacity = 1.0;
+      minibossMesh.material.color.set(this.spriteColor || '#ff4444');
+    }
+    
+    // Update shield visibility
+    const shieldMesh = minibossMesh.getObjectByName(`${meshName}_shield`);
+    if (shieldMesh) {
+      shieldMesh.visible = this.shield > 0;
+      if (this.shield > 0) {
+        shieldMesh.material.opacity = 0.3 * (this.shield / this.maxShield);
+      }
+    }
+    
+    // Invulnerable effect - golden glow
+    if (this.invulnerable) {
+      const glowIntensity = 0.8 + 0.2 * Math.sin(this.frameCount * 0.3);
+      minibossMesh.material.emissive.setHex(0xffcc00);
+      minibossMesh.material.emissive.multiplyScalar(glowIntensity * 0.4);
+    } else {
+      minibossMesh.material.emissive.setHex(0x000000);
+    }
+    
+    // Make it glow slightly
+    if (!this.dying) {
+      minibossMesh.material.emissive.addScalar(0.1);
+    }
   }
 
   drawCustomSprite(ctx) {

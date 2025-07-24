@@ -742,6 +742,24 @@ export class Boss extends MiniBoss {
   takeDamage(damage, bulletX, bulletY) {
     const hitPart = this.getHitPart(bulletX, bulletY);
     
+    // Debug logging
+    console.log(`Boss takeDamage called: bullet at (${bulletX}, ${bulletY}), boss at (${this.x}, ${this.y})`);
+    console.log(`Available parts:`, Array.from(this.parts.entries()).map(([id, part]) => ({
+      id,
+      enabled: part.enabled,
+      destroyed: part.destroyed,
+      x: part.x,
+      y: part.y,
+      invulnerable: part.invulnerable
+    })));
+    console.log(`Hit part:`, hitPart ? {
+      id: hitPart.id || 'unknown',
+      x: hitPart.x,
+      y: hitPart.y,
+      invulnerable: hitPart.invulnerable,
+      health: hitPart.health
+    } : null);
+    
     if (!hitPart) return null; // No collision detected
     
     // Always apply visual hit flash when any part is hit (stops laser and shows feedback)
@@ -998,7 +1016,21 @@ export class Boss extends MiniBoss {
     return this.health / this.maxHealth;
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     ctx.save();
     
     // Apply death effects
@@ -1065,6 +1097,126 @@ export class Boss extends MiniBoss {
 
     // Draw health bars
     this.renderHealthBars(ctx);
+  }
+
+  renderWebGL(scene, materials) {
+    // Create unique mesh name for this boss
+    const meshName = `boss_${this.id || 'main'}`;
+    let bossMesh = scene.getObjectByName(meshName);
+    
+    if (!bossMesh) {
+      // Create boss body geometry - larger and more imposing than regular enemies
+      const bodyGeometry = new THREE.CylinderGeometry(this.size * 0.8, this.size * 1.2, this.size * 0.6, 8);
+      
+      // Create material based on boss state
+      let material;
+      if (this.isDefeated) {
+        // Death effects - red glowing material
+        material = new THREE.MeshLambertMaterial({
+          color: 0xff0000,
+          transparent: true,
+          opacity: this.opacity || 0.8,
+          emissive: 0x440000
+        });
+      } else {
+        // Normal boss material - darker and more menacing
+        material = new THREE.MeshLambertMaterial({
+          color: 0x660066,
+          transparent: true,
+          opacity: 1.0,
+          emissive: 0x220022
+        });
+      }
+      
+      bossMesh = new THREE.Mesh(bodyGeometry, material);
+      bossMesh.name = meshName;
+      bossMesh.userData = { isDynamic: true, entityType: 'boss' };
+      scene.add(bossMesh);
+    }
+    
+    // Update position and rotation
+    bossMesh.position.set(this.x, -this.y, 0);
+    bossMesh.rotation.z = -this.bodyAngle;
+    
+    // Update material properties based on state
+    if (this.isDefeated) {
+      // Death glow effect
+      const glowIntensity = 0.8 + Math.sin(this.frameCount * 0.4) * 0.2;
+      bossMesh.material.emissive.setRGB(glowIntensity * 0.5, 0, 0);
+      bossMesh.material.opacity = this.opacity || 0.8;
+      bossMesh.scale.setScalar(1 + glowIntensity * 0.1);
+    } else {
+      bossMesh.material.emissive.setRGB(0.1, 0.0, 0.1);
+      bossMesh.material.opacity = 1.0;
+      bossMesh.scale.setScalar(1);
+    }
+    
+    // Handle hit flash
+    if (this.hitFlash > 0) {
+      bossMesh.material.emissive.setRGB(0.8, 0.8, 0.8);
+    }
+    
+    // Render boss parts (arms, etc.) in 3D
+    for (const [partId, part] of this.parts) {
+      if (!part.enabled || part.destroyed) continue;
+      
+      const partMeshName = `boss_part_${partId}`;
+      let partMesh = scene.getObjectByName(partMeshName);
+      
+      if (!partMesh) {
+        let partGeometry;
+        let partMaterial;
+        
+        switch (part.type) {
+          case 'laser_arm':
+            partGeometry = new THREE.BoxGeometry(this.size * 0.3, this.size * 0.8, this.size * 0.2);
+            partMaterial = new THREE.MeshLambertMaterial({
+              color: 0x888888,
+              transparent: true,
+              emissive: 0x111111
+            });
+            break;
+          case 'core':
+            partGeometry = new THREE.SphereGeometry(this.size * 0.4, 12, 8);
+            partMaterial = new THREE.MeshLambertMaterial({
+              color: 0xff4444,
+              transparent: true,
+              emissive: 0x220000
+            });
+            break;
+          default:
+            partGeometry = new THREE.BoxGeometry(this.size * 0.4, this.size * 0.6, this.size * 0.3);
+            partMaterial = new THREE.MeshLambertMaterial({
+              color: 0x666666,
+              transparent: true
+            });
+        }
+        
+        partMesh = new THREE.Mesh(partGeometry, partMaterial);
+        partMesh.name = partMeshName;
+        partMesh.userData = { isDynamic: true, entityType: 'bossPart' };
+        scene.add(partMesh);
+      }
+      
+      // Update part position and properties
+      partMesh.position.set(part.x, -part.y, 0.2);
+      partMesh.material.opacity = part.invulnerable ? 0.8 : 1.0;
+      
+      // Handle part hit flash
+      if (part.hitFlash > 0) {
+        partMesh.material.emissive.setRGB(0.8, 0.8, 0.8);
+      } else {
+        partMesh.material.emissive.setRGB(0.1, 0.0, 0.0);
+      }
+      
+      // Handle shield visualization for core parts
+      if (part.type === 'core' && part.shield > 0) {
+        const shieldIntensity = part.shield / part.maxShield;
+        partMesh.material.emissive.setRGB(0, shieldIntensity * 0.5, shieldIntensity * 0.5);
+      }
+    }
+    
+    // TODO: Health bars would need to be rendered in the UI overlay for WebGL mode
   }
 
   drawBody(ctx, bodyPart) {

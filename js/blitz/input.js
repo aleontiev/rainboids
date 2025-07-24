@@ -212,6 +212,30 @@ export class InputHandler {
     }
   }
 
+  /**
+   * Re-establish event listeners when canvas changes (for renderer toggling)
+   */
+  setupEventListeners() {
+    // Remove existing canvas event listeners if they exist
+    this.removeCanvasEventListeners();
+    
+    // Re-setup canvas-dependent controls
+    this.setupTouchControls();
+    this.setupMouseControls();
+  }
+
+  /**
+   * Remove canvas event listeners to prevent memory leaks
+   */
+  removeCanvasEventListeners() {
+    if (this.canvas) {
+      // Clone the canvas to remove all event listeners
+      const newCanvas = this.canvas.cloneNode(true);
+      this.canvas.parentNode.replaceChild(newCanvas, this.canvas);
+      this.canvas = newCanvas;
+    }
+  }
+
   handleMouseMove(evt) {
     const rect = this.canvas.getBoundingClientRect();
     this.input.mousePosition = {

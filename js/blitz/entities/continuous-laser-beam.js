@@ -463,7 +463,21 @@ export class ContinuousLaserBeam {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     // Always render warning effects when active
     this.renderWarningEffects(ctx);
     
@@ -477,6 +491,43 @@ export class ContinuousLaserBeam {
       }
       // Render cannon direction indicator (always visible during sweeping)
       this.renderCannonIndicator(ctx);
+    }
+  }
+
+  renderWebGL(scene, materials) {
+    // Create unique mesh name for this continuous laser beam
+    const meshName = `continuous_laser_${this.id || Math.random().toString(36)}`;
+    let laserGroup = scene.getObjectByName(meshName);
+    
+    if (!laserGroup) {
+      // Create a group to hold all laser components
+      laserGroup = new THREE.Group();
+      laserGroup.name = meshName;
+      laserGroup.userData = { isDynamic: true, entityType: 'continuous_laser_beam' };
+      scene.add(laserGroup);
+    }
+    
+    // Clear previous laser segments
+    while (laserGroup.children.length > 0) {
+      laserGroup.remove(laserGroup.children[0]);
+    }
+    
+    if (this.state === "charging") {
+      // Render charging effect
+      this.renderChargingEffectWebGL(laserGroup);
+    } else if (this.state === "sweeping") {
+      // Render warning effects
+      if (this.warningActive) {
+        this.renderWarningEffectsWebGL(laserGroup);
+      }
+      
+      // Render beam segments only if laser is active
+      if (this.isLaserActive) {
+        this.renderBeamSegmentsWebGL(laserGroup);
+      }
+      
+      // Render cannon direction indicator
+      this.renderCannonIndicatorWebGL(laserGroup);
     }
   }
 
@@ -592,5 +643,135 @@ export class ContinuousLaserBeam {
     ctx.setLineDash([]); // Reset line dash
     
     ctx.restore();
+  }
+
+  renderChargingEffectWebGL(laserGroup) {
+    // Create charging indicator at origin
+    const chargingGeometry = new THREE.SphereGeometry(15 + 8 * Math.sin(this.glowPulse), 8, 6);
+    const chargingMaterial = new THREE.MeshBasicMaterial({
+      color: this.glowColor,
+      transparent: true,
+      opacity: this.chargeIntensity * 0.6
+    });
+    
+    const chargingMesh = new THREE.Mesh(chargingGeometry, chargingMaterial);
+    chargingMesh.position.set(this.originX, -this.originY, 0);
+    laserGroup.add(chargingMesh);
+    
+    // Add charging line preview
+    if (this.chargeIntensity > 0.3) {
+      const edgeIntersection = this.calculateScreenEdgeIntersection(this.originX, this.originY, this.angle);
+      const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(this.originX, -this.originY, 0),
+        new THREE.Vector3(edgeIntersection.x, -edgeIntersection.y, 0)
+      ]);
+      
+      const lineMaterial = new THREE.LineBasicMaterial({
+        color: this.color,
+        transparent: true,
+        opacity: this.chargeIntensity * 0.4
+      });
+      
+      const lineMesh = new THREE.Line(lineGeometry, lineMaterial);
+      laserGroup.add(lineMesh);
+    }
+  }
+
+  renderBeamSegmentsWebGL(laserGroup) {
+    for (const segment of this.segments) {
+      // Calculate segment length and position
+      const segmentLength = Math.sqrt(
+        Math.pow(segment.endX - segment.startX, 2) + 
+        Math.pow(segment.endY - segment.startY, 2)
+      );
+      
+      if (segmentLength <= 0) continue;
+      
+      // Create beam geometry
+      const beamGeometry = new THREE.CylinderGeometry(this.width / 2, this.width / 2, segmentLength, 8, 1);
+      
+      // Main beam material
+      const beamMaterial = new THREE.MeshBasicMaterial({
+        color: this.color,
+        transparent: true,
+        opacity: this.intensity
+      });
+      
+      const beamMesh = new THREE.Mesh(beamGeometry, beamMaterial);
+      
+      // Position and rotate the beam segment
+      const centerX = (segment.startX + segment.endX) / 2;
+      const centerY = (segment.startY + segment.endY) / 2;
+      beamMesh.position.set(centerX, -centerY, 0);
+      
+      // Rotate to align with segment direction
+      beamMesh.rotation.z = -segment.angle + Math.PI / 2;
+      
+      // Add glow effect
+      beamMesh.material.emissive.set(this.glowColor);
+      beamMesh.material.emissive.multiplyScalar(0.4);
+      
+      laserGroup.add(beamMesh);
+      
+      // Add core beam (brighter center)
+      const coreGeometry = new THREE.CylinderGeometry(this.width / 6, this.width / 6, segmentLength, 6, 1);
+      const coreMaterial = new THREE.MeshBasicMaterial({
+        color: '#ffffff',
+        transparent: true,
+        opacity: 1.0
+      });
+      
+      const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
+      coreMesh.position.copy(beamMesh.position);
+      coreMesh.rotation.copy(beamMesh.rotation);
+      
+      laserGroup.add(coreMesh);
+    }
+  }
+
+  renderWarningEffectsWebGL(laserGroup) {
+    // Pulsing red warning indicator at cannon
+    const pulseIntensity = Math.sin(this.warningTimer * 0.3) * 0.5 + 0.5;
+    const warningSize = 12 + pulseIntensity * 8;
+    
+    const warningGeometry = new THREE.SphereGeometry(warningSize, 8, 6);
+    const warningMaterial = new THREE.MeshBasicMaterial({
+      color: '#ff0000',
+      transparent: true,
+      opacity: 0.7 + pulseIntensity * 0.3
+    });
+    
+    const warningMesh = new THREE.Mesh(warningGeometry, warningMaterial);
+    warningMesh.position.set(this.originX, -this.originY, 0);
+    
+    // Add yellow strobe effect
+    warningMesh.material.emissive.setHex(0xffff00);
+    warningMesh.material.emissive.multiplyScalar(pulseIntensity * 0.6);
+    
+    laserGroup.add(warningMesh);
+  }
+
+  renderCannonIndicatorWebGL(laserGroup) {
+    // Draw subtle line showing cannon direction
+    const indicatorLength = 40;
+    const endX = this.originX + Math.cos(this.angle) * indicatorLength;
+    const endY = this.originY + Math.sin(this.angle) * indicatorLength;
+    
+    const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(this.originX, -this.originY, 0),
+      new THREE.Vector3(endX, -endY, 0)
+    ]);
+    
+    const alpha = this.isLaserActive ? 0.3 : 0.6;
+    const color = this.isLaserActive ? '#ffffff' : '#ffaa00';
+    
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: alpha
+    });
+    
+    const lineMesh = new THREE.Line(lineGeometry, lineMaterial);
+    laserGroup.add(lineMesh);
   }
 }

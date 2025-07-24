@@ -92,7 +92,21 @@ export class Laser {
     return this.bounceCount >= this.maxBounces; // Return true if laser should be destroyed
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
@@ -133,5 +147,61 @@ export class Laser {
     ctx.lineTo(this.length, 0); // Use configured laser length
     ctx.stroke();
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    // Create unique mesh name for this laser
+    const meshName = `laser_${this.id || Math.random().toString(36)}`;
+    let laserMesh = scene.getObjectByName(meshName);
+    
+    if (!laserMesh) {
+      // Create elongated laser beam geometry
+      const geometry = new THREE.CylinderGeometry(this.width / 4, this.width / 4, this.length, 8, 1);
+      
+      // Determine laser color
+      let laserColor = this.color;
+      if (this.color === "rainbow") {
+        laserColor = this.rainbowColors[this.colorIndex];
+      }
+      
+      // Create material with laser color and glow
+      const material = new THREE.MeshBasicMaterial({
+        color: laserColor || '#ffffff',
+        transparent: true,
+        opacity: 0.8
+      });
+      
+      laserMesh = new THREE.Mesh(geometry, material);
+      laserMesh.name = meshName;
+      laserMesh.userData = { isDynamic: true, entityType: 'laser' };
+      
+      // Rotate geometry to align with laser direction (cylinder is vertical by default)
+      laserMesh.rotation.z = Math.PI / 2;
+      
+      scene.add(laserMesh);
+    }
+    
+    // Update position and rotation
+    // Position at center of laser beam
+    const centerX = this.x + Math.cos(this.angle) * (this.length / 2);
+    const centerY = this.y + Math.sin(this.angle) * (this.length / 2);
+    laserMesh.position.set(centerX, -centerY, 0);
+    laserMesh.rotation.z = -this.angle + Math.PI / 2; // Adjust for cylinder alignment
+    
+    // Update color for rainbow lasers
+    if (this.color === "rainbow") {
+      laserMesh.material.color.set(this.rainbowColors[this.colorIndex]);
+    } else {
+      laserMesh.material.color.set(this.color || '#ffffff');
+    }
+    
+    // Make lasers glow
+    laserMesh.material.emissive.copy(laserMesh.material.color);
+    laserMesh.material.emissive.multiplyScalar(0.5);
+    
+    // Special rainbow glow effect
+    if (this.color === "rainbow") {
+      laserMesh.material.emissive.multiplyScalar(0.8);
+    }
   }
 }

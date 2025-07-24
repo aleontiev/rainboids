@@ -39,7 +39,21 @@ export class Powerup {
     this.dy = (this.y - prevY) * 60;
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
 
@@ -229,5 +243,67 @@ export class Powerup {
     }
 
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    // Create unique mesh name for this powerup
+    const meshName = `powerup_${this.type}_${this.x.toFixed(0)}_${this.y.toFixed(0)}`;
+    let powerupMesh = scene.getObjectByName(meshName);
+    
+    if (!powerupMesh) {
+      // Create box geometry for powerup
+      const geometry = new THREE.BoxGeometry(this.size * 0.8, this.size * 0.8, this.size * 0.8);
+      
+      // Get powerup color based on type
+      let color;
+      const pulse = 0.8 + 0.2 * Math.sin(this.pulseTimer);
+      
+      if (this.type === "rainbowStar") {
+        // Rainbow effect - use HSL cycling color
+        const time = Date.now() * 0.005;
+        const hue = (time * 60) % 360;
+        color = new THREE.Color().setHSL(hue / 360, 1.0, 0.5);
+      } else {
+        // Convert hex color to Three.js color
+        const hexColor = this.colors[this.type] || "#ffffff";
+        color = new THREE.Color(hexColor);
+      }
+      
+      // Create emissive material that pulses
+      const material = new THREE.MeshLambertMaterial({
+        color: color,
+        transparent: true,
+        opacity: pulse * 0.8,
+        emissive: color,
+        emissiveIntensity: pulse * 0.3
+      });
+      
+      powerupMesh = new THREE.Mesh(geometry, material);
+      powerupMesh.name = meshName;
+      scene.add(powerupMesh);
+    }
+    
+    // Update position
+    powerupMesh.position.set(this.x, -this.y, 0); // Negative Y for WebGL coordinate system
+    
+    // Rotate the powerup for visual appeal
+    const rotationSpeed = 0.02;
+    powerupMesh.rotation.x += rotationSpeed;
+    powerupMesh.rotation.y += rotationSpeed * 0.7;
+    powerupMesh.rotation.z += rotationSpeed * 0.5;
+    
+    // Update pulsing effect
+    const pulse = 0.8 + 0.2 * Math.sin(this.pulseTimer);
+    powerupMesh.material.opacity = pulse * 0.8;
+    powerupMesh.material.emissiveIntensity = pulse * 0.3;
+    
+    // Update rainbow color for rainbow star
+    if (this.type === "rainbowStar") {
+      const time = Date.now() * 0.005;
+      const hue = (time * 60) % 360;
+      const newColor = new THREE.Color().setHSL(hue / 360, 1.0, 0.5);
+      powerupMesh.material.color = newColor;
+      powerupMesh.material.emissive = newColor;
+    }
   }
 }

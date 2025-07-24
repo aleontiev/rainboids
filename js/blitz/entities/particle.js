@@ -17,11 +17,45 @@ export class Particle {
     this.life -= slowdownFactor;
   }
 
-  render(ctx) {
+  render(ctx, scene, materials) {
+    if (scene && materials) {
+      this.renderWebGL(scene, materials);
+    } else {
+      this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     const alpha = this.life / this.maxLife;
     ctx.fillStyle = `rgba(255, 255, 0, ${alpha})`;
     const size = 4 * this.scale;
     ctx.fillRect(this.x - size / 2, this.y - size / 2, size, size);
+  }
+
+  renderWebGL(scene, materials) {
+    const alpha = this.life / this.maxLife;
+    const size = 0.002 * this.scale; // Convert to WebGL scale
+    
+    const geometry = new THREE.SphereGeometry(size, 8, 6);
+    const material = new THREE.MeshLambertMaterial({
+      color: 0xffff00,
+      transparent: true,
+      opacity: alpha,
+      emissive: 0x444400
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(
+      (this.x - 400) * 0.005, // Convert canvas coordinates to WebGL
+      -(this.y - 300) * 0.005,
+      0
+    );
+    
+    scene.add(mesh);
+    
+    // Store reference for cleanup
+    if (!this.webglMeshes) this.webglMeshes = [];
+    this.webglMeshes.push(mesh);
   }
 }
 
@@ -48,7 +82,15 @@ export class Debris {
     this.life -= slowdownFactor;
   }
 
-  render(ctx) {
+  render(ctx, scene, materials) {
+    if (scene && materials) {
+      this.renderWebGL(scene, materials);
+    } else {
+      this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     const alpha = this.life / this.maxLife;
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -63,6 +105,34 @@ export class Debris {
     ctx.lineTo(0, this.size);
     ctx.stroke();
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    const alpha = this.life / this.maxLife;
+    const size = this.size * 0.001; // Convert to WebGL scale
+    
+    const geometry = new THREE.SphereGeometry(size, 6, 4);
+    const color = new THREE.Color(this.color);
+    const material = new THREE.MeshLambertMaterial({
+      color: color,
+      transparent: true,
+      opacity: alpha,
+      emissive: color.clone().multiplyScalar(0.3)
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(
+      (this.x - 400) * 0.005, // Convert canvas coordinates to WebGL
+      -(this.y - 300) * 0.005,
+      0
+    );
+    mesh.rotation.z = this.angle;
+    
+    scene.add(mesh);
+    
+    // Store reference for cleanup
+    if (!this.webglMeshes) this.webglMeshes = [];
+    this.webglMeshes.push(mesh);
   }
 }
 
@@ -104,7 +174,15 @@ export class RainbowParticle {
     }
   }
 
-  render(ctx) {
+  render(ctx, scene, materials) {
+    if (scene && materials) {
+      this.renderWebGL(scene, materials);
+    } else {
+      this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     const alpha = this.life / this.maxLife;
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -113,6 +191,34 @@ export class RainbowParticle {
     ctx.fillStyle = this.colors[this.colorIndex];
     ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    const alpha = this.life / this.maxLife;
+    const size = this.size * 0.001 * this.scale; // Convert to WebGL scale
+    
+    const geometry = new THREE.SphereGeometry(size, 8, 6);
+    const color = new THREE.Color(this.colors[this.colorIndex]);
+    const material = new THREE.MeshLambertMaterial({
+      color: color,
+      transparent: true,
+      opacity: alpha,
+      emissive: color.clone().multiplyScalar(0.5) // Make rainbow particles more vibrant
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(
+      (this.x - 400) * 0.005, // Convert canvas coordinates to WebGL
+      -(this.y - 300) * 0.005,
+      0
+    );
+    mesh.rotation.z = this.angle;
+    
+    scene.add(mesh);
+    
+    // Store reference for cleanup
+    if (!this.webglMeshes) this.webglMeshes = [];
+    this.webglMeshes.push(mesh);
   }
 }
 
@@ -155,7 +261,15 @@ export class GrayParticle {
     }
   }
 
-  render(ctx) {
+  render(ctx, scene, materials) {
+    if (scene && materials) {
+      this.renderWebGL(scene, materials);
+    } else {
+      this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     const alpha = this.life / this.maxLife;
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -164,6 +278,34 @@ export class GrayParticle {
     ctx.fillStyle = this.colors[this.colorIndex];
     ctx.fillRect(-this.size / 2, -this.size / 2, this.size, this.size);
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    const alpha = this.life / this.maxLife;
+    const size = this.size * 0.001 * this.scale; // Convert to WebGL scale
+    
+    const geometry = new THREE.SphereGeometry(size, 6, 4);
+    const color = new THREE.Color(this.colors[this.colorIndex]);
+    const material = new THREE.MeshLambertMaterial({
+      color: color,
+      transparent: true,
+      opacity: alpha,
+      emissive: color.clone().multiplyScalar(0.2) // Subtle glow for gray particles
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(
+      (this.x - 400) * 0.005, // Convert canvas coordinates to WebGL
+      -(this.y - 300) * 0.005,
+      0
+    );
+    mesh.rotation.z = this.angle;
+    
+    scene.add(mesh);
+    
+    // Store reference for cleanup
+    if (!this.webglMeshes) this.webglMeshes = [];
+    this.webglMeshes.push(mesh);
   }
 }
 
@@ -186,7 +328,15 @@ export class TextParticle {
     this.life -= slowdownFactor;
   }
 
-  render(ctx) {
+  render(ctx, scene, materials) {
+    if (scene && materials) {
+      this.renderWebGL(scene, materials);
+    } else {
+      this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     const alpha = this.life / this.maxLife;
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -196,5 +346,33 @@ export class TextParticle {
     ctx.textBaseline = "middle";
     ctx.fillText(this.text, this.x, this.y);
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    const alpha = this.life / this.maxLife;
+    const size = this.size * 0.0005; // Convert text size to WebGL scale
+    
+    // Render text particles as glowing spheres in WebGL
+    const geometry = new THREE.SphereGeometry(size, 8, 6);
+    const color = new THREE.Color(this.color);
+    const material = new THREE.MeshLambertMaterial({
+      color: color,
+      transparent: true,
+      opacity: alpha,
+      emissive: color.clone().multiplyScalar(0.8) // Strong glow for text particles
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(
+      (this.x - 400) * 0.005, // Convert canvas coordinates to WebGL
+      -(this.y - 300) * 0.005,
+      0
+    );
+    
+    scene.add(mesh);
+    
+    // Store reference for cleanup
+    if (!this.webglMeshes) this.webglMeshes = [];
+    this.webglMeshes.push(mesh);
   }
 }

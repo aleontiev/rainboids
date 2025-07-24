@@ -97,7 +97,21 @@ export class RainbowExplosion {
     });
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
 
@@ -167,6 +181,113 @@ export class RainbowExplosion {
       }
 
       ctx.restore();
+    });
+  }
+
+  renderWebGL(scene, materials) {
+    // Create unique mesh name for this explosion
+    const meshName = `explosion_${this.id || Math.random().toString(36)}`;
+    let explosionGroup = scene.getObjectByName(meshName);
+    
+    if (!explosionGroup) {
+      // Create a group to hold all explosion components
+      explosionGroup = new THREE.Group();
+      explosionGroup.name = meshName;
+      explosionGroup.userData = { isDynamic: true, entityType: 'explosion' };
+      scene.add(explosionGroup);
+    }
+    
+    // Clear previous components
+    while (explosionGroup.children.length > 0) {
+      explosionGroup.remove(explosionGroup.children[0]);
+    }
+    
+    const opacity = Math.max(0.1, this.life / (this.isFirework ? 120 : 60));
+    
+    // Create rainbow ring spheres
+    const ringWidth = this.isFirework ? 12 : 4;
+    for (let i = 0; i < this.colors.length; i++) {
+      const ringRadius = this.radius - i * (ringWidth * 1.5);
+      if (ringRadius > 0) {
+        // Create ring geometry as a wireframe sphere
+        const ringGeometry = new THREE.SphereGeometry(ringRadius, 16, 12);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+          color: this.colors[i],
+          transparent: true,
+          opacity: opacity * (1 - i * 0.1),
+          wireframe: true
+        });
+        
+        const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+        ringMesh.position.set(this.x, -this.y, 0);
+        
+        // Add glow effect
+        ringMaterial.emissive.set(this.colors[i]);
+        ringMaterial.emissive.multiplyScalar(0.3);
+        
+        explosionGroup.add(ringMesh);
+        
+        // Add inner glow for big explosions
+        if (this.isFirework && i < 3) {
+          const glowGeometry = new THREE.SphereGeometry(ringRadius * 0.8, 8, 6);
+          const glowMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: opacity * 0.2
+          });
+          
+          const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+          glowMesh.position.set(this.x, -this.y, 0);
+          explosionGroup.add(glowMesh);
+        }
+      }
+    }
+    
+    // Create spark particles
+    this.sparks.forEach((spark, sparkIndex) => {
+      const sparkOpacity = spark.life / spark.maxLife;
+      
+      // Create spark geometry
+      const sparkGeometry = new THREE.BoxGeometry(spark.size, spark.size, spark.size);
+      const sparkMaterial = new THREE.MeshBasicMaterial({
+        color: spark.color,
+        transparent: true,
+        opacity: sparkOpacity
+      });
+      
+      const sparkMesh = new THREE.Mesh(sparkGeometry, sparkMaterial);
+      sparkMesh.position.set(spark.x, -spark.y, 0);
+      
+      // Add spark glow
+      sparkMaterial.emissive.set(spark.color);
+      sparkMaterial.emissive.multiplyScalar(0.5);
+      
+      // Add rotation for visual interest
+      sparkMesh.rotation.x = sparkIndex * 0.5;
+      sparkMesh.rotation.y = sparkIndex * 0.3;
+      sparkMesh.rotation.z = sparkIndex * 0.7;
+      
+      explosionGroup.add(sparkMesh);
+      
+      // Create trail effect for fireworks
+      if (this.isFirework && spark.trail.length > 0) {
+        spark.trail.forEach((trailPoint, trailIndex) => {
+          const trailSize = spark.size * (trailIndex / spark.trail.length) * 0.5;
+          if (trailSize > 0.5) {
+            const trailGeometry = new THREE.BoxGeometry(trailSize, trailSize, trailSize);
+            const trailMaterial = new THREE.MeshBasicMaterial({
+              color: spark.color,
+              transparent: true,
+              opacity: trailPoint.opacity * 0.3 * (trailIndex / spark.trail.length)
+            });
+            
+            const trailMesh = new THREE.Mesh(trailGeometry, trailMaterial);
+            trailMesh.position.set(trailPoint.x, -trailPoint.y, 0);
+            
+            explosionGroup.add(trailMesh);
+          }
+        });
+      }
     });
   }
 }

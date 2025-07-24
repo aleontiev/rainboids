@@ -67,7 +67,21 @@ export class HomingMissile {
     return this.life > 0 && withinBounds;
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     // Safety check to prevent negative size errors
     if (this.size <= 0) return;
 
@@ -82,5 +96,47 @@ export class HomingMissile {
     ctx.closePath();
     ctx.fill();
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    // Safety check
+    if (this.size <= 0) return;
+    
+    // Create unique mesh name for this homing missile
+    const meshName = `homing_missile_${this.id || Math.random().toString(36)}`;
+    let missileMesh = scene.getObjectByName(meshName);
+    
+    if (!missileMesh) {
+      // Create cone/rocket geometry for missile
+      const geometry = new THREE.ConeGeometry(this.size * 0.4, this.size * 2, 6);
+      
+      // Create material with missile color
+      const material = new THREE.MeshBasicMaterial({
+        color: this.color || '#ff0000',
+        transparent: true,
+        opacity: 1.0
+      });
+      
+      missileMesh = new THREE.Mesh(geometry, material);
+      missileMesh.name = meshName;
+      missileMesh.userData = { isDynamic: true, entityType: 'homing_missile' };
+      scene.add(missileMesh);
+    }
+    
+    // Update position and rotation
+    missileMesh.position.set(this.x, -this.y, 0);
+    // Cone points in +Y direction by default, missile travels in angle direction
+    missileMesh.rotation.z = -this.angle - Math.PI / 2;
+    
+    // Update material color
+    missileMesh.material.color.set(this.color || '#ff0000');
+    
+    // Add missile glow/exhaust effect
+    missileMesh.material.emissive.set(this.color || '#ff0000');
+    missileMesh.material.emissive.multiplyScalar(0.4);
+    
+    // Add slight pulsing effect for homing missiles
+    const pulseIntensity = 0.5 + 0.3 * Math.sin(Date.now() * 0.01);
+    missileMesh.material.emissive.multiplyScalar(pulseIntensity);
   }
 }

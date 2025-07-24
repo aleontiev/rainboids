@@ -592,7 +592,9 @@ export class CollisionManager {
           hasCollision = this.checkLaserCollision(bullet, enemy);
         } else if (enemy.constructor.name === "Boss") {
           // Use boss's multi-part collision detection for regular bullets
+          console.log(`Checking boss collision: bullet at (${bullet.x}, ${bullet.y}), boss at (${enemy.x}, ${enemy.y})`);
           hasCollision = enemy.getHitPart(bullet.x, bullet.y) !== null;
+          console.log(`Boss collision result: ${hasCollision}`);
         } else {
           // Standard circular collision for other entities
           const dx = bullet.x - enemy.x;

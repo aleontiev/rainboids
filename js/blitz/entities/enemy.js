@@ -734,7 +734,21 @@ export class Enemy {
     }
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     // Draw laser warning line BEFORE transformations (for laser enemies)
     if (
       this.attackPattern === "laser" &&
@@ -775,6 +789,85 @@ export class Enemy {
     this.renderShape(ctx);
 
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    // Create unique mesh name for this enemy
+    const meshName = `enemy_${this.id || Math.random().toString(36)}`;
+    let enemyMesh = scene.getObjectByName(meshName);
+    
+    if (!enemyMesh) {
+      // Create geometry based on enemy shape
+      let geometry;
+      const shape = this.config.visualConfig?.shape || 'triangle';
+      
+      switch (shape) {
+        case 'circle':
+          geometry = new THREE.SphereGeometry(this.size * 0.5, 12, 8);
+          break;
+        case 'square':
+        case 'roundedSquare':
+          geometry = new THREE.BoxGeometry(this.size * 1.2, this.size * 1.2, this.size * 0.5);
+          break;
+        case 'equalTriangle':
+        case 'sharpTriangle':
+        case 'triangle':
+        default:
+          geometry = new THREE.ConeGeometry(this.size * 0.8, this.size * 1.5, 3);
+          break;
+      }
+      
+      // Create material with enemy color
+      const material = new THREE.MeshLambertMaterial({
+        color: this.color || 0xff4444,
+        transparent: true,
+        opacity: this.opacity || 1.0
+      });
+      
+      enemyMesh = new THREE.Mesh(geometry, material);
+      enemyMesh.name = meshName;
+      enemyMesh.userData = { isDynamic: true, entityType: 'enemy' };
+      scene.add(enemyMesh);
+    }
+    
+    // Update position and rotation
+    enemyMesh.position.set(this.x, -this.y, 0); // Flip Y for screen coordinates
+    enemyMesh.rotation.z = -this.angle; // Flip rotation for screen coordinates
+    
+    // Apply visual rotation if configured
+    if (this.config.visualConfig?.rotationSpeed) {
+      enemyMesh.rotation.z -= this.time * this.config.visualConfig.rotationSpeed;
+    }
+    
+    // Update material properties
+    enemyMesh.material.opacity = this.opacity || 1.0;
+    enemyMesh.material.color.set(this.color || '#ff4444');
+    
+    // Handle charging effect for laser enemies
+    if (this.attackPattern === "laser" && this.laserState === "charging") {
+      const charge = this.laserChargeTime / this.chargeTime;
+      const intensity = Math.min(1, charge);
+      enemyMesh.material.emissive.setRGB(intensity * 0.5, 0, 0);
+      enemyMesh.scale.setScalar(1 + intensity * 0.3);
+    } else {
+      enemyMesh.material.emissive.setRGB(0, 0, 0);
+      enemyMesh.scale.setScalar(1);
+    }
+    
+    // Handle pulse warning for pulse enemies
+    if (this.attackPattern === "pulse" && this.pulseTimer > this.pulseInterval - this.warningTime) {
+      const pulse = (this.pulseTimer - (this.pulseInterval - this.warningTime)) / this.warningTime;
+      enemyMesh.material.emissive.setRGB(pulse * 0.8, pulse * 0.8, 0);
+      enemyMesh.scale.setScalar(1 + pulse * 0.5);
+    } else if (this.attackPattern !== "laser") {
+      enemyMesh.material.emissive.setRGB(0, 0, 0);
+      if (this.attackPattern !== "laser") {
+        enemyMesh.scale.setScalar(1);
+      }
+    }
+    
+    // TODO: Handle laser warning lines in WebGL (would need line geometry)
+    // For now, laser warnings will only show in Canvas mode
   }
 
   renderLaserWarning(ctx) {

@@ -15,7 +15,8 @@ import { EntityManager } from "./blitz/entity-manager.js";
 import { CollisionManager } from "./blitz/collision-manager.js";
 import { GameLoopManager } from "./blitz/game-loop-manager.js";
 import { PowerupManager } from "./blitz/powerup-manager.js";
-import { Renderer } from "./blitz/renderer.js";
+import { RendererFactory } from "./blitz/renderers/renderer-factory.js";
+import { SettingsManager } from "./blitz/settings-manager.js";
 // UIRenderer functionality moved to Renderer
 import { PlayerManager } from "./blitz/player-manager.js";
 import { ControlManager } from "./blitz/control-manager.js";
@@ -26,9 +27,24 @@ class BlitzGame {
   constructor() {
     window.blitz = this; // Make game accessible for sound effects
 
+    // Initialize settings manager first
+    this.settings = new SettingsManager();
+
     // Get canvas element - all other UI is now canvas-based
     this.canvas = document.getElementById("gameCanvas");
-    this.ctx = this.canvas.getContext("2d");
+    
+    // Initialize renderer using factory
+    try {
+      this.renderer = RendererFactory.createRenderer(this, this.canvas, this.settings);
+      this.ctx = this.renderer.getContext(); // Get appropriate context from renderer
+      console.log(`Game initialized with ${this.renderer.type} renderer`);
+    } catch (error) {
+      console.error('Failed to initialize renderer:', error);
+      // Fallback to emergency Canvas renderer
+      this.ctx = this.canvas.getContext("2d");
+      console.warn('Using emergency fallback Canvas context');
+    }
+    
     this.input = new InputHandler(this.canvas, this);
     this.progress = new ProgressView(this);
     this.actions = new ActionsView(this);
@@ -43,7 +59,6 @@ class BlitzGame {
     this.collisions = new CollisionManager(this);
     this.gameLoop = new GameLoopManager(this);
     this.powerup = new PowerupManager(this);
-    this.renderer = new Renderer(this);
     // UI functionality now handled by renderer
     this.playerManager = new PlayerManager(this);
     this.state = new State(this);
@@ -130,6 +145,11 @@ class BlitzGame {
     // This works for both mobile and desktop
     this.isPortrait = this.canvas.height > this.canvas.width;
 
+    // Update renderer with new dimensions
+    if (this.renderer && this.renderer.resize) {
+      this.renderer.resize(this.canvas.width, this.canvas.height);
+    }
+
     // Reset boss and miniboss positions if orientation changed
     if (previousOrientation !== this.isPortrait) {
       this.repositionEnemies();
@@ -137,6 +157,114 @@ class BlitzGame {
 
     // Regenerate background stars to fill the new screen dimensions
     this.background.setup();
+  }
+  
+  /**
+   * Toggle between Canvas and WebGL rendering
+   */
+  toggleRenderer() {
+    const currentWebGL = this.settings.isWebGLEnabled();
+    const newWebGL = !currentWebGL;
+    
+    console.log(`Switching renderer from ${currentWebGL ? 'WebGL' : 'Canvas'} to ${newWebGL ? 'WebGL' : 'Canvas'}`);
+    
+    // Reset game state to prevent issues
+    const wasPlaying = this.state.state === "PLAYING";
+    const wasPaused = this.state.state === "PAUSED";
+    
+    // Stop background music if playing
+    if (wasPlaying || wasPaused) {
+      this.audio.pauseBackgroundMusic();
+    }
+    
+    // Reset game to initial state
+    this.reset();
+    this.state.state = "TITLE";
+    this.state.firstGameStart = true;
+    
+    // Hide action buttons for title screen
+    this.actions.hide();
+    
+    try {
+      // Update settings
+      this.settings.setWebGLEnabled(newWebGL);
+      
+      // Dispose of current renderer
+      if (this.renderer && this.renderer.dispose) {
+        this.renderer.dispose();
+      }
+      
+      // For WebGL, we need a fresh canvas since it can't share with 2D context
+      if (newWebGL) {
+        // Create new canvas for WebGL
+        const newCanvas = document.createElement('canvas');
+        newCanvas.id = 'gameCanvas';
+        newCanvas.width = this.canvas.width;
+        newCanvas.height = this.canvas.height;
+        newCanvas.style.cssText = this.canvas.style.cssText;
+        
+        // Replace the old canvas
+        this.canvas.parentNode.replaceChild(newCanvas, this.canvas);
+        this.canvas = newCanvas;
+        
+        // Update input handler with new canvas
+        this.input.canvas = newCanvas;
+        this.input.setupEventListeners();
+      } else {
+        // Switching back to Canvas - canvas should be fine as-is since WebGL renderer created fresh canvas
+        // But let's ensure we have a clean 2D context
+        const context = this.canvas.getContext('2d');
+        if (!context) {
+          // If for some reason we can't get 2D context, create new canvas
+          const newCanvas = document.createElement('canvas');
+          newCanvas.id = 'gameCanvas';
+          newCanvas.width = this.canvas.width;
+          newCanvas.height = this.canvas.height;
+          newCanvas.style.cssText = this.canvas.style.cssText;
+          
+          this.canvas.parentNode.replaceChild(newCanvas, this.canvas);
+          this.canvas = newCanvas;
+          
+          // Update input handler with new canvas
+          this.input.canvas = newCanvas;
+          this.input.setupEventListeners();
+        }
+      }
+      
+      // Create new renderer with fresh canvas
+      this.renderer = RendererFactory.createRenderer(this, this.canvas, this.settings);
+      this.ctx = this.renderer.getContext();
+      
+      // Update renderer dimensions
+      this.renderer.resize(this.canvas.width, this.canvas.height);
+      
+      // Ensure the background is properly set up for the new renderer
+      this.background.setup();
+      
+      // Reset renderer frame counters and state
+      if (this.renderer.animationFrame !== undefined) {
+        this.renderer.animationFrame = 0;
+      }
+      
+      // Force an immediate render to ensure the new renderer is working
+      try {
+        this.renderer.render();
+        console.log(`Successfully switched to ${this.renderer.type} renderer`);
+      } catch (renderError) {
+        console.error('Renderer switch succeeded but render failed:', renderError);
+        console.log('Renderer type:', this.renderer.type);
+        console.log('Context available:', !!this.renderer.getContext());
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to toggle renderer:', error);
+      
+      // Revert settings on failure
+      this.settings.setWebGLEnabled(currentWebGL);
+      
+      return false;
+    }
   }
 
   repositionEnemies() {
@@ -242,16 +370,28 @@ class BlitzGame {
     if (enemy instanceof Boss) {
       // New boss system with bullet coordinates
       const result = enemy.takeDamage(damage, bulletX, bulletY);
-      if (result) {
+      
+      if (result === null) {
+        // No collision detected (shouldn't happen since collision manager already checked)
+        return "no_damage";
+      } else if (result === "invulnerable") {
+        // Hit an invulnerable part - bullet should still be removed but no damage
+        this.effects.createEnemyExplosion(bulletX, bulletY);
+        this.audio.play(this.audio.sounds.hit); // Different sound for invulnerable hit
+        return "invulnerable";
+      } else if (result === "destroyed") {
+        // Boss is defeated
         this.effects.createEnemyExplosion(bulletX, bulletY);
         this.audio.play(this.audio.sounds.enemyExplosion);
-
-        if (enemy.isDefeated) {
-          this.startBossDeathSequence();
-          return "destroyed";
-        }
+        this.startBossDeathSequence();
+        return "destroyed";
+      } else if (result === "damaged") {
+        // Successfully damaged vulnerable part
+        this.effects.createEnemyExplosion(bulletX, bulletY);
+        this.audio.play(this.audio.sounds.enemyExplosion);
         return "damaged";
       }
+      
       return "no_damage";
     } else if (enemy.takeDamage) {
       const result = enemy.takeDamage(damage);
@@ -353,4 +493,4 @@ class BlitzGame {
 }
 
 // Start the game
-new BlitzGame();
+window.game = new BlitzGame();

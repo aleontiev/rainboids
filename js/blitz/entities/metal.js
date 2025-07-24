@@ -1192,7 +1192,21 @@ export class Metal {
     this.baseMovementEnabled = false;
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rotation);
@@ -1236,6 +1250,70 @@ export class Metal {
     });
     
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    // Create unique mesh name for this metal object
+    const meshName = `metal_${this.id || Math.random().toString(36)}`;
+    let metalGroup = scene.getObjectByName(meshName);
+    
+    if (!metalGroup) {
+      // Create a group to hold all metal segments
+      metalGroup = new THREE.Group();
+      metalGroup.name = meshName;
+      metalGroup.userData = { isDynamic: true, entityType: 'metal' };
+      scene.add(metalGroup);
+    }
+    
+    // Clear previous segments
+    while (metalGroup.children.length > 0) {
+      metalGroup.remove(metalGroup.children[0]);
+    }
+    
+    // Create 3D geometry for each segment
+    this.segments.forEach((segment, index) => {
+      const dx = segment.x2 - segment.x1;
+      const dy = segment.y2 - segment.y1;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      
+      if (length > 0) {
+        // Create box geometry for each metal segment
+        const geometry = new THREE.BoxGeometry(length, this.thickness, this.thickness);
+        
+        // Create metallic material with reflective properties
+        const material = new THREE.MeshBasicMaterial({
+          color: 0x666666,
+          transparent: false,
+          opacity: 1.0
+        });
+        
+        const segmentMesh = new THREE.Mesh(geometry, material);
+        
+        // Position segment at its center
+        const centerX = (segment.x1 + segment.x2) / 2;
+        const centerY = (segment.y1 + segment.y2) / 2;
+        
+        // Calculate rotation angle for the segment
+        const segmentAngle = Math.atan2(dy, dx);
+        
+        segmentMesh.position.set(centerX, -centerY, 0);
+        segmentMesh.rotation.z = -segmentAngle;
+        
+        // Add metallic reflection effect
+        material.emissive.setHex(0x111111);
+        
+        // Add slight animated shine effect
+        const shinePhase = (Date.now() * 0.001 + index * 0.5) % (Math.PI * 2);
+        const shineIntensity = 0.1 + 0.05 * Math.sin(shinePhase);
+        material.emissive.addScalar(shineIntensity);
+        
+        metalGroup.add(segmentMesh);
+      }
+    });
+    
+    // Update position and rotation of the entire group
+    metalGroup.position.set(this.x, -this.y, 0);
+    metalGroup.rotation.z = -this.rotation;
   }
 
   // Helper method: Calculate minimum distance between two line segments

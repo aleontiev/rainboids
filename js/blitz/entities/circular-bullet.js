@@ -45,7 +45,21 @@ export class CircularBullet {
            this.life > 0;
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     // Safety check to prevent negative radius errors
     if (this.size <= 0) return;
 
@@ -58,5 +72,46 @@ export class CircularBullet {
     ctx.fill();
     
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    // Safety check
+    if (this.size <= 0) return;
+    
+    // Create unique mesh name for this circular bullet
+    const meshName = `circular_bullet_${this.id || Math.random().toString(36)}`;
+    let bulletMesh = scene.getObjectByName(meshName);
+    
+    if (!bulletMesh) {
+      // Create perfect sphere geometry for circular bullet
+      const geometry = new THREE.SphereGeometry(this.size, 12, 8);
+      
+      // Create material with bullet color
+      const material = new THREE.MeshBasicMaterial({
+        color: this.color || '#ffffff',
+        transparent: true,
+        opacity: 1.0
+      });
+      
+      bulletMesh = new THREE.Mesh(geometry, material);
+      bulletMesh.name = meshName;
+      bulletMesh.userData = { isDynamic: true, entityType: 'circular_bullet' };
+      scene.add(bulletMesh);
+    }
+    
+    // Update position and rotation
+    bulletMesh.position.set(this.x, -this.y, 0);
+    bulletMesh.rotation.z = -this.angle;
+    
+    // Update material color
+    bulletMesh.material.color.set(this.color || '#ffffff');
+    
+    // Add slight glow effect for circular bullets
+    bulletMesh.material.emissive.set(this.color || '#ffffff');
+    bulletMesh.material.emissive.multiplyScalar(0.2);
+    
+    // Optional: Add slight rotation animation for visual interest
+    bulletMesh.rotation.x += 0.02;
+    bulletMesh.rotation.y += 0.03;
   }
 }

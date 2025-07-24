@@ -104,7 +104,21 @@ export class SpreadingBullet {
     return this.health <= 0; // Return true if destroyed
   }
 
+  // Legacy render method for backward compatibility
   render(ctx) {
+    // If ctx looks like a Canvas 2D context, use Canvas rendering
+    if (ctx && ctx.fillStyle !== undefined) {
+      return this.renderCanvas(ctx);
+    } else if (ctx && ctx.scene !== undefined) {
+      // If ctx has scene (WebGL context object), use WebGL rendering
+      return this.renderWebGL(ctx.scene, ctx.materials);
+    } else {
+      // Fallback to Canvas with basic context
+      return this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
     if (this.exploded) return; // Don't render if exploded
 
     // Safety check to prevent negative radius errors
@@ -160,5 +174,62 @@ export class SpreadingBullet {
     }
 
     ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    if (this.exploded) return; // Don't render if exploded
+    
+    // Safety check
+    if (this.size <= 0) return;
+    
+    // Create unique mesh name for this spreading bullet
+    const meshName = `spreading_bullet_${this.id || Math.random().toString(36)}`;
+    let bulletMesh = scene.getObjectByName(meshName);
+    
+    if (!bulletMesh) {
+      // Create spiky/dangerous looking geometry - dodecahedron with spikes
+      const geometry = new THREE.DodecahedronGeometry(this.size * 0.8, 0);
+      
+      // Create material with bullet color
+      const material = new THREE.MeshLambertMaterial({
+        color: this.color || '#ff4444',
+        transparent: true,
+        opacity: 1.0,
+        emissive: 0x000000
+      });
+      
+      bulletMesh = new THREE.Mesh(geometry, material);
+      bulletMesh.name = meshName;
+      bulletMesh.userData = { isDynamic: true, entityType: 'spreading_bullet' };
+      scene.add(bulletMesh);
+    }
+    
+    // Update position and spinning rotation
+    bulletMesh.position.set(this.x, -this.y, 0);
+    
+    // Apply spinning effect
+    const spinSpeed = 0.1;
+    bulletMesh.rotation.x = this.time * spinSpeed;
+    bulletMesh.rotation.y = this.time * spinSpeed * 0.7;
+    bulletMesh.rotation.z = this.time * spinSpeed * 0.3;
+    
+    // Update material color
+    bulletMesh.material.color.set(this.color || '#ff4444');
+    
+    // Add warning glow effect as it approaches explosion
+    const timeRatio = this.time / this.explosionTime;
+    if (timeRatio > 0.7) {
+      const glowIntensity = (timeRatio - 0.7) / 0.3; // Fade in during last 30%
+      bulletMesh.material.emissive.set(this.color || '#ff4444');
+      bulletMesh.material.emissive.multiplyScalar(glowIntensity * 0.8);
+      
+      // Pulsing effect
+      const pulse = 0.5 + 0.5 * Math.sin(this.time * 0.3);
+      bulletMesh.material.emissive.multiplyScalar(pulse);
+    } else {
+      // Normal slight glow
+      bulletMesh.material.emissive.set(this.color || '#ff4444');
+      bulletMesh.material.emissive.multiplyScalar(0.2);
+    }
   }
 }
