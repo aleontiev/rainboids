@@ -998,17 +998,24 @@ export class WebGLRenderer extends BaseRenderer {
       }
 
       // Update material properties if needed (e.g., opacity for fade-in)
-      if (
-        entity.opacity !== undefined &&
-        mesh.material.opacity !== entity.opacity
-      ) {
-        mesh.material.opacity = entity.opacity;
+      if (entity.opacity !== undefined) {
+        if (mesh.material) { // Check if mesh has a material directly
+          if (mesh.material.opacity !== entity.opacity) {
+            mesh.material.opacity = entity.opacity;
+          }
+        } else if (mesh.isGroup) { // If it's a group, iterate children
+          mesh.children.forEach(child => {
+            if (child.material && child.material.opacity !== entity.opacity) {
+              child.material.opacity = entity.opacity;
+            }
+          });
+        }
       }
     }
   }
 
   createBasic3DRepresentation(entity, entityType) {
-    let geometry, material, enemyConfig, shape;
+    let geometry, material, enemyConfig, shape, mesh;
 
     // Create appropriate geometry based on entity type
     switch (entityType) {
@@ -1025,6 +1032,7 @@ export class WebGLRenderer extends BaseRenderer {
         const shipGeometry = new THREE.ShapeGeometry(shipShape);
         const shipMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
         const shipMesh = new THREE.Mesh(shipGeometry, shipMaterial);
+        shipMesh.rotation.z = Math.PI / 2; // Rotate to face up (towards cursor)
         playerGroup.add(shipMesh);
 
         // Glowing rainbow ball for hitbox
@@ -1052,17 +1060,23 @@ export class WebGLRenderer extends BaseRenderer {
             arrowShape.lineTo(-5, 5);
             arrowShape.closePath();
             geometry = new THREE.ShapeGeometry(arrowShape);
-            break;
+            mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.z = -Math.PI / 2; // Rotate to face right
+            return mesh;
           case "spreading":
             geometry = new THREE.ConeGeometry(
               entity.size || 5,
               (entity.size || 5) * 2,
               4
             );
-            break;
+            mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.z = -Math.PI / 2; // Rotate to face right
+            return mesh;
           case "circular":
             geometry = new THREE.SphereGeometry(entity.size || 3, 8, 6);
-            break;
+            mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.z = -Math.PI / 2; // Rotate to face right
+            return mesh;
           case "normal":
           default:
             const rectShape = new THREE.Shape();
@@ -1075,10 +1089,94 @@ export class WebGLRenderer extends BaseRenderer {
             rectShape.quadraticCurveTo(-w, h / 2, -w, h / 2 - w);
             rectShape.closePath();
             geometry = new THREE.ShapeGeometry(rectShape);
+            mesh = new THREE.Mesh(geometry, material);
+            mesh.rotation.z = -Math.PI / 2; // Rotate to face right
+            return mesh;
+        }
+      case "enemies":
+      case "miniboss":
+      case "boss":
+        const enemyConfig = entity.config || {};
+        const shape = enemyConfig.shape || "triangle";
+        switch (shape) {
+          case "two-circles":
+            const twoCirclesGroup = new THREE.Group();
+            const circleGeom = new THREE.CircleGeometry(entity.size * 0.6, 20);
+            const circleMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color(enemyConfig.color || 0xff4444),
+            });
+            const topCircle = new THREE.Mesh(circleGeom, circleMat);
+            topCircle.position.y = entity.size * 0.5;
+            const bottomCircle = new THREE.Mesh(circleGeom, circleMat);
+            bottomCircle.position.y = -entity.size * 0.5;
+            twoCirclesGroup.add(topCircle, bottomCircle);
+            return twoCirclesGroup;
+          case "ring":
+            geometry = new THREE.RingGeometry(
+              entity.size * 0.7,
+              entity.size,
+              32
+            );
+            break;
+          case "sharp-triangle":
+            const sharpTriangleShape = new THREE.Shape();
+            sharpTriangleShape.moveTo(0, -entity.size);
+            sharpTriangleShape.lineTo(entity.size * 0.5, entity.size);
+            sharpTriangleShape.lineTo(-entity.size * 0.5, entity.size);
+            sharpTriangleShape.closePath();
+            geometry = new THREE.ShapeGeometry(sharpTriangleShape);
+            break;
+          case "rounded-square":
+            const roundedRectShape = new THREE.Shape();
+            const x = -entity.size / 2,
+              y = -entity.size / 2,
+              width = entity.size,
+              height = entity.size,
+              radius = entity.size * 0.2;
+            roundedRectShape.moveTo(x, y + radius);
+            roundedRectShape.lineTo(x, y + height - radius);
+            roundedRectShape.quadraticCurveTo(
+              x,
+              y + height,
+              x + radius,
+              y + height
+            );
+            roundedRectShape.lineTo(x + width - radius, y + height);
+            roundedRectShape.quadraticCurveTo(
+              x + width,
+              y + height,
+              x + width - radius,
+              y + height
+            );
+            roundedRectShape.lineTo(x + width, y + radius);
+            roundedRectShape.quadraticCurveTo(
+              x + width,
+              y,
+              x + width - radius,
+              y
+            );
+            roundedRectShape.lineTo(x + radius, y);
+            roundedRectShape.quadraticCurveTo(x, y, x, y + radius);
+            geometry = new THREE.ShapeGeometry(roundedRectShape);
+            break;
+          case "square":
+            geometry = new THREE.BoxGeometry(
+              entity.size,
+              entity.size,
+              entity.size * 0.5
+            );
+            break;
+          case "triangle":
+          default:
+            geometry = new THREE.ConeGeometry(
+              entity.size || 10,
+              entity.size * 1.5 || 15,
+              3
+            );
             break;
         }
         material = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(entity.color || 0xffffff),
+          color: new THREE.Color(enemyConfig.color || 0xff4444),
         });
         break;
       case "asteroid":
@@ -1267,7 +1365,7 @@ export class WebGLRenderer extends BaseRenderer {
     }
 
     // Create mesh and return it (don't add to scene here)
-    const mesh = new THREE.Mesh(geometry, material);
+    mesh = new THREE.Mesh(geometry, material);
     return mesh;
   }
 
