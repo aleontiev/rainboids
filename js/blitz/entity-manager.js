@@ -10,25 +10,29 @@ import { Bullet } from "./entities/bullet.js";
 import { Laser } from "./entities/laser.js";
 import { SpreadingBullet } from "./entities/spreading-bullet.js";
 import { HomingMissile } from "./entities/homing-missile.js";
+import { SVGAssetManager } from "./svg-asset-manager.js";
 
 export class EntityManager {
   constructor(game) {
     this.game = game;
 
-    // Entity arrays
-    this.enemies = [];
-    this.miniBosses = [];
+    // Global entity ID counter for unique entity identification
+    this.nextEntityId = 1;
+
+    // Entity arrays with auto-ID assignment
+    this.enemies = this.createEntityArray();
+    this.miniBosses = this.createEntityArray();
     this.boss = null;
-    this.asteroids = [];
-    this.metals = [];
-    this.powerups = [];
-    this.bullets = [];
-    this.enemyBullets = [];
-    this.enemyLasers = [];
-    this.missiles = [];
-    this.spreadingBullets = [];
-    this.particles = [];
-    this.debris = [];
+    this.asteroids = this.createEntityArray();
+    this.metals = this.createEntityArray();
+    this.powerups = this.createEntityArray();
+    this.bullets = this.createEntityArray();
+    this.enemyBullets = this.createEntityArray();
+    this.enemyLasers = this.createEntityArray();
+    this.missiles = this.createEntityArray();
+    this.spreadingBullets = this.createEntityArray();
+    this.particles = this.createEntityArray();
+    this.debris = this.createEntityArray();
 
     // Spawn timers
     this.asteroidTimer = 0;
@@ -40,6 +44,7 @@ export class EntityManager {
 
     // SVG asset loader
     this.svgAssets = {};
+    this.svgAssetManager = new SVGAssetManager();
     this.loadSVGAssets();
   }
 
@@ -63,8 +68,45 @@ export class EntityManager {
     }
   }
 
-  getSVGAsset(name) {
-    return this.svgAssets[name] || null;
+  async getSVGAsset(identifier) {
+    // Check if it's a URL
+    if (this.svgAssetManager.isURL(identifier)) {
+      // Load from URL using the asset manager
+      try {
+        return await this.svgAssetManager.loadSVG(identifier);
+      } catch (error) {
+        console.warn(`Failed to load SVG from URL: ${identifier}`, error);
+        return null;
+      }
+    }
+    
+    // Check local assets first
+    return this.svgAssets[identifier] || null;
+  }
+
+  // Preload SVG assets for a level configuration
+  async preloadLevelSVGs(levelConfig) {
+    const svgUrls = this.extractSVGUrls(levelConfig);
+    if (svgUrls.length > 0) {
+      console.log(`Preloading ${svgUrls.length} SVG assets for level...`);
+      await this.svgAssetManager.preloadSVGs(svgUrls);
+      console.log('Level SVG preloading complete');
+    }
+  }
+
+  // Extract all SVG URLs from level configuration
+  extractSVGUrls(levelConfig) {
+    const urls = [];
+    
+    if (levelConfig && levelConfig.enemies) {
+      for (const [enemyId, enemyDef] of Object.entries(levelConfig.enemies)) {
+        if (enemyDef.sprite && this.svgAssetManager.isURL(enemyDef.sprite)) {
+          urls.push(enemyDef.sprite);
+        }
+      }
+    }
+    
+    return [...new Set(urls)]; // Remove duplicates
   }
 
   // Convert SVG to Path2D for rendering
@@ -74,10 +116,29 @@ export class EntityManager {
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(svgText, "image/svg+xml");
-      const pathElement = doc.querySelector("path");
-
-      if (pathElement) {
-        const pathData = pathElement.getAttribute("d");
+      
+      // Look for all path elements, including those inside groups
+      const pathElements = doc.querySelectorAll("path");
+      
+      if (pathElements.length > 0) {
+        const combinedPath = new Path2D();
+        
+        // Add all paths to create a union when filled
+        pathElements.forEach(pathElement => {
+          const pathData = pathElement.getAttribute("d");
+          if (pathData) {
+            const singlePath = new Path2D(pathData);
+            combinedPath.addPath(singlePath);
+          }
+        });
+        
+        return combinedPath;
+      }
+      
+      // Fallback: try to find the first individual path
+      const singlePath = doc.querySelector("path");
+      if (singlePath) {
+        const pathData = singlePath.getAttribute("d");
         return new Path2D(pathData);
       }
     } catch (error) {
@@ -88,20 +149,20 @@ export class EntityManager {
   }
 
   reset() {
-    // Clear all entity arrays
-    this.enemies = [];
-    this.miniBosses = [];
+    // Clear all entity arrays and recreate with auto-ID assignment
+    this.enemies = this.createEntityArray();
+    this.miniBosses = this.createEntityArray();
     this.boss = null;
-    this.asteroids = [];
-    this.metals = [];
-    this.powerups = [];
-    this.bullets = [];
-    this.enemyBullets = [];
-    this.enemyLasers = [];
-    this.missiles = [];
-    this.spreadingBullets = [];
-    this.particles = [];
-    this.debris = [];
+    this.asteroids = this.createEntityArray();
+    this.metals = this.createEntityArray();
+    this.powerups = this.createEntityArray();
+    this.bullets = this.createEntityArray();
+    this.enemyBullets = this.createEntityArray();
+    this.enemyLasers = this.createEntityArray();
+    this.missiles = this.createEntityArray();
+    this.spreadingBullets = this.createEntityArray();
+    this.particles = this.createEntityArray();
+    this.debris = this.createEntityArray();
 
     // Reset timers
     this.asteroidTimer = 0;
@@ -112,6 +173,32 @@ export class EntityManager {
     // Reset state (removed miniBossesDefeated - now determined dynamically)
 
     // SVG assets are preserved across resets
+    // Reset entity ID counter
+    this.nextEntityId = 1;
+  }
+
+  // ENTITY ID MANAGEMENT
+  
+  assignEntityId(entity) {
+    if (!entity.id) {
+      entity.id = this.nextEntityId++;
+    }
+    return entity;
+  }
+
+  // Create wrapper arrays that auto-assign IDs when entities are added
+  createEntityArray() {
+    const entityManager = this;
+    const array = [];
+    
+    // Override push method to auto-assign IDs
+    const originalPush = array.push;
+    array.push = function(...entities) {
+      entities.forEach(entity => entityManager.assignEntityId(entity));
+      return originalPush.apply(this, entities);
+    };
+    
+    return array;
   }
 
   // SPAWNING METHODS
@@ -172,6 +259,7 @@ export class EntityManager {
       spawnVx,
       spawnVy
     );
+    this.assignEntityId(asteroid);
     this.asteroids.push(asteroid);
     return asteroid;
   }
@@ -227,6 +315,7 @@ export class EntityManager {
     const enemy = this.createEnemyFromConfig(randomConfigName, spawnX, spawnY);
 
     if (enemy) {
+      this.assignEntityId(enemy);
       this.enemies.push(enemy);
     } else {
       console.warn(`Failed to create enemy from config: ${randomConfigName}`);
@@ -294,6 +383,7 @@ export class EntityManager {
       this.game.isPortrait,
       this.game
     );
+    this.assignEntityId(powerup);
     this.powerups.push(powerup);
     return powerup;
   }
@@ -311,13 +401,13 @@ export class EntityManager {
     }
 
     // Randomly select metal type with weighted distribution
-    const metalTypes = ["l", "L", "T"];
-    const metalWeights = [50, 30, 20]; // l is most common, T is rarest
+    const metalTypes = ["L", "T"];
+    const metalWeights = [70, 30]; // L is more common, T is less common
 
     const totalWeight = metalWeights.reduce((sum, weight) => sum + weight, 0);
     const random = Math.random() * totalWeight;
     let currentWeight = 0;
-    let selectedType = "l"; // Default fallback
+    let selectedType = "L"; // Default fallback
 
     for (let i = 0; i < metalTypes.length; i++) {
       currentWeight += metalWeights[i];
@@ -334,6 +424,7 @@ export class EntityManager {
       this.game.isPortrait,
       this.game
     );
+    this.assignEntityId(metal);
     this.metals.push(metal);
     return metal;
   }
@@ -350,14 +441,63 @@ export class EntityManager {
     let x, y;
 
     if (enemyDef.type === "miniboss") {
-      // For minibosses, offset based on current miniboss count
+      // For minibosses, calculate spawn positions to avoid overlapping
       const minibossCount = this.getMiniBossCount();
+      
       if (this.game.isPortrait) {
-        x = canvas.width / 2 + (minibossCount % 2 === 0 ? -100 : 100);
-        y = 150 + Math.floor(minibossCount / 2) * 100;
+        // Portrait mode: spawn on opposite side (top), distribute left/right
+        const centerX = canvas.width / 2;
+        const centerY = 150;
+        
+        if (minibossCount === 0) {
+          // First miniboss: center position
+          x = centerX;
+          y = centerY;
+        } else if (minibossCount === 1) {
+          // Second miniboss: left of center
+          x = centerX - 150;
+          y = centerY;
+        } else if (minibossCount === 2) {
+          // Third miniboss: right of center
+          x = centerX + 150;
+          y = centerY;
+        } else {
+          // Additional minibosses: spread further apart
+          const angle = (minibossCount * (Math.PI * 2 / 5)) + Math.PI; // Start from top and spread
+          const radius = 200 + (minibossCount - 3) * 50;
+          x = centerX + Math.cos(angle) * radius;
+          y = centerY + Math.sin(angle) * radius;
+          // Keep within screen bounds
+          x = Math.max(100, Math.min(canvas.width - 100, x));
+          y = Math.max(100, Math.min(canvas.height - 200, y));
+        }
       } else {
-        x = canvas.width - 150;
-        y = canvas.height / 2 + (minibossCount % 2 === 0 ? -100 : 100);
+        // Landscape mode: spawn on opposite side (right), distribute top/bottom
+        const centerX = canvas.width - 150;
+        const centerY = canvas.height / 2;
+        
+        if (minibossCount === 0) {
+          // First miniboss: center position
+          x = centerX;
+          y = centerY;
+        } else if (minibossCount === 1) {
+          // Second miniboss: above center
+          x = centerX;
+          y = centerY - 120;
+        } else if (minibossCount === 2) {
+          // Third miniboss: below center
+          x = centerX;
+          y = centerY + 120;
+        } else {
+          // Additional minibosses: spread further apart
+          const angle = (minibossCount * (Math.PI * 2 / 5));
+          const radius = 180 + (minibossCount - 3) * 40;
+          x = centerX + Math.cos(angle) * radius;
+          y = centerY + Math.sin(angle) * radius;
+          // Keep within screen bounds
+          x = Math.max(100, Math.min(canvas.width - 100, x));
+          y = Math.max(100, Math.min(canvas.height - 100, y));
+        }
       }
 
       // Create miniboss with configuration
@@ -370,35 +510,55 @@ export class EntityManager {
       );
 
       // Apply enemy definition properties
-      if (enemyDef.health) miniBoss.health = enemyDef.health;
+      if (enemyDef.health) {
+        miniBoss.health = enemyDef.health;
+        // If maxHealth isn't explicitly set, use health as maxHealth
+        if (!enemyDef.maxHealth) {
+          miniBoss.maxHealth = enemyDef.health;
+        }
+      }
       if (enemyDef.maxHealth) miniBoss.maxHealth = enemyDef.maxHealth;
-      if (enemyDef.shield) miniBoss.shield = enemyDef.shield;
+      if (enemyDef.shield) {
+        miniBoss.shield = enemyDef.shield;
+        // If maxShield isn't explicitly set, use shield as maxShield
+        if (!enemyDef.maxShield) {
+          miniBoss.maxShield = enemyDef.shield;
+        }
+      }
       if (enemyDef.maxShield) miniBoss.maxShield = enemyDef.maxShield;
       if (enemyDef.speed) miniBoss.speed = enemyDef.speed;
       if (enemyDef.size) miniBoss.size = enemyDef.size;
 
-      // Set sprite if defined
+      // Set sprite if defined (async operation)
       if (enemyDef.sprite) {
         miniBoss.setCustomSVGSprite(
           enemyDef.sprite,
           enemyDef.spriteScale || 1,
           enemyDef.spriteColor || "#ff4444"
-        );
+        ).catch(error => {
+          console.warn(`Failed to set sprite for miniboss: ${enemyDef.sprite}`, error);
+        });
         if (enemyDef.spriteRotation) {
           miniBoss.spriteRotation = enemyDef.spriteRotation;
         }
       }
 
-      // Configure weapons
+      // Configure weapons (legacy)
       if (enemyDef.weapons) {
         this.configureMiniBossWeapons(miniBoss, enemyDef.weapons);
       }
+      
+      // Configure new attack patterns
+      if (enemyDef.attacks) {
+        miniBoss.configureAttacks(enemyDef.attacks);
+      }
 
+      this.assignEntityId(miniBoss);
       this.miniBosses.push(miniBoss);
     } else if (enemyDef.type === "boss") {
       // Spawn boss (reuse existing logic)
-      if (this.boss) {
-        console.warn("Boss already exists");
+      if (this.boss && !this.boss.isDefeated) {
+        console.warn("Boss already exists and is not defeated");
         return;
       }
       this.spawnBoss();
@@ -435,6 +595,7 @@ export class EntityManager {
     );
 
     if (enemy) {
+      this.assignEntityId(enemy);
       this.enemies.push(enemy);
     }
   }
@@ -456,18 +617,22 @@ export class EntityManager {
   }
 
   spawnBoss() {
+    // Get boss configuration from level config
+    const bossConfig = this.game.level?.config?.enemies?.mainBoss;
+    if (!bossConfig) {
+      console.error("No boss configuration found in level config - cannot spawn boss");
+      return null;
+    }
+
     const canvas = this.game.canvas;
     const bossX = this.game.isPortrait ? canvas.width / 2 : canvas.width - 200;
     const bossY = this.game.isPortrait ? 200 : canvas.height / 2;
 
-    this.boss = new Boss(
-      bossX,
-      bossY,
-      this.game.isPortrait,
-      canvas.width,
-      canvas.height,
-      this.game
-    );
+    // Create new skeleton/anchored boss
+    this.boss = new Boss(bossX, bossY, bossConfig, this.game);
+    this.assignEntityId(this.boss);
+
+    console.log("Boss spawned with skeleton/anchoring system");
     return this.boss;
   }
 
@@ -495,6 +660,7 @@ export class EntityManager {
           size: bulletData.spreadBulletSize || bulletData.size * 0.3,
         }
       );
+      this.assignEntityId(bullet);
       this.spreadingBullets.push(bullet);
     } else if (bulletData.type === "homingMissile") {
       const missile = new HomingMissile(
@@ -505,6 +671,7 @@ export class EntityManager {
         bulletData.color,
         this.game.player
       );
+      this.assignEntityId(missile);
       this.missiles.push(missile);
     } else {
       // Regular enemy bullet
@@ -526,6 +693,7 @@ export class EntityManager {
         this.game,
         bulletData.damage || 1 // Pass damage or default to 1
       );
+      this.assignEntityId(bullet);
       this.enemyBullets.push(bullet);
     }
   }
@@ -600,6 +768,7 @@ export class EntityManager {
       // Handle SpreadingBullet which needs a callback
       if (bullet.constructor.name === "SpreadingBullet") {
         const addEnemyBulletCallback = (enemyBullet) => {
+          this.assignEntityId(enemyBullet);
           this.enemyBullets.push(enemyBullet);
         };
         if (!bullet.update(slowdownFactor, addEnemyBulletCallback)) {
@@ -658,6 +827,7 @@ export class EntityManager {
       const bullet = this.spreadingBullets[i];
       // Provide callback to add enemy bullets when spreading bullet explodes
       const addEnemyBulletCallback = (enemyBullet) => {
+        this.assignEntityId(enemyBullet);
         this.enemyBullets.push(enemyBullet);
       };
       if (!bullet.update(slowdownFactor, addEnemyBulletCallback)) {
@@ -672,6 +842,7 @@ export class EntityManager {
 
       // Create callback for clone enemies to add new clones
       const addEnemyCallback = (newEnemy) => {
+        this.assignEntityId(newEnemy);
         this.enemies.push(newEnemy);
       };
 
@@ -842,8 +1013,10 @@ export class EntityManager {
   // ENEMY WEAPON HANDLING
 
   handleEnemyWeapons(enemy) {
-    if (enemy instanceof Boss) {
-      this.handleBossWeapons(enemy);
+    if (enemy.type === "boss") {
+      // Boss weapon handling will be rebuilt
+      {
+      }
     } else if (enemy instanceof MiniBoss) {
       this.handleMiniBossWeapons(enemy);
     } else if (enemy instanceof Enemy) {
@@ -852,6 +1025,12 @@ export class EntityManager {
   }
 
   handleBossWeapons(boss) {
+    // Don't attack during dialog phases
+    const currentPhase = boss.getCurrentPhase();
+    if (currentPhase && currentPhase.type === "dialog") {
+      return;
+    }
+    
     // Fire weapons for all enabled parts
     for (const part of boss.parts.values()) {
       if (
@@ -878,33 +1057,33 @@ export class EntityManager {
       // Handle lasers
       if (weaponData.lasers) {
         weaponData.lasers.forEach((data) => {
-          this.enemyLasers.push(
-            new Laser(
-              data.x,
-              data.y,
-              data.angle,
-              data.speed,
-              data.color,
-              this.game
-            )
+          const laser = new Laser(
+            data.x,
+            data.y,
+            data.angle,
+            data.speed,
+            data.color,
+            this.game
           );
+          this.assignEntityId(laser);
+          this.enemyLasers.push(laser);
         });
       }
 
       // Handle enemy spawns
       if (weaponData.enemies) {
         weaponData.enemies.forEach((enemyData) => {
-          this.enemies.push(
-            new Enemy(
-              enemyData.x,
-              enemyData.y,
-              enemyData.type,
-              this.game.isPortrait,
-              null,
-              false,
-              this.game
-            )
+          const newEnemy = new Enemy(
+            enemyData.x,
+            enemyData.y,
+            enemyData.type,
+            this.game.isPortrait,
+            null,
+            false,
+            this.game
           );
+          this.assignEntityId(newEnemy);
+          this.enemies.push(newEnemy);
         });
 
         if (weaponData.enemies.length > 0) {
@@ -935,62 +1114,83 @@ export class EntityManager {
   }
 
   handleMiniBossWeapons(miniBoss) {
-    // Primary weapon
-    if (miniBoss.canFirePrimary()) {
-      const bulletData = miniBoss.firePrimary(
+    // Use new configurable attack system if patterns are configured
+    if (miniBoss.attackPatterns && miniBoss.attackPatterns.length > 0) {
+      const readyAttacks = miniBoss.getReadyAttacks(
         this.game.player.x,
         this.game.player.y
       );
-      if (bulletData) {
-        this.createEnemyBullet(bulletData);
+      
+      for (const attack of readyAttacks) {
+        if (Array.isArray(attack)) {
+          // Multiple bullets
+          attack.forEach((bulletData) => {
+            this.createEnemyBullet(bulletData);
+          });
+        } else if (attack) {
+          // Single bullet
+          this.createEnemyBullet(attack);
+        }
       }
-    }
+    } else {
+      // Fall back to legacy weapon system
+      // Primary weapon
+      if (miniBoss.canFirePrimary()) {
+        const bulletData = miniBoss.firePrimary(
+          this.game.player.x,
+          this.game.player.y
+        );
+        if (bulletData) {
+          this.createEnemyBullet(bulletData);
+        }
+      }
 
-    // Secondary weapon
-    if (miniBoss.canFireSecondary()) {
-      const bullets = miniBoss.fireSecondary(
-        this.game.player.x,
-        this.game.player.y
-      );
-      bullets.forEach((bulletData) => {
-        this.createEnemyBullet(bulletData);
-      });
-    }
+      // Secondary weapon
+      if (miniBoss.canFireSecondary()) {
+        const bullets = miniBoss.fireSecondary(
+          this.game.player.x,
+          this.game.player.y
+        );
+        bullets.forEach((bulletData) => {
+          this.createEnemyBullet(bulletData);
+        });
+      }
 
-    // Circular weapon
-    if (miniBoss.canFireCircular()) {
-      const bullets = miniBoss.fireCircular();
-      bullets.forEach((bulletData) => {
-        this.createEnemyBullet(bulletData);
-      });
-    }
+      // Circular weapon
+      if (miniBoss.canFireCircular()) {
+        const bullets = miniBoss.fireCircular();
+        bullets.forEach((bulletData) => {
+          this.createEnemyBullet(bulletData);
+        });
+      }
 
-    // Burst weapon
-    if (miniBoss.canFireBurst()) {
-      const bullets = miniBoss.fireBurst(
-        this.game.player.x,
-        this.game.player.y
-      );
-      bullets.forEach((bulletData) => {
-        this.createEnemyBullet(bulletData);
-      });
+      // Burst weapon
+      if (miniBoss.canFireBurst()) {
+        const bullets = miniBoss.fireBurst(
+          this.game.player.x,
+          this.game.player.y
+        );
+        bullets.forEach((bulletData) => {
+          this.createEnemyBullet(bulletData);
+        });
+      }
     }
 
     // Enemy spawning
     if (miniBoss.canSpawnEnemy()) {
       const enemy = miniBoss.spawnEnemy(this.game.player.x, this.game.player.y);
       if (enemy) {
-        this.enemies.push(
-          new Enemy(
-            enemy.x,
-            enemy.y,
-            enemy.type,
-            this.game.isPortrait,
-            null,
-            false,
-            this.game
-          )
+        const newEnemy = new Enemy(
+          enemy.x,
+          enemy.y,
+          enemy.type,
+          this.game.isPortrait,
+          null,
+          false,
+          this.game
         );
+        this.assignEntityId(newEnemy);
+        this.enemies.push(newEnemy);
       }
     }
   }
@@ -998,11 +1198,7 @@ export class EntityManager {
   handleNormalEnemyWeapons(enemy) {
     // Normal enemies use the shoot method
     if (enemy && typeof enemy.shoot === "function") {
-      const bulletCountBefore = this.enemyBullets.length;
-      const laserCountBefore = this.enemyLasers.length;
       enemy.shoot(this.enemyBullets, this.enemyLasers, this.game.player);
-      const bulletCountAfter = this.enemyBullets.length;
-      const laserCountAfter = this.enemyLasers.length;
     }
   }
 
@@ -1043,6 +1239,39 @@ export class EntityManager {
       if (this.game.level) {
         this.game.level.trackEnemyKilled(enemyType);
       }
+      
+      // Award score with popup at enemy position
+      let points = 0;
+      let isBoss = false;
+      
+      switch (enemyType) {
+        case "regular":
+          points = 100;
+          break;
+        case "miniboss":
+          points = 500;
+          break;
+        case "boss":
+          points = 1000;
+          isBoss = true;
+          break;
+      }
+      
+      if (points > 0) {
+        // Determine enemy color for floating text
+        let enemyColor = "#00ff00"; // Default green for custom sprites  
+        
+        // Check if enemy has a color property (regular enemies)
+        if (enemy.color && typeof enemy.color === 'string') {
+          enemyColor = enemy.color;
+        }
+        // Check for miniboss/boss type - these should keep rainbow effect
+        else if (enemyType === 'miniboss' || enemyType === 'boss') {
+          enemyColor = null; // null indicates rainbow effect should be used
+        }
+        
+        this.game.state.addScore(points, enemy.x, enemy.y, isBoss, enemyColor);
+      }
     }
 
     return removed;
@@ -1060,6 +1289,24 @@ export class EntityManager {
 
   hasBoss() {
     return this.boss !== null;
+  }
+
+  // Spawn enemy with specific type at specific position (used by boss attacks)
+  spawnEnemyWithType(enemyType, x, y) {
+    const enemy = new Enemy(
+      x,
+      y,
+      this.game.isPortrait,
+      null, // No specific config
+      false, // Not player controlled
+      0, // No metalPower
+      this.game,
+      enemyType
+    );
+    
+    this.assignEntityId(enemy);
+    this.enemies.push(enemy);
+    return enemy;
   }
 
   getAllProjectiles() {

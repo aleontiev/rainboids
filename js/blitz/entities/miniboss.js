@@ -1,4 +1,4 @@
-// MiniBoss entity for Rainboids: Blitz
+// MiniBoss entity for BlitzRain
 import { Enemy } from "./enemy.js";
 
 export class MiniBoss extends Enemy {
@@ -23,9 +23,9 @@ export class MiniBoss extends Enemy {
     this.spriteColor = "#ff4444"; // Default color
     this.svgAssetName = null; // Name of SVG asset to load
     
-    // Attack system - can have multiple concurrent attacks
-    this.attacks = new Map(); // Map of attack types to attack objects
-    this.attackCooldowns = new Map(); // Map of attack types to cooldowns
+    // New configurable attack system
+    this.attackPatterns = []; // Array of attack patterns from config
+    this.attackStates = new Map(); // Map of pattern index to state
 
     // Movement pattern - use level manager constants
     this.movePattern = "entering"; // Start with entering phase
@@ -36,7 +36,7 @@ export class MiniBoss extends Enemy {
     this.targetY = isPortrait ? (config?.miniBossTargetYPortrait || 150) : y;
     this.targetX = isPortrait ? x : canvasWidth - (config?.miniBossTargetXLandscape || 150);
 
-    // Weapons
+    // Legacy weapon support (will be removed)
     this.primaryWeaponTimer = 0;
     this.secondaryWeaponTimer = 0;
     this.circularWeaponTimer = 0;
@@ -58,6 +58,7 @@ export class MiniBoss extends Enemy {
 
     // Visual effects
     this.hitFlash = 0;
+    this.damageGlow = 0; // Red glow effect when taking damage
     this.chargingSecondary = 0;
     this.playerRef = null; // To store player reference for aiming
     this.enemySpawnTimer = 0;
@@ -94,29 +95,75 @@ export class MiniBoss extends Enemy {
   }
   
   // Set custom SVG sprite from asset loader
-  setCustomSVGSprite(assetName, scale = 1, color = "#ff4444") {
+  async setCustomSVGSprite(assetName, scale = 1, color = "#ff4444") {
     this.svgAssetName = assetName;
     this.spriteScale = scale;
     this.spriteColor = color;
     
     // Get the SVG from entity manager if available
     if (this.game && this.game.entities) {
-      const svgAsset = this.game.entities.getSVGAsset(assetName);
-      if (svgAsset) {
-        this.customSprite = this.game.entities.svgToPath2D(svgAsset);
+      try {
+        const svgAsset = await this.game.entities.getSVGAsset(assetName);
+        if (svgAsset) {
+          this.customSprite = this.game.entities.svgToPath2D(svgAsset);
+        }
+      } catch (error) {
+        console.warn(`Failed to load SVG sprite: ${assetName}`, error);
       }
     }
   }
 
-  // Add attack to the attack system
+  // Configure attack patterns from level config
+  configureAttacks(attacksConfig) {
+    // Handle both single attack and array of attacks
+    if (Array.isArray(attacksConfig)) {
+      this.attackPatterns = attacksConfig;
+    } else if (attacksConfig) {
+      this.attackPatterns = [attacksConfig];
+    } else {
+      this.attackPatterns = [];
+    }
+    
+    // Initialize attack states for each pattern
+    this.attackStates.clear();
+    for (let i = 0; i < this.attackPatterns.length; i++) {
+      const pattern = this.attackPatterns[i];
+      this.attackStates.set(i, {
+        timer: 0,
+        cooldownPhase: 'firing', // 'firing' or 'paused'
+        cooldownTimer: 0
+      });
+    }
+  }
+  
+  // Legacy method for backwards compatibility
   addAttack(attackType, attackConfig) {
-    this.attacks.set(attackType, attackConfig);
-    this.attackCooldowns.set(attackType, 0);
+    // Convert legacy attack to new format if needed
+    console.warn('addAttack is deprecated, use configureAttacks instead');
   }
 
   // Check if this miniboss is vulnerable
   isVulnerable() {
     return !this.invulnerable && !this.dying;
+  }
+
+  // Get the effective collision size, accounting for SVG image scaling
+  getCollisionSize() {
+    // For all minibosses (including SVG sprites), use a consistent collision radius
+    // that's smaller than the visual size to be more forgiving to the player
+    return this.size * 0.6; // 60% of visual size for more forgiving collision
+  }
+
+  // Get precise collision boundary for shape-based collision detection
+  getCollisionBoundary() {
+    // For SVG sprites, use circle collision to avoid complex Path2D collision issues
+    // The Path2D collision detection is unreliable and causes collision mismatches
+    return {
+      type: 'circle',
+      x: this.x,
+      y: this.y,
+      radius: this.getCollisionSize()
+    };
   }
 
   update(playerX, playerY, slowdownFactor = 1.0) {
@@ -263,7 +310,10 @@ export class MiniBoss extends Enemy {
     this.dx = (this.x - prevX) * 60;
     this.dy = (this.y - prevY) * 60;
 
-    // Weapon timers
+    // Update new attack system timers
+    this.updateAttackTimers(slowdownFactor);
+    
+    // Legacy weapon timers (for backwards compatibility)
     this.primaryWeaponTimer += slowdownFactor;
     this.secondaryWeaponTimer += slowdownFactor;
     this.circularWeaponTimer += slowdownFactor;
@@ -273,6 +323,11 @@ export class MiniBoss extends Enemy {
     // Reduce hit flash
     if (this.hitFlash > 0) {
       this.hitFlash -= slowdownFactor;
+    }
+    
+    // Reduce damage glow
+    if (this.damageGlow > 0) {
+      this.damageGlow -= slowdownFactor;
     }
 
     // Secondary weapon charging effect
@@ -290,7 +345,7 @@ export class MiniBoss extends Enemy {
     }
   }
 
-  takeDamage(damage = 1) {
+  takeDamage(damage = 1, collisionX = null, collisionY = null) {
 
     // Validate damage parameter
     if (typeof damage !== 'number' || isNaN(damage)) {
@@ -308,6 +363,15 @@ export class MiniBoss extends Enemy {
       return "dying";
     }
 
+    // Create damage effects when taking damage
+    const damageX = collisionX !== null ? collisionX : this.x;
+    const damageY = collisionY !== null ? collisionY : this.y;
+    
+    // Create particle explosion at damage point
+    if (this.game && this.game.effects) {
+      this.game.effects.createImpactParticles(damageX, damageY, damage);
+    }
+
     // Shield absorbs damage first
     if (this.shield > 0) {
       this.shield -= damage;
@@ -316,7 +380,8 @@ export class MiniBoss extends Enemy {
         console.warn(`MiniBoss ${this.type} shield became NaN, setting to 0`);
         this.shield = 0;
       }
-      this.hitFlash = 10;
+      this.hitFlash = 20; // Increased for more visible effect
+      this.damageGlow = 30; // Add red glow effect
       if (this.shield <= 0) {
         this.shield = 0;
         return "shield_destroyed";
@@ -331,7 +396,8 @@ export class MiniBoss extends Enemy {
       console.warn(`MiniBoss ${this.type} health became NaN, setting to 0`);
       this.health = 0;
     }
-    this.hitFlash = 10;
+    this.hitFlash = 20; // Increased for more visible effect
+    this.damageGlow = 30; // Add red glow effect
     if (this.health <= 0 || isNaN(this.health)) {
       this.dying = true;
       this.deathTimer = 0;
@@ -531,27 +597,28 @@ export class MiniBoss extends Enemy {
     if (this.dying && !this.isDefeated) {
       // Apply opacity for fade out
       ctx.globalAlpha = this.opacity;
-      
-      // Death glow effect (red glow when dying)
-      const glowIntensity = 0.7 + Math.sin(this.frameCount * 0.3) * 0.3; // Pulsing glow
-      ctx.fillStyle = "#ff0000";
-      const prevAlpha = ctx.globalAlpha;
-      ctx.globalAlpha = prevAlpha * glowIntensity * 0.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.size + 20, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = prevAlpha;
     }
 
-    // Apply red flash overlay if dying and flashing (only if not yet defeated)
-    if (this.dying && this.showRedFlash && !this.isDefeated) {
+
+    // Apply damage ring effect when taking damage
+    if (this.damageGlow > 0) {
       ctx.save();
-      ctx.globalCompositeOperation = 'overlay';
-      ctx.fillStyle = "#ff4444";
-      ctx.globalAlpha = 0.8;
+      
+      // Calculate ring size based on miniboss size
+      const ringRadius = this.size * 1.8; // Ring extends beyond miniboss
+      const ringWidth = 10; // Thick ring for damage
+      
+      // Set damage ring properties
+      ctx.strokeStyle = "#ff0000"; // Red ring for damage
+      ctx.lineWidth = ringWidth;
+      ctx.globalAlpha = Math.min(0.9, this.damageGlow / 20); // Intense red glow
+      ctx.lineCap = 'round';
+      
+      // Draw the damage ring
       ctx.beginPath();
-      ctx.arc(0, 0, this.size + 10, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      
       ctx.restore();
     }
 
@@ -559,50 +626,43 @@ export class MiniBoss extends Enemy {
     if (this.customSprite) {
       this.drawCustomSprite(ctx);
     } else {
+      // If we have an SVG asset name but no custom sprite, try to load it again
+      if (this.svgAssetName && !this.svgLoadingAttempted) {
+        this.svgLoadingAttempted = true;
+        this.setCustomSVGSprite(this.svgAssetName, this.spriteScale, this.spriteColor)
+          .catch(error => console.warn('Retry SVG load failed:', error));
+      }
       this.drawDefaultSprite(ctx);
+    }
+
+    // Invulnerable effect - gold ring around the miniboss
+    if (this.invulnerable) {
+      ctx.save();
+      
+      // Calculate ring size and pulsing effect
+      const baseRadius = this.size * 2.0; // Larger ring for invulnerability
+      const pulseIntensity = 0.2 * Math.sin(this.frameCount * 0.3);
+      const ringRadius = baseRadius * (1 + pulseIntensity);
+      const ringWidth = 12; // Thick gold ring
+      
+      // Set invulnerable ring properties
+      ctx.strokeStyle = "#ffcc00"; // Gold ring
+      ctx.lineWidth = ringWidth;
+      ctx.globalAlpha = 0.8 + 0.2 * Math.sin(this.frameCount * 0.3); // Pulsing opacity
+      ctx.lineCap = 'round';
+      
+      // Draw the invulnerable ring
+      ctx.beginPath();
+      ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      ctx.restore();
     }
 
     ctx.restore();
 
     // Draw shield bar and health bar (outside of rotation transform)
     this.drawShieldAndHealthBar(ctx);
-
-    // Invulnerable effect - gold stroke over the miniboss itself
-    if (this.invulnerable) {
-      ctx.strokeStyle = "#ffcc00"; // Gold stroke
-      ctx.lineWidth = 4;
-      ctx.globalAlpha = 0.8 + 0.2 * Math.sin(this.frameCount * 0.3);
-
-      // Draw stroke around the ship shape
-      if (this.svgAssetName && this.game && this.game.entities) {
-        ctx.save();
-        
-        // Apply rotation if needed
-        if (this.spriteRotation) {
-          ctx.rotate(this.spriteRotation);
-        }
-        
-        const scale = this.size / 512;
-        ctx.scale(scale, scale);
-        ctx.translate(-512, -512);
-        ctx.lineWidth = 8 / scale; // Thicker stroke, adjusted for scale
-
-        // Use the SVG asset
-        const svgAsset = this.game.entities.getSVGAsset(this.svgAssetName);
-        if (svgAsset) {
-          const path = this.game.entities.svgToPath2D(svgAsset);
-          ctx.stroke(path);
-        }
-        ctx.restore();
-      } else {
-        // Default invulnerable stroke
-        ctx.beginPath();
-        ctx.arc(0, 0, this.size, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      ctx.globalAlpha = 1;
-    }
 
     // Remove red charging outline effect
 
@@ -692,17 +752,91 @@ export class MiniBoss extends Enemy {
     // Custom SVG sprite rendering
     ctx.save();
     
-    // Apply rotation if needed (for beta-style sprites)
-    if (this.spriteRotation) {
-      ctx.rotate(this.spriteRotation);
+    // SVG sprites may have different natural orientation than the default diamond
+    // Add -90 degrees to account for SVG sprites that naturally point upward
+    ctx.rotate(-Math.PI / 2);
+    
+    // For custom SVG sprites from URLs, render as image to preserve original colors and paths
+    if (this.svgAssetName && this.svgAssetName.startsWith('http')) {
+      this.drawSVGAsImage(ctx);
+    } else if (this.customSprite) {
+      // Local sprite or legacy sprite - use Path2D approach with coloring
+      this.drawSVGAsPath(ctx);
     }
     
+    ctx.restore();
+    
+    // Remove engine glow effects - they look bad over custom sprites
+    // this.drawEngineGlow(ctx);
+  }
+  
+  async drawSVGAsImage(ctx) {
+    try {
+      // Get or create an image from the SVG
+      if (!this.svgImage || this.svgImageLoading) {
+        if (!this.svgImageLoading) {
+          this.svgImageLoading = true;
+          this.loadSVGAsImage();
+        }
+        // Fallback to default rendering while loading
+        this.drawDefaultSprite(ctx);
+        return;
+      }
+      
+      // Calculate scale to fit the miniboss size
+      const scale = (this.size * 2) / Math.max(this.svgImage.width, this.svgImage.height) * this.spriteScale;
+      const width = this.svgImage.width * scale;
+      const height = this.svgImage.height * scale;
+      
+      // Draw the SVG image centered
+      ctx.drawImage(this.svgImage, -width / 2, -height / 2, width, height);
+      
+    } catch (error) {
+      console.warn('Failed to draw SVG as image:', error);
+      this.drawDefaultSprite(ctx);
+    }
+  }
+  
+  async loadSVGAsImage() {
+    try {
+      if (!this.game?.entities?.svgAssetManager) return;
+      
+      // Get the SVG content
+      const svgContent = await this.game.entities.svgAssetManager.loadSVG(this.svgAssetName);
+      if (!svgContent) return;
+      
+      // Create an Image from the SVG
+      const img = new Image();
+      const svgBlob = new Blob([svgContent], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(svgBlob);
+      
+      img.onload = () => {
+        this.svgImage = img;
+        this.svgImageLoading = false;
+        URL.revokeObjectURL(url); // Clean up the object URL
+      };
+      
+      img.onerror = () => {
+        console.warn('Failed to load SVG as image');
+        this.svgImageLoading = false;
+        URL.revokeObjectURL(url);
+      };
+      
+      img.src = url;
+      
+    } catch (error) {
+      console.warn('Error loading SVG as image:', error);
+      this.svgImageLoading = false;
+    }
+  }
+  
+  drawSVGAsPath(ctx) {
     // Scale and position the SVG to fit the miniboss size
     const scale = (this.size / 512) * this.spriteScale;
     ctx.scale(scale, scale);
     ctx.translate(-512, -512); // Center the SVG
     
-    // Set the fill color (brighter when hit)
+    // Apply coloring for local sprites
     if (this.hitFlash > 0 && !this.dying) {
       ctx.fillStyle = this.brightenColor(this.spriteColor);
       ctx.shadowColor = this.spriteColor;
@@ -711,17 +845,15 @@ export class MiniBoss extends Enemy {
       ctx.fillStyle = this.spriteColor;
     }
     
+    // Set fill rule to nonzero
+    ctx.fillRule = 'nonzero';
+    
     // Draw the custom SVG path
     const path = new Path2D(this.customSprite);
-    ctx.fill(path);
+    ctx.fill(path, 'nonzero');
     
     // Reset shadow effect
     ctx.shadowBlur = 0;
-    
-    ctx.restore();
-    
-    // Add engine glow effects
-    this.drawEngineGlow(ctx);
   }
 
   drawDefaultSprite(ctx) {
@@ -755,8 +887,8 @@ export class MiniBoss extends Enemy {
     
     ctx.restore();
     
-    // Add engine glow effects
-    this.drawEngineGlow(ctx);
+    // Remove engine glow effects - they look bad
+    // this.drawEngineGlow(ctx);
   }
 
   brightenColor(color) {
@@ -782,7 +914,7 @@ export class MiniBoss extends Enemy {
 
 
   drawShieldAndHealthBar(ctx) {
-    const barWidth = this.size * 1.8;
+    const barWidth = 80; // Fixed width regardless of entity size or health
     const barHeight = 8;
     const barX = this.x - barWidth / 2;
     const barY = this.y - this.size - 20;
@@ -795,15 +927,15 @@ export class MiniBoss extends Enemy {
 
       if (this.shield > 0) {
         // Shield bar (blue)
-        const shieldPercent = Math.max(0, this.shield / this.maxShield);
+        const shieldPercent = Math.max(0, Math.min(1, this.shield / this.maxShield)); // Clamp between 0 and 1
         ctx.fillStyle = "#0088ff";
-        const shieldBarWidth = Math.max(0, barWidth * shieldPercent);
+        const shieldBarWidth = Math.max(0, Math.min(barWidth, barWidth * shieldPercent)); // Ensure doesn't exceed bar width
         ctx.fillRect(barX, barY, shieldBarWidth, barHeight);
       } else {
         // Health bar (green)
-        const healthPercent = Math.max(0, this.health / this.maxHealth);
+        const healthPercent = Math.max(0, Math.min(1, this.health / this.maxHealth)); // Clamp between 0 and 1
         ctx.fillStyle = "#00ff00";
-        const healthBarWidth = Math.max(0, barWidth * healthPercent);
+        const healthBarWidth = Math.max(0, Math.min(barWidth, barWidth * healthPercent)); // Ensure doesn't exceed bar width
         ctx.fillRect(barX, barY, healthBarWidth, barHeight);
       }
 
@@ -922,6 +1054,163 @@ export class MiniBoss extends Enemy {
         // Default to aimed shot
         return this.fireConfiguredWeapon({ ...weaponConfig, type: "aimed" }, playerX, playerY);
     }
+  }
+  
+  // NEW CONFIGURABLE ATTACK SYSTEM
+  
+  updateAttackTimers(slowdownFactor) {
+    for (const [patternIndex, state] of this.attackStates.entries()) {
+      const pattern = this.attackPatterns[patternIndex];
+      if (!pattern) continue;
+      
+      state.timer += slowdownFactor;
+      
+      // Handle cooldown phases if pattern has cooldown config
+      if (pattern.cooldown) {
+        state.cooldownTimer += slowdownFactor;
+        
+        if (state.cooldownPhase === 'firing' && state.cooldownTimer >= pattern.cooldown.start) {
+          state.cooldownPhase = 'paused';
+          state.cooldownTimer = 0;
+        } else if (state.cooldownPhase === 'paused' && state.cooldownTimer >= pattern.cooldown.pause) {
+          state.cooldownPhase = 'firing';
+          state.cooldownTimer = 0;
+        }
+      }
+    }
+  }
+  
+  canFirePattern(patternIndex) {
+    if (this.dying || patternIndex >= this.attackPatterns.length) return false;
+    
+    const pattern = this.attackPatterns[patternIndex];
+    const state = this.attackStates.get(patternIndex);
+    if (!pattern || !state) return false;
+    
+    // Check if we're in firing phase (if cooldown is configured)
+    if (pattern.cooldown && state.cooldownPhase !== 'firing') {
+      return false;
+    }
+    
+    // Check rate timer
+    return state.timer >= (pattern.rate || 60);
+  }
+  
+  firePattern(patternIndex, playerX, playerY) {
+    if (!this.canFirePattern(patternIndex)) return null;
+    
+    const pattern = this.attackPatterns[patternIndex];
+    const state = this.attackStates.get(patternIndex);
+    
+    // Reset timer
+    state.timer = 0;
+    
+    return this.createBulletsFromPattern(pattern, playerX, playerY);
+  }
+  
+  createBulletsFromPattern(pattern, playerX, playerY) {
+    const bullet = pattern.bullet || {};
+    const bullets = [];
+    
+    switch (pattern.pattern) {
+      case 'none':
+        return null;
+        
+      case 'single':
+        const angleToPlayer = Math.atan2(playerY - this.y, playerX - this.x);
+        return {
+          x: this.x,
+          y: this.y,
+          vx: Math.cos(angleToPlayer) * (bullet.speed || 2),
+          vy: Math.sin(angleToPlayer) * (bullet.speed || 2),
+          size: bullet.size || 8,
+          color: bullet.color || this.getProjectileColor(),
+          damage: pattern.damage || 1,
+          type: "miniBossConfigured"
+        };
+        
+      case 'double':
+        const doubleAngle = Math.atan2(playerY - this.y, playerX - this.x);
+        const sideOffset = 20;
+        for (let side = -1; side <= 1; side += 2) {
+          const offsetX = Math.cos(doubleAngle + Math.PI / 2) * sideOffset * side;
+          const offsetY = Math.sin(doubleAngle + Math.PI / 2) * sideOffset * side;
+          bullets.push({
+            x: this.x + offsetX,
+            y: this.y + offsetY,
+            vx: Math.cos(doubleAngle) * (bullet.speed || 2),
+            vy: Math.sin(doubleAngle) * (bullet.speed || 2),
+            size: bullet.size || 8,
+            color: bullet.color || this.getProjectileColor(),
+            damage: pattern.damage || 1,
+            type: "miniBossConfigured"
+          });
+        }
+        return bullets;
+        
+      case 'spread':
+        const spreadAngle = Math.atan2(playerY - this.y, playerX - this.x);
+        const count = pattern.count || 3;
+        const spreadWidth = pattern.spreadAngle || 0.4;
+        const halfCount = Math.floor(count / 2);
+        
+        for (let i = 0; i < count; i++) {
+          const offset = i - halfCount;
+          const angle = spreadAngle + offset * (spreadWidth / count);
+          bullets.push({
+            x: this.x,
+            y: this.y,
+            vx: Math.cos(angle) * (bullet.speed || 2),
+            vy: Math.sin(angle) * (bullet.speed || 2),
+            size: bullet.size || 7,
+            color: bullet.color || this.getProjectileColor(),
+            damage: pattern.damage || 1,
+            type: "miniBossConfigured"
+          });
+        }
+        return bullets;
+        
+      case 'circular':
+        const numBullets = pattern.numBullets || 12;
+        for (let i = 0; i < numBullets; i++) {
+          const angle = (i / numBullets) * Math.PI * 2;
+          bullets.push({
+            x: this.x,
+            y: this.y,
+            vx: Math.cos(angle) * (bullet.speed || 1.5),
+            vy: Math.sin(angle) * (bullet.speed || 1.5),
+            size: bullet.size || 7,
+            color: bullet.color || this.getProjectileColor(),
+            damage: pattern.damage || 1,
+            type: "miniBossConfigured"
+          });
+        }
+        return bullets;
+        
+      case 'homing':
+        // TODO: Implement homing missiles
+        return this.createBulletsFromPattern({...pattern, pattern: 'single'}, playerX, playerY);
+        
+      default:
+        console.warn(`Unknown attack pattern: ${pattern.pattern}`);
+        return null;
+    }
+  }
+  
+  // Method for entity manager to check and fire all configured attacks
+  getReadyAttacks(playerX, playerY) {
+    const readyAttacks = [];
+    
+    for (let i = 0; i < this.attackPatterns.length; i++) {
+      if (this.canFirePattern(i)) {
+        const bullets = this.firePattern(i, playerX, playerY);
+        if (bullets) {
+          readyAttacks.push(bullets);
+        }
+      }
+    }
+    
+    return readyAttacks;
   }
 }
 

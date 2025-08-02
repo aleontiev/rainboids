@@ -5,14 +5,63 @@ export class BackgroundManager {
     this.stars = [];
     this.shootingStars = [];
     
-    // Configurable star parameters
+    // Configurable star parameters (can be overridden by level config)
     this.starBrightness = 1.0; // 0.0 to 2.0 multiplier for opacity
     this.starSize = 1.0; // 0.0 to 2.0 multiplier for size
+    
+    // Background transition system
+    this.currentBackground = null;
+    this.targetBackground = null;
+    this.transitionProgress = 0;
+    this.transitionDuration = 5000; // 5 seconds transition time
+    this.isTransitioning = false;
+    
+    // Get background config from level
+    this.getBackgroundConfig();
     
     // Cursor tracking for star movement direction
     this.cursorX = 0;
     this.cursorY = 0;
     this.setupCursorTracking();
+  }
+  
+  getBackgroundConfig() {
+    // Get background configuration from level config
+    const defaultConfig = {
+      type: "solid",
+      color: "#000000",
+      gradient: {
+        start: "#000011",
+        end: "#000000",
+        direction: "vertical"
+      },
+      stars: {
+        enabled: true,
+        gameStarCount: 200,
+        titleStarCount: 300,
+        gameStarSize: { min: 0.8, max: 2.5 },
+        titleStarSize: { min: 1.5, max: 4.5 },
+        gameOpacity: { min: 0.15, max: 0.5 },
+        titleOpacity: { min: 0.25, max: 0.8 },
+        colors: [
+          "#ffffff", "#ffffff", "#ffffff",
+          "#80ffff", "#80fff0", "#80ff80",
+          "#a0ffff", "#a0fff8", "#a0ffa0",
+          "#c0ffff"
+        ],
+        gameShapes: ["point", "diamond", "star4", "star8", "plus", "cross"],
+        titleShapes: ["star4"],
+        twinkleSpeed: { min: 0.008, max: 0.023 },
+        pulseSpeed: { min: 0.012, max: 0.030 },
+        rotationSpeed: { min: -0.012, max: 0.012 },
+        gameMovementSpeed: 0.1,
+        titleMovementSpeed: 0.8
+      }
+    };
+    
+    this.backgroundConfig = this.game.level?.config?.world?.background || defaultConfig;
+    this.currentBackground = { ...this.backgroundConfig };
+    this.targetBackground = { ...this.backgroundConfig };
   }
   
   setupCursorTracking() {
@@ -30,89 +79,198 @@ export class BackgroundManager {
       }
     });
   }
+  
+  // Start a transition to a new background configuration
+  transitionToBackground(newBackgroundConfig, transitionDuration = 5000) {
+    if (this.isTransitioning) {
+      // If already transitioning, make current progress the new starting point
+      this.currentBackground = this.getCurrentTransitionedBackground();
+    }
+    
+    this.targetBackground = { ...newBackgroundConfig };
+    this.transitionDuration = transitionDuration;
+    this.transitionProgress = 0;
+    this.isTransitioning = true;
+    
+    console.log("Background transition started:", {
+      from: this.currentBackground.gradient,
+      to: this.targetBackground.gradient,
+      duration: transitionDuration
+    });
+  }
+  
+  // Get the current interpolated background during transition
+  getCurrentTransitionedBackground() {
+    if (!this.isTransitioning) {
+      return this.currentBackground;
+    }
+    
+    const progress = Math.min(1, this.transitionProgress / this.transitionDuration);
+    const easeProgress = this.easeInOutCubic(progress);
+    
+    // Interpolate gradient colors
+    const currentGradient = this.currentBackground.gradient;
+    const targetGradient = this.targetBackground.gradient;
+    
+    const interpolatedBackground = {
+      ...this.currentBackground,
+      gradient: {
+        start: this.interpolateColor(currentGradient.start, targetGradient.start, easeProgress),
+        end: this.interpolateColor(currentGradient.end, targetGradient.end, easeProgress),
+        direction: targetGradient.direction
+      }
+    };
+    
+    // Interpolate star properties if they exist
+    if (this.currentBackground.stars && this.targetBackground.stars) {
+      const currentStars = this.currentBackground.stars;
+      const targetStars = this.targetBackground.stars;
+      
+      interpolatedBackground.stars = {
+        ...currentStars,
+        gameOpacity: {
+          min: this.lerp(currentStars.gameOpacity.min, targetStars.gameOpacity.min, easeProgress),
+          max: this.lerp(currentStars.gameOpacity.max, targetStars.gameOpacity.max, easeProgress)
+        },
+        colors: targetStars.colors // Transition star colors instantly for simplicity
+      };
+    }
+    
+    return interpolatedBackground;
+  }
+  
+  // Smooth easing function
+  easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+  
+  // Linear interpolation
+  lerp(start, end, progress) {
+    return start + (end - start) * progress;
+  }
+  
+  // Interpolate between two hex colors
+  interpolateColor(color1, color2, progress) {
+    const hex1 = color1.replace('#', '');
+    const hex2 = color2.replace('#', '');
+    
+    const r1 = parseInt(hex1.substring(0, 2), 16);
+    const g1 = parseInt(hex1.substring(2, 4), 16);
+    const b1 = parseInt(hex1.substring(4, 6), 16);
+    
+    const r2 = parseInt(hex2.substring(0, 2), 16);
+    const g2 = parseInt(hex2.substring(2, 4), 16);
+    const b2 = parseInt(hex2.substring(4, 6), 16);
+    
+    const r = Math.round(this.lerp(r1, r2, progress));
+    const g = Math.round(this.lerp(g1, g2, progress));
+    const b = Math.round(this.lerp(b1, b2, progress));
+    
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  }
+  
   update() {
     const state = this.game.state.state;
-    const isTitleScreen = (state === "TITLE" || state === "PAUSED");
+    const isTitleScreen = (state === "TITLE");
+    const isPaused = (state === "PAUSED");
     
-    this.stars.forEach((star) => {
-      star.twinkle += star.twinkleSpeed;
+    // Update background transition
+    if (this.isTransitioning) {
+      this.transitionProgress += 16.67; // Assume ~60fps (16.67ms per frame)
       
-      if (isTitleScreen) {
-        // Title screen: stars move based on cursor position
-        star.rotation += star.rotationSpeed;
-        star.pulsePhase += star.pulseSpeed;
-        
-        const isPortrait = this.game.canvas.height > this.game.canvas.width;
-        let directionX, directionY;
-        
-        if (isPortrait) {
-          // Portrait mode: stars come from top, direction based on cursor X position
-          const cursorNormalizedX = (this.cursorX / this.game.canvas.width) - 0.5; // -0.5 to 0.5
-          directionX = cursorNormalizedX * 2; // -1 to 1
-          directionY = 1; // Always moving downward
-        } else {
-          // Landscape mode: stars come from right, direction based on cursor Y position
-          const cursorNormalizedY = (this.cursorY / this.game.canvas.height) - 0.5; // -0.5 to 0.5
-          directionX = -1; // Always moving leftward (right to left)
-          directionY = cursorNormalizedY * 2; // -1 to 1
-        }
-        
-        // Normalize direction
-        const dirLength = Math.sqrt(directionX * directionX + directionY * directionY);
-        if (dirLength > 0) {
-          directionX /= dirLength;
-          directionY /= dirLength;
-        }
-        
-        // Move stars based on calculated direction
-        const speed = 0.3 + star.size * 0.05; // Larger stars move slightly faster for depth
-        star.x += directionX * speed;
-        star.y += directionY * speed;
-        
-        // Wrap around based on orientation
-        if (isPortrait) {
-          if (star.y > this.game.canvas.height + 20) {
-            star.y = -20 - Math.random() * 50;
-            star.x = Math.random() * this.game.canvas.width;
-          }
-          if (star.x < -20) {
-            star.x = this.game.canvas.width + 20;
-          } else if (star.x > this.game.canvas.width + 20) {
-            star.x = -20;
-          }
-        } else {
-          // Landscape: respawn on right edge
-          if (star.x < -20) {
-            star.x = this.game.canvas.width + 20 + Math.random() * 50;
-            star.y = Math.random() * this.game.canvas.height;
-          }
-          if (star.y < -20) {
-            star.y = this.game.canvas.height + 20;
-          } else if (star.y > this.game.canvas.height + 20) {
-            star.y = -20;
-          }
-        }
-      } else {
-        // Game background: slowly moving stars
-        if (this.game.isPortrait) {
-          star.y += 0.1; // Very slow downward movement
-          // Wrap around screen
-          if (star.y > this.game.canvas.height + 10) {
-            star.y = -10;
-            star.x = Math.random() * this.game.canvas.width;
-          }
-        } else {
-          star.x -= 0.1; // Very slow leftward movement
-          // Wrap around screen
-          if (star.x < -10) {
-            star.x = this.game.canvas.width + 10;
-            star.y = Math.random() * this.game.canvas.height;
-          }
-        }
+      if (this.transitionProgress >= this.transitionDuration) {
+        // Transition complete
+        this.currentBackground = { ...this.targetBackground };
+        this.isTransitioning = false;
+        this.transitionProgress = 0;
+        console.log("Background transition completed");
       }
-    });
+    }
+    
+    // Only update stars if not paused
+    if (!isPaused) {
+      this.stars.forEach((star) => {
+        star.twinkle += star.twinkleSpeed;
+        
+        if (isTitleScreen) {
+          // Title screen: stars move based on cursor position
+          star.rotation += star.rotationSpeed;
+          star.pulsePhase += star.pulseSpeed;
+          
+          const isPortrait = this.game.canvas.height > this.game.canvas.width;
+          let directionX, directionY;
+          
+          if (isPortrait) {
+            // Portrait mode: stars come from top, direction based on cursor X position
+            const cursorNormalizedX = (this.cursorX / this.game.canvas.width) - 0.5; // -0.5 to 0.5
+            directionX = cursorNormalizedX * 2; // -1 to 1
+            directionY = 1; // Always moving downward
+          } else {
+            // Landscape mode: stars come from right, direction based on cursor Y position
+            const cursorNormalizedY = (this.cursorY / this.game.canvas.height) - 0.5; // -0.5 to 0.5
+            directionX = -1; // Always moving leftward (right to left)
+            directionY = cursorNormalizedY * 2; // -1 to 1
+          }
+          
+          // Normalize direction
+          const dirLength = Math.sqrt(directionX * directionX + directionY * directionY);
+          if (dirLength > 0) {
+            directionX /= dirLength;
+            directionY /= dirLength;
+          }
+          
+          // Move stars based on calculated direction with configurable speed
+          const baseSpeed = this.backgroundConfig.stars.titleMovementSpeed * 0.3;
+          const speed = baseSpeed + star.size * 0.05; // Larger stars move slightly faster for depth
+          star.x += directionX * speed;
+          star.y += directionY * speed;
+          
+          // Wrap around based on orientation
+          if (isPortrait) {
+            if (star.y > this.game.canvas.height + 20) {
+              star.y = -20 - Math.random() * 50;
+              star.x = Math.random() * this.game.canvas.width;
+            }
+            if (star.x < -20) {
+              star.x = this.game.canvas.width + 20;
+            } else if (star.x > this.game.canvas.width + 20) {
+              star.x = -20;
+            }
+          } else {
+            // Landscape: respawn on right edge
+            if (star.x < -20) {
+              star.x = this.game.canvas.width + 20 + Math.random() * 50;
+              star.y = Math.random() * this.game.canvas.height;
+            }
+            if (star.y < -20) {
+              star.y = this.game.canvas.height + 20;
+            } else if (star.y > this.game.canvas.height + 20) {
+              star.y = -20;
+            }
+          }
+        } else {
+          // Game background: configurable speed stars
+          const speed = this.backgroundConfig.stars.gameMovementSpeed;
+          if (this.game.isPortrait) {
+            star.y += speed; // Configurable downward movement
+            // Wrap around screen
+            if (star.y > this.game.canvas.height + 10) {
+              star.y = -10;
+              star.x = Math.random() * this.game.canvas.width;
+            }
+          } else {
+            star.x -= speed; // Configurable leftward movement
+            // Wrap around screen
+            if (star.x < -10) {
+              star.x = this.game.canvas.width + 10;
+              star.y = Math.random() * this.game.canvas.height;
+            }
+          }
+        }
+      });
+    }
 
-    // Update shooting stars (only for title screen)
+    // Update shooting stars (only for title screen, not pause)
     if (isTitleScreen) {
       this.updateShootingStars();
     }
@@ -121,61 +279,72 @@ export class BackgroundManager {
     this.stars = [];
     this.shootingStars = [];
     
-    const starColors = [
-      "#ffffff", // Pure white
-      "#ffffff", // Pure white (more common)
-      "#80ffff", // White-blue/cyan
-      "#80fff0", // White-teal
-      "#80ff80", // White-green
-      "#a0ffff", // Light white-blue
-      "#a0fff8", // Light white-teal
-      "#a0ffa0", // Light white-green
-      "#ffffff", // Pure white (even more common)
-      "#c0ffff", // Very light white-blue
-    ];
-
-    // Use title screen style stars (more, larger, with extra effects) if on title screen
     const state = this.game.state.state;
-    const isTitleScreen = (state === "TITLE" || state === "PAUSED");
+    const isPaused = (state === "PAUSED");
+    
+    // Only refresh config if not paused (preserve current background during pause)
+    if (!isPaused) {
+      this.getBackgroundConfig();
+    }
+    
+    // Get the appropriate background config
+    const backgroundConfig = (isPaused || state === "PLAYING") ? this.getCurrentTransitionedBackground() : this.backgroundConfig;
+    
+    if (!backgroundConfig.stars.enabled) {
+      return; // No stars if disabled
+    }
+    
+    const starConfig = backgroundConfig.stars;
+    const isTitleScreen = (state === "TITLE");
     
     if (isTitleScreen) {
       // Title screen stars: larger, more numerous, with twinkling and pulsing
-      for (let i = 0; i < 300; i++) {
+      const starCount = starConfig.titleStarCount;
+      const sizeRange = starConfig.titleStarSize;
+      const opacityRange = starConfig.titleOpacity;
+      const shapes = starConfig.titleShapes;
+      
+      for (let i = 0; i < starCount; i++) {
         this.stars.push({
           x: Math.random() * this.game.canvas.width,
           y: Math.random() * this.game.canvas.height,
-          size: 1.5 + Math.random() * 3.0, // Larger stars: 1.5-4.5 pixels
-          opacity: 0.25 + Math.random() * 0.55, // Brighter: 0.25-0.8 opacity range
+          size: sizeRange.min + Math.random() * (sizeRange.max - sizeRange.min),
+          opacity: opacityRange.min + Math.random() * (opacityRange.max - opacityRange.min),
           twinkle: Math.random() * Math.PI * 2,
-          twinkleSpeed: 0.008 + Math.random() * 0.015, // Slower twinkling
+          twinkleSpeed: starConfig.twinkleSpeed.min + Math.random() * (starConfig.twinkleSpeed.max - starConfig.twinkleSpeed.min),
           rotation: Math.random() * Math.PI * 2,
-          rotationSpeed: (Math.random() - 0.5) * 0.012, // Slower rotation
-          color: starColors[Math.floor(Math.random() * starColors.length)],
-          pulsePhase: Math.random() * Math.PI * 2, // Additional pulsing effect
-          pulseSpeed: 0.012 + Math.random() * 0.018, // Slower pulsing
-          shape: "star4" // Use 4-pointed star for title screen
+          rotationSpeed: starConfig.rotationSpeed.min + Math.random() * (starConfig.rotationSpeed.max - starConfig.rotationSpeed.min),
+          color: starConfig.colors[Math.floor(Math.random() * starConfig.colors.length)],
+          pulsePhase: Math.random() * Math.PI * 2,
+          pulseSpeed: starConfig.pulseSpeed.min + Math.random() * (starConfig.pulseSpeed.max - starConfig.pulseSpeed.min),
+          shape: shapes[Math.floor(Math.random() * shapes.length)]
         });
       }
     } else {
-      // Game background stars: smaller, fewer, simpler shapes
-      const starShapes = ["point", "diamond", "star4", "star8", "plus", "cross"];
-      for (let i = 0; i < 200; i++) {
+      // Game background stars: configurable based on level
+      const starCount = starConfig.gameStarCount;
+      const sizeRange = starConfig.gameStarSize;
+      const opacityRange = starConfig.gameOpacity;
+      const shapes = starConfig.gameShapes;
+      
+      for (let i = 0; i < starCount; i++) {
         this.stars.push({
           x: Math.random() * this.game.canvas.width,
           y: Math.random() * this.game.canvas.height,
-          size: 0.8 + Math.random() * 1.7, // Slightly larger: 0.8-2.5 pixels
-          color: starColors[Math.floor(Math.random() * starColors.length)],
-          shape: starShapes[Math.floor(Math.random() * starShapes.length)],
+          size: sizeRange.min + Math.random() * (sizeRange.max - sizeRange.min),
+          opacity: opacityRange.min + Math.random() * (opacityRange.max - opacityRange.min),
+          color: starConfig.colors[Math.floor(Math.random() * starConfig.colors.length)],
+          shape: shapes[Math.floor(Math.random() * shapes.length)],
           twinkle: Math.random() * Math.PI * 2,
-          twinkleSpeed: 0.01 + Math.random() * 0.02,
-          opacity: 0.15 + Math.random() * 0.35, // More subtle: 0.15-0.5 instead of 0.3-1.0
+          twinkleSpeed: starConfig.twinkleSpeed.min + Math.random() * (starConfig.twinkleSpeed.max - starConfig.twinkleSpeed.min),
         });
       }
     }
   }
   render(ctx) {
     const state = this.game.state.state;
-    const isTitleScreen = (state === "TITLE" || state === "PAUSED");
+    const isTitleScreen = (state === "TITLE");
+    const isPaused = (state === "PAUSED");
     
     this.stars.forEach((star) => {
       ctx.save();
@@ -201,7 +370,7 @@ export class BackgroundManager {
           ctx.shadowBlur = star.size * 2;
         }
       } else {
-        // Game background style: simple twinkling
+        // Game/pause background style: simple twinkling (preserve current game appearance)
         twinkleOpacity = star.opacity * (0.5 + 0.5 * Math.sin(star.twinkle)) * this.starBrightness;
       }
       
@@ -274,7 +443,7 @@ export class BackgroundManager {
       ctx.restore();
     });
     
-    // Render shooting stars for title screen
+    // Render shooting stars for title screen only (not pause)
     if (isTitleScreen) {
       this.renderShootingStars(ctx);
     }

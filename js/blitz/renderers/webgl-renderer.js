@@ -9,6 +9,9 @@ export class WebGLRenderer extends BaseRenderer {
   constructor(game, canvas) {
     super(game, canvas);
     this.type = RENDERER_TYPES.WEBGL_3D;
+    
+    // UUID counter for generating unique IDs
+    this.uuidCounter = 0;
 
     // Three.js specific properties
     this.scene = null;
@@ -43,6 +46,8 @@ export class WebGLRenderer extends BaseRenderer {
       bullets: [],
       particles: [],
       enemies: [],
+      asteroids: [],
+      metals: [],
       powerups: [],
       explosions: [],
       stars: [],
@@ -50,6 +55,37 @@ export class WebGLRenderer extends BaseRenderer {
     };
     this.availableObjects = new Map(); // Track which objects are available for reuse
     this.activeObjects = new Set(); // Track currently active objects
+    
+    // Entity-to-mesh mapping for proper lifecycle tracking
+    this.entityMeshMap = new Map(); // Maps entity ID to its dedicated mesh
+    
+    // Performance optimization: Track rainbow objects to avoid scene traversal
+    this.rainbowObjects = new Set(); // Set of meshes with rainbow materials
+    this.frameCount = 0; // Frame counter for performance optimizations
+    
+    // Performance monitoring
+    this.lastPerformanceLog = 0; // Timestamp of last performance log
+    this.performanceLogInterval = 1000; // Log every 1 second (1000ms)
+    
+  }
+
+  // Generate a unique ID for entities
+  generateUniqueId() {
+    return `webgl_${this.uuidCounter++}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+
+  // Generate stable seed for asteroid shape based on entity properties
+  getAsteroidSeed(entity) {
+    // Use entity position and size to create a deterministic seed
+    const x = Math.floor(entity.x || 0);
+    const y = Math.floor(entity.y || 0);
+    const size = Math.floor(entity.size || 15);
+    
+    // Simple hash function to create seed from coordinates
+    let seed = x * 73856093 + y * 19349663 + size * 83492791;
+    seed = Math.abs(seed) % 1000000; // Keep it reasonable
+    return seed;
   }
 
   initialize() {
@@ -444,6 +480,41 @@ export class WebGLRenderer extends BaseRenderer {
     }
   }
 
+  /**
+   * Log performance metrics every 1 second for debugging lag issues
+   */
+  logPerformanceMetrics(entities) {
+    const now = Date.now();
+    if (now - this.lastPerformanceLog < this.performanceLogInterval) {
+      return; // Not time to log yet
+    }
+    this.lastPerformanceLog = now;
+
+    // Count entities by type
+    const entityCounts = {
+      player: 1,
+      enemies: (entities.enemies?.length || 0) + (entities.miniBosses?.length || 0) + (entities.boss ? 1 : 0),
+      enemyBullets: (entities.enemyBullets?.length || 0) + (entities.enemyLasers?.length || 0),
+      playerBullets: (entities.bullets?.length || 0) + (entities.missiles?.length || 0) + (entities.spreadingBullets?.length || 0),
+      asteroids: entities.asteroids?.length || 0,
+      metals: entities.metals?.length || 0,
+      powerups: entities.powerups?.length || 0,
+      particles: (entities.particles?.length || 0) + (entities.debris?.length || 0),
+      explosions: this.game.explosions?.length || 0,
+      stars: this.game.background?.stars?.length || 0
+    };
+
+    // Count active meshes
+    const meshCount = this.entityMeshMap.size;
+    const rainbowObjectCount = this.rainbowObjects.size;
+
+    // Calculate total entities
+    const totalEntities = Object.values(entityCounts).reduce((sum, count) => sum + count, 0);
+
+    console.log(`[WebGL Performance] Frame ${this.frameCount} | Entities: ${totalEntities} | Meshes: ${meshCount} | Rainbow: ${rainbowObjectCount}`);
+    console.log(`[WebGL Performance] Breakdown - Enemies: ${entityCounts.enemies}, Enemy Bullets: ${entityCounts.enemyBullets}, Player Bullets: ${entityCounts.playerBullets}, Asteroids: ${entityCounts.asteroids}, Metals: ${entityCounts.metals}, Powerups: ${entityCounts.powerups}, Particles: ${entityCounts.particles}, Explosions: ${entityCounts.explosions}, Stars: ${entityCounts.stars}`);
+  }
+
   render() {
     if (!this.scene) {
       return;
@@ -452,15 +523,17 @@ export class WebGLRenderer extends BaseRenderer {
     const state = this.game.state;
     this.animationFrame++;
     this.incrementFrame();
+    this.frameCount++;
 
     // Update animation time for effects
     this.time += 0.016; // Approximate 16ms per frame for 60fps
+    
+    // Performance logging (every 1 second)
+    this.logPerformanceMetrics(entities);
 
-    // Instead of clearing scene, manage object visibility and reuse
-    this.updateDynamicObjects();
+    // Dynamic object management now handled efficiently in renderEntities
 
-    // Render background (could be a skybox or particle system)
-    this.renderBackground();
+    // Background rendering now handled by main entity system
 
     if (state.state === "PLAYING" || state.state === "DYING") {
       // Render 3D game entities
@@ -496,58 +569,9 @@ export class WebGLRenderer extends BaseRenderer {
     this.renderer.render(this.scene, this.camera);
   }
 
-  updateDynamicObjects() {
-    // Safety check to ensure scene is initialized
-    if (!this.scene || !this.activeObjects) {
-      return;
-    }
+  // updateDynamicObjects removed - replaced with efficient entity-to-mesh mapping
 
-    // Instead of removing objects, mark all active objects as unused for this frame
-    this.activeObjects.forEach((mesh) => {
-      if (mesh.userData && mesh.userData.isDynamic) {
-        // Hide objects that weren't updated this frame
-        mesh.visible = false;
-        this.availableObjects.set(
-          mesh.userData.entityType + "_" + mesh.userData.id,
-          mesh
-        );
-      }
-    });
-    this.activeObjects.clear();
-  }
-
-  // Get or create a mesh from the pool
-  getMeshFromPool(entityType, id, createFn) {
-    const key = entityType + "_" + id;
-    let mesh = this.availableObjects.get(key);
-
-    if (mesh) {
-      // Reuse existing mesh
-      mesh.visible = true;
-      this.availableObjects.delete(key);
-      this.activeObjects.add(mesh);
-      return mesh;
-    }
-
-    // Look for any available mesh of this type
-    const availableMesh = this.meshPool[entityType].find(
-      (m) => !this.activeObjects.has(m)
-    );
-    if (availableMesh) {
-      availableMesh.visible = true;
-      availableMesh.userData.id = id;
-      this.activeObjects.add(availableMesh);
-      return availableMesh;
-    }
-
-    // Create new mesh if pool is empty
-    mesh = createFn();
-    mesh.userData = { isDynamic: true, entityType, id };
-    this.meshPool[entityType].push(mesh);
-    this.scene.add(mesh);
-    this.activeObjects.add(mesh);
-    return mesh;
-  }
+  // Old mesh pooling system removed - now using direct entity-to-mesh mapping
 
   clearScene() {
     // Safety check to ensure scene is initialized
@@ -599,8 +623,11 @@ export class WebGLRenderer extends BaseRenderer {
   }
 
   renderStar3D(star, isShootingStar = false, starId) {
-    // Use object pooling for stars
-    const mesh = this.getMeshFromPool("stars", starId, () => {
+    // Check if this star already has a dedicated mesh
+    let mesh = this.entityMeshMap.get(starId);
+    
+    if (!mesh) {
+      // Create a new mesh for this star
       // Create geometry and material only once
       const size = star.size * (this.game.background.starSize || 1);
       let geometry;
@@ -641,8 +668,11 @@ export class WebGLRenderer extends BaseRenderer {
         depthWrite: false,
       });
 
-      return new THREE.Mesh(geometry, material);
-    });
+      mesh = new THREE.Mesh(geometry, material);
+      mesh.userData = { isDynamic: true, entityType: 'stars', entityId: starId };
+      this.scene.add(mesh);
+      this.entityMeshMap.set(starId, mesh);
+    }
 
     // Update position and properties
     const centerX = star.x - this.canvas.width / 2;
@@ -820,6 +850,115 @@ export class WebGLRenderer extends BaseRenderer {
     );
   }
 
+  createAsteroidGeometry(size, seed = 12345) {
+    // Seeded random function for deterministic asteroid shapes
+    let currentSeed = seed;
+    const seededRandom = () => {
+      currentSeed = (currentSeed * 9301 + 49297) % 233280;
+      return currentSeed / 233280;
+    };
+
+    // Create irregular, roundish asteroid-like geometry with surface detail
+    const vertices = [];
+    const indices = [];
+    const vertexCount = 24; // Even more vertices for smoother, more detailed shape
+    
+    // Generate irregular vertices in a more circular pattern with surface bumps
+    for (let i = 0; i < vertexCount; i++) {
+      const angle = (i / vertexCount) * Math.PI * 2;
+      
+      // Create some larger variations for crater-like indentations
+      let radiusVariation = 0.85 + seededRandom() * 0.3; // Base variation
+      
+      // Add some larger crater-like variations
+      if (seededRandom() > 0.7) {
+        radiusVariation *= 0.7; // Create deeper indentations
+      }
+      
+      const radius = size * radiusVariation;
+      
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+      // More varied depth for realistic rocky surface
+      const z = (seededRandom() - 0.5) * size * 0.35;
+      
+      vertices.push(x, y, z);
+    }
+    
+    // Add center vertex with slight random offset
+    vertices.push(
+      (seededRandom() - 0.5) * size * 0.1, 
+      (seededRandom() - 0.5) * size * 0.1, 
+      (seededRandom() - 0.5) * size * 0.15
+    );
+    const centerIndex = vertexCount;
+    
+    // Create triangular faces from center to perimeter
+    for (let i = 0; i < vertexCount; i++) {
+      const nextIndex = (i + 1) % vertexCount;
+      indices.push(centerIndex, i, nextIndex);
+    }
+    
+    // Add more connecting faces for a more solid, realistic rocky appearance
+    for (let i = 0; i < vertexCount; i++) {
+      const nextIndex = (i + 1) % vertexCount;
+      const nextNextIndex = (i + 2) % vertexCount;
+      // Add more connecting triangles for surface detail
+      if (seededRandom() > 0.5) {
+        indices.push(i, nextIndex, nextNextIndex);
+      }
+    }
+    
+    const geometry = new THREE.BufferGeometry();
+    geometry.setIndex(indices);
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+    geometry.computeVertexNormals();
+    
+    return geometry;
+  }
+
+  createAsteroidMaterial(entity) {
+    // Create realistic asteroid material with damage-based darkening
+    const craterCount = entity.craterCount || 0;
+    const damageRatio = Math.max(0, 1 - (craterCount * 0.1));
+    const grayValue = Math.floor(100 * damageRatio + 40); // From lighter to darker gray
+    
+    // Convert to normalized RGB (0-1 range)
+    const normalizedGray = grayValue / 255;
+    
+    return new THREE.MeshLambertMaterial({
+      color: new THREE.Color(normalizedGray, normalizedGray * 0.9, normalizedGray * 0.8), // Slightly brownish tint
+      transparent: true,
+      opacity: 0.95,
+      // Add some roughness simulation
+      emissive: new THREE.Color(0x111111), // Very subtle self-illumination for depth
+    });
+  }
+
+  createMetalGeometry(entity) {
+    // Create long thin metallic beam geometry
+    const size = entity.size || 40;
+    const length = size * 3; // Long metal beam
+    const width = size * 0.3; // Thin width
+    const height = size * 0.2; // Even thinner height
+    
+    // Create the main metal beam
+    const geometry = new THREE.BoxGeometry(length, width, height);
+    
+    return geometry;
+  }
+
+  createMetalMaterial() {
+    // Create metallic material with reflective properties
+    return new THREE.MeshPhongMaterial({
+      color: 0x666666, // Dark gray metal
+      specular: 0xffffff, // White specular highlights
+      shininess: 100, // High shininess for metallic look
+      transparent: true,
+      opacity: 0.9,
+    });
+  }
+
   renderPlayButtonWebGL(x, y, size, onClick) {
     // Register button for click handling (convert to screen coordinates)
     const screenX = x + this.canvas.width / 2;
@@ -889,129 +1028,185 @@ export class WebGLRenderer extends BaseRenderer {
   renderEntities(entities) {
     // Keep track of which entities are rendered this frame
     const renderedEntityIds = new Set();
+    const entityCounts = {};
 
-    // Render game entities in 3D using object pooling
-    const allEntities = [
-      ...entities.particles.map((e) => ({
-        entity: e,
-        poolType: "particles",
-        id: e.id || Math.random(),
-      })),
-      ...entities.debris.map((e) => ({
-        entity: e,
-        poolType: "particles",
-        id: e.id || Math.random(),
-      })),
-      ...entities.asteroids.map((e) => ({
-        entity: e,
-        poolType: "enemies",
-        id: e.id || Math.random(),
-      })),
-      ...entities.metals.map((e) => ({
-        entity: e,
-        poolType: "enemies",
-        id: e.id || Math.random(),
-      })),
-      ...entities.powerups.map((e) => ({
-        entity: e,
-        poolType: "powerups",
-        id: e.id || Math.random(),
-      })),
-      ...entities.bullets.map((e) => ({
-        entity: e,
-        poolType: "bullets",
-        id: e.id || Math.random(),
-      })),
-      ...entities.enemyBullets.map((e) => ({
-        entity: e,
-        poolType: "bullets",
-        id: e.id || Math.random(),
-      })),
-      ...entities.enemyLasers.map((e) => ({
-        entity: e,
-        poolType: "bullets",
-        id: e.id || Math.random(),
-      })),
-      ...entities.missiles.map((e) => ({
-        entity: e,
-        poolType: "bullets",
-        id: e.id || Math.random(),
-      })),
-      ...entities.spreadingBullets.map((e) => ({
-        entity: e,
-        poolType: "bullets",
-        id: e.id || Math.random(),
-      })),
-      ...entities.enemies.map((e) => ({
-        entity: e,
-        poolType: "enemies",
-        id: e.id || Math.random(),
-      })),
-      ...entities.miniBosses.map((e) => ({
-        entity: e,
-        poolType: "enemies",
-        id: e.id || Math.random(),
-      })),
-      ...(entities.boss
-        ? [{ entity: entities.boss, poolType: "enemies", id: "boss" }]
-        : []),
-      ...(this.game.state.state !== "DYING"
-        ? [{ entity: this.game.player, poolType: "player", id: "player" }]
-        : []),
-      ...this.game.explosions.map((e) => ({
-        entity: e,
-        poolType: "explosions",
-        id: e.id || Math.random(),
-      })),
+    // Define entity type mappings to avoid array creation
+    const entityTypeMappings = [
+      { entities: entities.particles, poolType: "particles", idPrefix: "particle_" },
+      { entities: entities.debris, poolType: "particles", idPrefix: "debris_" },
+      { entities: entities.asteroids, poolType: "asteroids", idPrefix: "asteroid_" },
+      { entities: entities.metals, poolType: "metals", idPrefix: "metal_" },
+      { entities: entities.powerups, poolType: "powerups", idPrefix: "powerup_" },
+      { entities: entities.bullets, poolType: "bullets", idPrefix: "bullet_" },
+      { entities: entities.enemyBullets, poolType: "bullets", idPrefix: "enemyBullet_" },
+      { entities: entities.enemyLasers, poolType: "bullets", idPrefix: "enemyLaser_" },
+      { entities: entities.missiles, poolType: "bullets", idPrefix: "missile_" },
+      { entities: entities.spreadingBullets, poolType: "bullets", idPrefix: "spreadBullet_" },
+      { entities: entities.enemies, poolType: "enemies", idPrefix: "enemy_" },
+      { entities: entities.miniBosses, poolType: "enemies", idPrefix: "miniboss_" },
+      { entities: this.game.explosions, poolType: "explosions", idPrefix: "explosion_" },
     ];
 
-    allEntities.forEach(({ entity, poolType, id }) => {
-      const entityId = `${poolType}-${id}`;
-      this.renderEntity3D(entity, poolType, entityId);
-      renderedEntityIds.add(entityId);
+    // Add background stars (optimized: only if playing and not paused)
+    if (this.game.background && this.game.background.stars && 
+        (this.game.state.state === "PLAYING" || this.game.state.state === "TITLE")) {
+      entityTypeMappings.push({
+        entities: this.game.background.stars,
+        poolType: "stars",
+        idPrefix: "star_"
+      });
+    }
+
+    // Process each entity type directly without creating arrays
+    entityTypeMappings.forEach(({ entities: entityArray, poolType, idPrefix }) => {
+      if (entityArray && entityArray.length > 0) {
+        entityCounts[poolType] = (entityCounts[poolType] || 0) + entityArray.length;
+        
+        entityArray.forEach((entity, index) => {
+          const id = `${idPrefix}${entity.id}`;
+          this.renderEntity3D(entity, poolType, id);
+          renderedEntityIds.add(id);
+        });
+      }
     });
 
-    // Hide meshes for entities that are no longer active
-    this.activeObjects.forEach((mesh) => {
-      if (!renderedEntityIds.has(mesh.userData.id)) {
-        mesh.visible = false;
-        this.availableObjects.set(mesh.userData.id, mesh);
-        this.activeObjects.delete(mesh);
+    // Add boss if exists
+    if (entities.boss) {
+      entityCounts.enemies = (entityCounts.enemies || 0) + 1;
+      const bossId = `boss_${entities.boss.id}`;
+      this.renderEntity3D(entities.boss, "enemies", bossId);
+      renderedEntityIds.add(bossId);
+    }
+
+    // Add player if not dying (player doesn't have an ID, use hardcoded)
+    if (this.game.state.state !== "DYING") {
+      entityCounts.player = 1;
+      this.renderEntity3D(this.game.player, "player", "player");
+      renderedEntityIds.add("player");
+    }
+
+    // Debug logging removed for performance - only log on demand
+
+    // Optimized cleanup: batch operations and early exit if no cleanup needed
+    if (this.entityMeshMap.size === renderedEntityIds.size) {
+      // Quick check: if sizes match, likely no cleanup needed
+      return;
+    }
+    
+    const meshesToRemove = [];
+    this.entityMeshMap.forEach((mesh, entityId) => {
+      if (!renderedEntityIds.has(entityId)) {
+        meshesToRemove.push({ mesh, entityId });
       }
+    });
+    
+    if (meshesToRemove.length === 0) return; // Early exit if nothing to clean
+    
+    // Batch removal operations
+    meshesToRemove.forEach(({ mesh, entityId }) => {
+      this.scene.remove(mesh);
+      
+      // Remove from rainbow tracking if applicable
+      if (mesh.userData?.isRainbow) {
+        this.rainbowObjects.delete(mesh);
+      }
+      
+      // Dispose resources
+      if (mesh.geometry) mesh.geometry.dispose();
+      if (mesh.material) {
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach(mat => mat.dispose());
+        } else {
+          mesh.material.dispose();
+        }
+      }
+      this.entityMeshMap.delete(entityId);
     });
   }
 
   renderEntity3D(entity, poolType, entityId) {
-    // Use object pooling for entities
-    const mesh = this.getMeshFromPool(poolType, entityId, () => {
-      return this.createBasic3DRepresentation(entity, poolType);
-    });
+    // Check if this entity already has a dedicated mesh
+    let mesh = this.entityMeshMap.get(entityId);
+    
+    if (!mesh) {
+      // Create a new mesh for this entity
+      mesh = this.createBasic3DRepresentation(entity, poolType);
+      mesh.userData = { isDynamic: true, entityType: poolType, entityId };
+      this.scene.add(mesh);
+      this.entityMeshMap.set(entityId, mesh);
+      
+      // Enemy mesh creation debug removed for performance
+    }
 
-    // Update mesh position and rotation
+    // Optimized position/rotation updates with change detection
     if (mesh) {
       const centerX = (entity.x || 0) - this.canvas.width / 2;
       const centerY = -((entity.y || 0) - this.canvas.height / 2);
-      mesh.position.set(centerX, centerY, 0);
-
-      if (entity.angle !== undefined) {
-        mesh.rotation.z = -entity.angle;
+      
+      // Set Z position based on entity type (cached to avoid repeated calculations)
+      let zPosition = 0;
+      if (poolType === 'enemies') zPosition = 1;
+      else if (poolType === 'bullets') zPosition = 2;
+      else if (poolType === 'stars') zPosition = -10;
+      
+      // Only update position if it changed (avoid unnecessary GPU uploads)
+      if (mesh.position.x !== centerX || mesh.position.y !== centerY || mesh.position.z !== zPosition) {
+        mesh.position.set(centerX, centerY, zPosition);
       }
 
-      // Update material properties if needed (e.g., opacity for fade-in)
-      if (entity.opacity !== undefined) {
-        if (mesh.material) { // Check if mesh has a material directly
-          if (mesh.material.opacity !== entity.opacity) {
+      // Only update rotation if entity has angle and it changed
+      if (entity.angle !== undefined) {
+        let targetRotation = -entity.angle; // Flip Y coordinate system
+        
+        // Add coordinate system conversion offset
+        if (poolType === 'bullets' && mesh.userData.bulletIdentity) {
+          // For bullets, use the stored coordinate system offset
+          targetRotation = mesh.userData.bulletIdentity.rotation + (-entity.angle);
+          
+          // Debug logging for bullets
+          if (entity.isPlayerBullet && Math.random() < 0.01) { // Log 1% of player bullets
+            console.log(`[DEBUG] Player Bullet Rotation:`, {
+              entityAngle: entity.angle,
+              negatedAngle: -entity.angle,
+              baseRotation: mesh.userData.bulletIdentity.rotation,
+              targetRotation: targetRotation,
+              currentRotation: mesh.rotation.z
+            });
+          }
+        } else if (mesh.userData.coordinateSystemOffset !== undefined) {
+          // For other entities (enemies, asteroids, etc.), add the offset
+          targetRotation = mesh.userData.coordinateSystemOffset + (-entity.angle);
+        }
+        
+        // Only update if rotation changed
+        if (Math.abs(mesh.rotation.z - targetRotation) > 0.001) {
+          mesh.rotation.z = targetRotation;
+        }
+      }
+
+      // Optimized material updates (only when necessary)
+      if (entity.opacity !== undefined && mesh.material) {
+        if (Math.abs(mesh.material.opacity - entity.opacity) > 0.001) {
+          if (mesh.isGroup) {
+            mesh.children.forEach(child => {
+              if (child.material) child.material.opacity = entity.opacity;
+            });
+          } else {
             mesh.material.opacity = entity.opacity;
           }
-        } else if (mesh.isGroup) { // If it's a group, iterate children
-          mesh.children.forEach(child => {
-            if (child.material && child.material.opacity !== entity.opacity) {
-              child.material.opacity = entity.opacity;
-            }
-          });
+        }
+      }
+      
+      // Special handling for stars (opacity calculations) - skip if minimal change
+      if (poolType === 'stars' && mesh.material && (this.frameCount % 3 === 0)) { // Only update every 3rd frame
+        const opacity = this.calculateStarOpacity(entity, false);
+        if (Math.abs(mesh.material.opacity - opacity) > 0.01) { // Less sensitive threshold
+          mesh.material.opacity = opacity;
         }
       }
     }
+    
+    return entityId;
   }
 
   createBasic3DRepresentation(entity, entityType) {
@@ -1045,23 +1240,47 @@ export class WebGLRenderer extends BaseRenderer {
         hitboxMaterial.uniforms.time.value = this.time;
         const hitboxMesh = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
         hitboxMesh.userData = { isRainbow: true }; // For animation updates
+        this.rainbowObjects.add(hitboxMesh); // Track for efficient updates
         playerGroup.add(hitboxMesh);
 
         return playerGroup;
 
       case "bullets":
         const bulletConfig = entity.config || {};
-        const bulletType = bulletConfig.bulletType || "normal";
+        const bulletType = bulletConfig.type || "normal";
+        
+        // Determine bullet's initial properties that NEVER change
+        const initialBulletColor = bulletConfig.color || entity.color || "#ffffff";
+        const initialIsPlayerBullet = entity.source === 'player' || 
+                                    (initialBulletColor && (initialBulletColor.includes('#44ff44') || initialBulletColor.includes('#00ccaa')));
+        
+        // Create material with bullet's initial color
+        const bulletMaterial = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(initialBulletColor),
+          transparent: true,
+        });
+        
         switch (bulletType) {
           case "player":
             const arrowShape = new THREE.Shape();
-            arrowShape.moveTo(0, -10);
-            arrowShape.lineTo(5, 5);
-            arrowShape.lineTo(-5, 5);
+            const arrowSize = entity.size || 10;
+            // Arrow pointing RIGHT instead of UP
+            arrowShape.moveTo(arrowSize, 0);  // tip points right
+            arrowShape.lineTo(-arrowSize * 0.5, arrowSize * 0.5);  // bottom left
+            arrowShape.lineTo(-arrowSize * 0.5, -arrowSize * 0.5); // top left
             arrowShape.closePath();
             geometry = new THREE.ShapeGeometry(arrowShape);
-            mesh = new THREE.Mesh(geometry, material);
-            mesh.rotation.z = -Math.PI / 2; // Rotate to face right
+            mesh = new THREE.Mesh(geometry, bulletMaterial);
+            mesh.rotation.z = 0; // No base rotation - handle in update logic
+            // Store bullet's initial identity in userData
+            mesh.userData.bulletIdentity = {
+              color: initialBulletColor,
+              isPlayerBullet: initialIsPlayerBullet,
+              rotation: Math.PI // Test with 180° rotation to see if ANY rotation works
+            };
+            
+            // Debug log for bullet creation
+            console.log(`[DEBUG] Created player bullet with right-pointing geometry, base rotation: ${Math.PI}`);
             return mesh;
           case "spreading":
             geometry = new THREE.ConeGeometry(
@@ -1069,13 +1288,23 @@ export class WebGLRenderer extends BaseRenderer {
               (entity.size || 5) * 2,
               4
             );
-            mesh = new THREE.Mesh(geometry, material);
-            mesh.rotation.z = -Math.PI / 2; // Rotate to face right
+            mesh = new THREE.Mesh(geometry, bulletMaterial);
+            mesh.rotation.z = 0; // No base rotation - handle in update logic
+            mesh.userData.bulletIdentity = {
+              color: initialBulletColor,
+              isPlayerBullet: initialIsPlayerBullet,
+              rotation: -Math.PI / 2 // Cone points up, needs -90° to point right
+            };
             return mesh;
           case "circular":
             geometry = new THREE.SphereGeometry(entity.size || 3, 8, 6);
-            mesh = new THREE.Mesh(geometry, material);
-            mesh.rotation.z = -Math.PI / 2; // Rotate to face right
+            mesh = new THREE.Mesh(geometry, bulletMaterial);
+            mesh.rotation.z = 0; // No rotation needed for spheres
+            mesh.userData.bulletIdentity = {
+              color: initialBulletColor,
+              isPlayerBullet: initialIsPlayerBullet,
+              rotation: 0 // Spheres don't need rotation
+            };
             return mesh;
           case "normal":
           default:
@@ -1089,27 +1318,48 @@ export class WebGLRenderer extends BaseRenderer {
             rectShape.quadraticCurveTo(-w, h / 2, -w, h / 2 - w);
             rectShape.closePath();
             geometry = new THREE.ShapeGeometry(rectShape);
-            mesh = new THREE.Mesh(geometry, material);
-            mesh.rotation.z = -Math.PI / 2; // Rotate to face right
+            mesh = new THREE.Mesh(geometry, bulletMaterial);
+            mesh.rotation.z = 0; // No base rotation - handle in update logic
+            mesh.userData.bulletIdentity = {
+              color: initialBulletColor,
+              isPlayerBullet: initialIsPlayerBullet,
+              rotation: Math.PI / 2 // Rounded end points down, needs +90° to point right
+            };
             return mesh;
         }
+        break; // Important: prevent fall-through to enemies case
+        
       case "enemies":
       case "miniboss":
       case "boss":
-        const enemyConfig = entity.config || {};
-        const shape = enemyConfig.shape || "triangle";
+        enemyConfig = entity.config || {};
+        shape = enemyConfig.shape || "triangle";
+        
+        // Create material first for all enemy types
+        const enemyColorString = enemyConfig.color || "#ff4444";
+        // Convert string hex color to number hex (e.g., "#ff4444" -> 0xff4444)
+        const enemyColorHex = parseInt(enemyColorString.replace('#', ''), 16);
+        material = new THREE.MeshLambertMaterial({
+          color: new THREE.Color(enemyColorHex)
+        });
+        
         switch (shape) {
           case "two-circles":
             const twoCirclesGroup = new THREE.Group();
             const circleGeom = new THREE.CircleGeometry(entity.size * 0.6, 20);
-            const circleMat = new THREE.MeshBasicMaterial({
-              color: new THREE.Color(enemyConfig.color || 0xff4444),
-            });
-            const topCircle = new THREE.Mesh(circleGeom, circleMat);
+            const topCircle = new THREE.Mesh(circleGeom, material.clone());
             topCircle.position.y = entity.size * 0.5;
-            const bottomCircle = new THREE.Mesh(circleGeom, circleMat);
+            const bottomCircle = new THREE.Mesh(circleGeom, material.clone());
             bottomCircle.position.y = -entity.size * 0.5;
             twoCirclesGroup.add(topCircle, bottomCircle);
+            // No base rotation - handle coordinate system in update logic
+            twoCirclesGroup.rotation.z = 0;
+            // Store coordinate system conversion info
+            twoCirclesGroup.userData.coordinateSystemOffset = -Math.PI / 2;
+            // Ensure group is visible
+            twoCirclesGroup.visible = true;
+            // Set normal scale
+            twoCirclesGroup.scale.set(1, 1, 1);
             return twoCirclesGroup;
           case "ring":
             geometry = new THREE.RingGeometry(
@@ -1168,21 +1418,50 @@ export class WebGLRenderer extends BaseRenderer {
             break;
           case "triangle":
           default:
-            geometry = new THREE.ConeGeometry(
-              entity.size || 10,
-              entity.size * 1.5 || 15,
-              3
-            );
+            // Use ShapeGeometry like the player instead of ConeGeometry
+            const triangleShape = new THREE.Shape();
+            const size = entity.size || 24;
+            triangleShape.moveTo(0, -size);
+            triangleShape.lineTo(size * 0.5, size * 0.5);
+            triangleShape.lineTo(-size * 0.5, size * 0.5);
+            triangleShape.closePath();
+            geometry = new THREE.ShapeGeometry(triangleShape);
             break;
         }
-        material = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(enemyConfig.color || 0xff4444),
-        });
-        break;
+        mesh = new THREE.Mesh(geometry, material);
+        // No base rotation - handle coordinate system in update logic
+        mesh.rotation.z = 0;
+        // Store coordinate system conversion info
+        mesh.userData.coordinateSystemOffset = -Math.PI / 2; // Triangle points up, needs -90° to point right
+        // Ensure mesh is visible
+        mesh.visible = true;
+        // Set normal scale
+        mesh.scale.set(1, 1, 1);
+        return mesh;
       case "asteroid":
-        geometry = new THREE.DodecahedronGeometry(entity.size || 15);
-        material = this.materials.get("asteroid");
-        break;
+      case "asteroids":
+        // Create stable asteroid geometry using entity properties as seed
+        const asteroidSeed = this.getAsteroidSeed(entity);
+        geometry = this.createAsteroidGeometry(entity.size || 15, asteroidSeed);
+        material = this.createAsteroidMaterial(entity);
+        mesh = new THREE.Mesh(geometry, material);
+        // No base rotation - handle coordinate system in update logic
+        mesh.rotation.z = 0;
+        // Store coordinate system conversion info for asteroids/metals/powerups
+        mesh.userData.coordinateSystemOffset = -Math.PI / 2;
+        return mesh;
+
+      case "metal":
+      case "metals":
+        // Create long thin metallic geometry
+        geometry = this.createMetalGeometry(entity);
+        material = this.createMetalMaterial();
+        mesh = new THREE.Mesh(geometry, material);
+        // No base rotation - handle coordinate system in update logic
+        mesh.rotation.z = 0;
+        // Store coordinate system conversion info for asteroids/metals/powerups
+        mesh.userData.coordinateSystemOffset = -Math.PI / 2;
+        return mesh;
 
       case "powerup":
         geometry = new THREE.BoxGeometry(
@@ -1191,177 +1470,86 @@ export class WebGLRenderer extends BaseRenderer {
           entity.size * 0.5 || 6
         );
         material = this.materials.get("powerup");
-        break;
-
-      case "enemies":
-        enemyConfig = entity.config || {};
-        shape = enemyConfig.shape || "triangle";
-        switch (shape) {
-          case "two-circles":
-            const twoCirclesGroup = new THREE.Group();
-            const circleGeom = new THREE.CircleGeometry(entity.size * 0.6, 20);
-            const circleMat = new THREE.MeshBasicMaterial({
-              color: new THREE.Color(enemyConfig.color || 0xff4444),
-            });
-            const topCircle = new THREE.Mesh(circleGeom, circleMat);
-            topCircle.position.y = entity.size * 0.5;
-            const bottomCircle = new THREE.Mesh(circleGeom, circleMat);
-            bottomCircle.position.y = -entity.size * 0.5;
-            twoCirclesGroup.add(topCircle, bottomCircle);
-            return twoCirclesGroup;
-          case "ring":
-            geometry = new THREE.RingGeometry(
-              entity.size * 0.7,
-              entity.size,
-              32
-            );
+        mesh = new THREE.Mesh(geometry, material);
+        // No base rotation - handle coordinate system in update logic
+        mesh.rotation.z = 0;
+        // Store coordinate system conversion info for asteroids/metals/powerups
+        mesh.userData.coordinateSystemOffset = -Math.PI / 2;
+        return mesh;
+        
+      case "stars":
+        // Create star geometry
+        const size = entity.size * (this.game.background.starSize || 1);
+        switch (entity.shape) {
+          case "diamond":
+            geometry = this.createDiamondStarGeometry(size);
             break;
-          case "sharp-triangle":
-            const sharpTriangleShape = new THREE.Shape();
-            sharpTriangleShape.moveTo(0, -entity.size);
-            sharpTriangleShape.lineTo(entity.size * 0.5, entity.size);
-            sharpTriangleShape.lineTo(-entity.size * 0.5, entity.size);
-            sharpTriangleShape.closePath();
-            geometry = new THREE.ShapeGeometry(sharpTriangleShape);
+          case "star4":
+            geometry = this.createStarGeometry(size, 4);
             break;
-          case "rounded-square":
-            const roundedRectShape = new THREE.Shape();
-            const x = -entity.size / 2,
-              y = -entity.size / 2,
-              width = entity.size,
-              height = entity.size,
-              radius = entity.size * 0.2;
-            roundedRectShape.moveTo(x, y + radius);
-            roundedRectShape.lineTo(x, y + height - radius);
-            roundedRectShape.quadraticCurveTo(
-              x,
-              y + height,
-              x + radius,
-              y + height
-            );
-            roundedRectShape.lineTo(x + width - radius, y + height);
-            roundedRectShape.quadraticCurveTo(
-              x + width,
-              y + height,
-              x + width - radius,
-              y + height
-            );
-            roundedRectShape.lineTo(x + width, y + radius);
-            roundedRectShape.quadraticCurveTo(
-              x + width,
-              y,
-              x + width - radius,
-              y
-            );
-            roundedRectShape.lineTo(x + radius, y);
-            roundedRectShape.quadraticCurveTo(x, y, x, y + radius);
-            geometry = new THREE.ShapeGeometry(roundedRectShape);
+          case "star8":
+            geometry = this.createStarGeometry(size, 8);
             break;
-          case "square":
-            geometry = new THREE.BoxGeometry(
-              entity.size,
-              entity.size,
-              entity.size * 0.5
-            );
+          case "plus":
+            geometry = this.createPlusGeometry(size);
             break;
-          case "triangle":
-          default:
-            geometry = new THREE.ConeGeometry(
-              entity.size || 10,
-              entity.size * 1.5 || 15,
-              3
-            );
+          case "cross":
+            geometry = this.createCrossGeometry(size);
             break;
+          default: // 'point'
+            geometry = new THREE.PlaneGeometry(size * 2, size * 2);
         }
-        material = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(enemyConfig.color || 0xff4444),
-        });
-        break;
-
-      case "miniboss":
-      case "boss":
-        enemyConfig = entity.config || {};
-        shape = enemyConfig.shape || "triangle";
-        switch (shape) {
-          case "two-circles":
-            const twoCirclesGroup = new THREE.Group();
-            const circleGeom = new THREE.CircleGeometry(entity.size * 0.6, 20);
-            const circleMat = new THREE.MeshBasicMaterial({
-              color: new THREE.Color(enemyConfig.color || 0xff4444),
-            });
-            const topCircle = new THREE.Mesh(circleGeom, circleMat);
-            topCircle.position.y = entity.size * 0.5;
-            const bottomCircle = new THREE.Mesh(circleGeom, circleMat);
-            bottomCircle.position.y = -entity.size * 0.5;
-            twoCirclesGroup.add(topCircle, bottomCircle);
-            return twoCirclesGroup;
-          case "ring":
-            geometry = new THREE.RingGeometry(
-              entity.size * 0.7,
-              entity.size,
-              32
-            );
-            break;
-          case "sharp-triangle":
-            const sharpTriangleShape = new THREE.Shape();
-            sharpTriangleShape.moveTo(0, -entity.size);
-            sharpTriangleShape.lineTo(entity.size * 0.5, entity.size);
-            sharpTriangleShape.lineTo(-entity.size * 0.5, entity.size);
-            sharpTriangleShape.closePath();
-            geometry = new THREE.ShapeGeometry(sharpTriangleShape);
-            break;
-          case "rounded-square":
-            const roundedRectShape = new THREE.Shape();
-            const x = -entity.size / 2,
-              y = -entity.size / 2,
-              width = entity.size,
-              height = entity.size,
-              radius = entity.size * 0.2;
-            roundedRectShape.moveTo(x, y + radius);
-            roundedRectShape.lineTo(x, y + height - radius);
-            roundedRectShape.quadraticCurveTo(
-              x,
-              y + height,
-              x + radius,
-              y + height
-            );
-            roundedRectShape.lineTo(x + width - radius, y + height);
-            roundedRectShape.quadraticCurveTo(
-              x + width,
-              y + height,
-              x + width - radius,
-              y + height
-            );
-            roundedRectShape.lineTo(x + width, y + radius);
-            roundedRectShape.quadraticCurveTo(
-              x + width,
-              y,
-              x + width - radius,
-              y
-            );
-            roundedRectShape.lineTo(x + radius, y);
-            roundedRectShape.quadraticCurveTo(x, y, x, y + radius);
-            geometry = new THREE.ShapeGeometry(roundedRectShape);
-            break;
-          case "square":
-            geometry = new THREE.BoxGeometry(
-              entity.size,
-              entity.size,
-              entity.size * 0.5
-            );
-            break;
-          case "triangle":
-          default:
-            geometry = new THREE.ConeGeometry(
-              entity.size || 10,
-              entity.size * 1.5 || 15,
-              3
-            );
-            break;
+        
+        // Parse color carefully to avoid alpha component warnings
+        let colorValue = entity.color || "#ffffff";
+        if (typeof colorValue === "string" && colorValue.startsWith("rgba")) {
+          const rgbMatch = colorValue.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+          if (rgbMatch) {
+            colorValue = `rgb(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]})`;
+          }
         }
+        
         material = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(enemyConfig.color || 0xff4444),
+          color: new THREE.Color(colorValue),
+          transparent: true,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
         });
+        
+        mesh = new THREE.Mesh(geometry, material);
+        return mesh;
+        
+      case "explosions":
+        // Create explosion particle system using multiple small spheres
+        const explosionGroup = new THREE.Group();
+        const explosionSize = entity.size || 20;
+        const particleCount = 8; // Number of explosion particles
+        
+        for (let i = 0; i < particleCount; i++) {
+          const particleGeometry = new THREE.SphereGeometry(explosionSize * 0.2, 6, 4);
+          const particleMaterial = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(0.1 + Math.random() * 0.2, 1.0, 0.7), // Orange to yellow
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+          });
+          
+          const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+          
+          // Random position within explosion radius
+          const angle = (i / particleCount) * Math.PI * 2;
+          const radius = explosionSize * (0.3 + Math.random() * 0.4);
+          particle.position.set(
+            Math.cos(angle) * radius,
+            Math.sin(angle) * radius,
+            (Math.random() - 0.5) * explosionSize * 0.2
+          );
+          
+          explosionGroup.add(particle);
+        }
+        
+        return explosionGroup;
     }
 
     // Create mesh and return it (don't add to scene here)
@@ -1385,30 +1573,25 @@ export class WebGLRenderer extends BaseRenderer {
   }
 
   updateRainbowEffects() {
-    // Safety check to ensure scene is initialized
-    if (!this.scene) {
-      return;
+    // Early exit if no rainbow objects or skip frames for performance
+    if (this.rainbowObjects.size === 0 || this.frameCount % 2 !== 0) {
+      return; // Only update every 2nd frame
     }
 
-    // Update uniforms for all rainbow materials in the scene
+    // Update uniforms for tracked rainbow objects only (no scene traversal!)
     const currentAnimationMode = Math.floor(this.time / 4.0) % 5; // Change mode every 4 seconds
 
-    this.scene.traverse((child) => {
-      if (child.userData && child.userData.isRainbow && child.material) {
-        const uniforms = child.material.uniforms;
-        if (uniforms) {
-          if (uniforms.time) {
-            uniforms.time.value = this.time;
-          }
-          if (uniforms.animationMode) {
-            uniforms.animationMode.value = currentAnimationMode;
-          }
-          if (
-            uniforms.letterIndex &&
-            child.userData.letterIndex !== undefined
-          ) {
-            uniforms.letterIndex.value = child.userData.letterIndex;
-          }
+    this.rainbowObjects.forEach((mesh) => {
+      if (mesh.material && mesh.material.uniforms) {
+        const uniforms = mesh.material.uniforms;
+        if (uniforms.time) {
+          uniforms.time.value = this.time;
+        }
+        if (uniforms.animationMode) {
+          uniforms.animationMode.value = currentAnimationMode;
+        }
+        if (uniforms.letterIndex && mesh.userData.letterIndex !== undefined) {
+          uniforms.letterIndex.value = mesh.userData.letterIndex;
         }
       }
     });
@@ -1791,7 +1974,7 @@ export class WebGLRenderer extends BaseRenderer {
     // Clear button registry for this screen
     this.buttons.clear();
 
-    // Render progress view (top left) - equivalent to Canvas renderer
+    // Render progress view (top left)
     this.renderProgressViewWebGL();
 
     // TODO: Add actions view (right side) when needed
@@ -1867,7 +2050,7 @@ export class WebGLRenderer extends BaseRenderer {
 
   renderCrosshairUIWebGL() {
     const input = this.game.input.getInput();
-    if (!this.game.isMobile && input.mousePosition) {
+    if (input.mousePosition) {
       const { x: mouseX, y: mouseY } = input.mousePosition;
       const size = 15;
 
@@ -1965,16 +2148,69 @@ export class WebGLRenderer extends BaseRenderer {
   }
 
   dispose() {
+    
+    // Clean up all meshes in the scene first
+    if (this.scene) {
+      const objectsToRemove = [];
+      this.scene.traverse((child) => {
+        if (child.isMesh || child.isGroup) {
+          objectsToRemove.push(child);
+        }
+      });
+      
+      objectsToRemove.forEach((obj) => {
+        if (obj.geometry) {
+          obj.geometry.dispose();
+        }
+        if (obj.material) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(mat => mat.dispose());
+          } else {
+            obj.material.dispose();
+          }
+        }
+        this.scene.remove(obj);
+      });
+    }
+
+    // Clean up mesh pools
+    Object.values(this.meshPool).forEach(pool => {
+      pool.forEach(mesh => {
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material) {
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(mat => mat.dispose());
+          } else {
+            mesh.material.dispose();
+          }
+        }
+      });
+    });
+    this.meshPool = {
+      bullets: [], particles: [], enemies: [], asteroids: [], 
+      metals: [], powerups: [], explosions: [], stars: [], player: []
+    };
+
+    // Clear object tracking
+    this.availableObjects.clear();
+    this.activeObjects.clear();
+    this.entityMeshMap.clear();
+    this.rainbowObjects.clear();
+
     // Clean up Three.js resources
     if (this.renderer) {
       this.renderer.dispose();
+      this.renderer.forceContextLoss();
     }
 
     // Clean up geometries and materials
     this.materials.forEach((material) => material.dispose());
     this.materials.clear();
 
-    // Clean up cursor trail resources
+    // Clean up special materials
+    if (this.rainbowGlowMaterial) {
+      this.rainbowGlowMaterial.dispose();
+    }
     if (this.cursorTrailMaterial) {
       this.cursorTrailMaterial.dispose();
     }

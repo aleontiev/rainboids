@@ -7,7 +7,7 @@ export class HomingMissile {
     this.angle = angle;
     this.speed = speed;
     this.color = color;
-    this.size = 10;
+    this.size = 15;
     this.turnSpeed = 0.05;
     this.life = 200;
     this.target = null;
@@ -79,6 +79,21 @@ export class HomingMissile {
       // Fallback to Canvas with basic context
       return this.renderCanvas(ctx);
     }
+  }
+
+  // Get collision boundary for precise shape-based collision detection
+  getCollisionBoundary() {
+    // Homing missiles are elongated rectangles
+    const width = this.size * 3;
+    const height = this.size;
+    return {
+      type: 'rectangle',
+      x: this.x,
+      y: this.y,
+      angle: this.angle,
+      width: width,
+      height: height
+    };
   }
 
   renderCanvas(ctx) {

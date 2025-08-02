@@ -509,7 +509,6 @@ export class MovementCalculator {
       // Check for boss-type enemies
       const isBoss = collidable.type === 'boss' || 
                      collidable.type === 'miniboss' ||
-                     collidable.constructor?.name === 'Boss' ||
                      collidable.constructor?.name === 'MiniBoss' ||
                      (collidable.maxHealth && collidable.maxHealth > 50);
       

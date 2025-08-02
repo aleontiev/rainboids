@@ -38,31 +38,23 @@ export class CheatManager {
       this.game.player.mainWeaponLevel = 5; // Max main weapon (1-5)
       this.game.player.sideWeaponLevel = 4; // Max side weapon (0-4)
 
-      // Add maximum companion ships (2)
+      // Add maximum companion ships (5) using dynamic orbital positioning
       this.game.player.secondShip = []; // Clear existing
-      if (this.game.isPortrait) {
-        // Portrait mode: left/right positioning
+      const maxShips = 5;
+      const radius = 60; // Distance from player
+      
+      for (let i = 0; i < maxShips; i++) {
+        const angleStep = (Math.PI * 2) / maxShips; // Evenly distributed around full circle
+        const baseAngle = i * angleStep;
+        
         this.game.player.secondShip.push({
-          x: this.game.player.x - 30,
-          y: this.game.player.y + 30,
-          level: 5
-        });
-        this.game.player.secondShip.push({
-          x: this.game.player.x + 30,
-          y: this.game.player.y + 30,
-          level: 5
-        });
-      } else {
-        // Landscape mode: up/down positioning  
-        this.game.player.secondShip.push({
-          x: this.game.player.x - 30,
-          y: this.game.player.y - 25,
-          level: 5
-        });
-        this.game.player.secondShip.push({
-          x: this.game.player.x - 30,
-          y: this.game.player.y + 25,
-          level: 5
+          x: this.game.player.x + Math.cos(baseAngle) * radius,
+          y: this.game.player.y + Math.sin(baseAngle) * radius,
+          initialAngle: this.game.player.angle,
+          baseAngle: baseAngle, // Store the base angle for orbiting
+          radius: radius, // Store radius for orbiting
+          orbitSpeed: 0.02, // Rotation speed for orbiting
+          currentOrbitAngle: baseAngle, // Current angle in orbit
         });
       }
     } else {

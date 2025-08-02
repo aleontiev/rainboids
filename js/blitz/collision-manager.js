@@ -1,6 +1,5 @@
 // CollisionManager - Handles all collision detection and responses
-
-import { Boss } from "./entities/boss.js";
+import { sweepLineDetector } from './sweep-line-collision.js';
 
 export class CollisionManager {
   constructor(game) {
@@ -48,13 +47,18 @@ export class CollisionManager {
   handlePlayerCollisions() {
     const player = this.game.player;
     if (!player || player.isDefeated) return;
+    
+    // Skip all collisions if player is using active shield (noclip mode)
+    if (player.isShielding) {
+      return;
+    }
 
     // Define all damage sources with their properties
     const damageSources = [
       { entities: this.entities.asteroids, damage: 1, type: "asteroid" },
       { entities: this.entities.enemies, damage: 1, type: "enemy" },
       { entities: this.entities.miniBosses, damage: 1, type: "miniBoss" },
-      { entities: this.entities.bosses, damage: 1, type: "boss" },
+      { entities: this.entities.boss ? [this.entities.boss] : [], damage: 1, type: "boss" },
       {
         entities: this.entities.enemyBullets,
         damage: 1,
@@ -115,7 +119,7 @@ export class CollisionManager {
     );
     this.checkBulletEnemyCollisions(
       this.entities.bullets,
-      this.entities.bosses,
+      this.entities.boss ? [this.entities.boss] : [],
       1
     );
 
@@ -134,7 +138,7 @@ export class CollisionManager {
       );
       this.checkBulletEnemyCollisions(
         playerMissiles,
-        this.entities.bosses,
+        this.entities.boss ? [this.entities.boss] : [],
         2
       );
     }
@@ -207,7 +211,7 @@ export class CollisionManager {
         remove: false,
       },
       {
-        entities: this.entities.bosses,
+        entities: this.entities.boss ? [this.entities.boss] : [],
         type: "boss",
         damage: 3,
         remove: false,
@@ -503,14 +507,8 @@ export class CollisionManager {
         // Laser collision (line-circle)
         collision = this.lineCircleCollision(entity, player);
       } else {
-        // Standard circular collision
-        const distance = Math.sqrt(
-          Math.pow(player.x - entity.x, 2) + Math.pow(player.y - entity.y, 2)
-        );
-        collision =
-          distance < player.hitboxSize + (entity.radius || entity.size || 10);
-
-        // Collision detection working properly
+        // Shape-based collision detection: check if entity's actual shape intersects player's hitbox circle
+        collision = this.shapeCircleCollision(entity, player);
       }
 
       if (collision) {
@@ -567,6 +565,9 @@ export class CollisionManager {
       return; // Shield absorbed the hit
     }
 
+    // Log what killed the player for debugging
+    console.log(`Player killed by: ${type} (entity:`, sourceEntity, ')');
+    
     this.game.death.start();
   }
 
@@ -586,31 +587,13 @@ export class CollisionManager {
 
         let hasCollision = false;
         
-        // Use appropriate collision detection based on entity type
-        if (enemy.constructor.name === "Boss" && bullet.isPlayerLaser) {
-          // Use laser collision detection for boss
+        // Use generic collision detection for all entity types
+        if (bullet.isPlayerLaser) {
+          // Use laser collision detection
           hasCollision = this.checkLaserCollision(bullet, enemy);
-        } else if (enemy.constructor.name === "Boss") {
-          // Use boss's multi-part collision detection for regular bullets
-          console.log(`Checking boss collision: bullet at (${bullet.x}, ${bullet.y}), boss at (${enemy.x}, ${enemy.y})`);
-          hasCollision = enemy.getHitPart(bullet.x, bullet.y) !== null;
-          console.log(`Boss collision result: ${hasCollision}`);
         } else {
-          // Standard circular collision for other entities
-          const dx = bullet.x - enemy.x;
-          const dy = bullet.y - enemy.y;
-          
-          const bulletRadius = bullet.size || bullet.radius || 5;
-          const enemyRadius = enemy.radius || enemy.size || 10;
-          const radiusSum = bulletRadius + enemyRadius;
-          
-          if (Math.abs(dx) > radiusSum || Math.abs(dy) > radiusSum) {
-            continue; // Skip expensive distance calculation
-          }
-          
-          const distanceSquared = dx * dx + dy * dy;
-          const radiusSumSquared = radiusSum * radiusSum;
-          hasCollision = distanceSquared < radiusSumSquared;
+          // Use generic collision detection for all entities
+          hasCollision = this.checkEntityCollision(bullet, enemy);
         }
 
         if (hasCollision) {
@@ -629,7 +612,6 @@ export class CollisionManager {
             // Player lasers: stop after hitting boss/miniboss, can penetrate regular enemies
             const isBossOrMiniboss = enemy.type === "boss" || 
                                    enemy.type === "miniboss" || 
-                                   enemy.constructor.name === "Boss" ||
                                    enemy.constructor.name === "MiniBoss";
             
             if (isBossOrMiniboss) {
@@ -888,58 +870,58 @@ export class CollisionManager {
             player.y += collisionNormalY * penetrationDepth;
           }
 
-          // 3. CALCULATE RIGID BODY COLLISION RESPONSE
-          // --------------------------------------------
-
-          // Define physical properties
-          const playerMass = 100000.0; 
-          const metalMass = 1.0;
-          const restitution = 0.8; // Bounciness (0=inelastic, 1=perfectly elastic)
-
-          // Radius vector from metal's center of mass to the collision point
-          const rX = collisionPointX - metal.x;
-          const rY = collisionPointY - metal.y;
-
-          // Velocity of the collision point on the metal (linear + angular)
-          // v_contact = v_linear + (angularVelocity × r)
-          const metalContactVx = metal.vx - metal.angularVelocity * rY;
-          const metalContactVy = metal.vy + metal.angularVelocity * rX;
-
-          // Relative velocity between player and the metal's contact point
-          const relativeVx = player.vx - metalContactVx;
-          const relativeVy = player.vy - metalContactVy;
-
-          // Relative velocity along the collision normal
-          const relativeNormalSpeed =
-            relativeVx * collisionNormalX + relativeVy * collisionNormalY;
-
-          // Only apply impulse if objects are moving towards each other
-          if (relativeNormalSpeed < 0) {
-            // Moment of inertia for a thin rod rotating around its center
-            const momentOfInertia = (metalMass * length * length) / 12;
-
-            // The term for rotational resistance in the impulse denominator
-            // is (r ⊥ n)² / I, where r ⊥ n is the 2D cross product
-            const rCrossNSq =
-              (rX * collisionNormalY - rY * collisionNormalX) ** 2;
-
-            // Calculate impulse magnitude (J) using the full rigid body formula
-            const j =
-              (-(1 + restitution) * relativeNormalSpeed) /
-              (1 / playerMass + 1 / metalMass + rCrossNSq / momentOfInertia);
-
-            // Apply impulse to linear velocities
-            player.vx += (j / playerMass) * collisionNormalX;
-            player.vy += (j / playerMass) * collisionNormalY;
-            metal.vx -= (j / metalMass) * collisionNormalX;
-            metal.vy -= (j / metalMass) * collisionNormalY;
-
-            // Apply torque and change angular velocity
-            // Torque = r × F, where F is the impulse vector (-j * n)
-            const torque =
-              rX * (-j * collisionNormalY) - rY * (-j * collisionNormalX);
-            metal.angularVelocity += torque / momentOfInertia;
+          // 3. BUMPER CARS COLLISION RESPONSE
+          // ----------------------------------
+          
+          // Calculate relative velocity for impact intensity
+          const relativeVx = player.vx - (metal.vx || 0);
+          const relativeVy = player.vy - (metal.vy || 0);
+          const relativeSpeed = Math.sqrt(relativeVx * relativeVx + relativeVy * relativeVy);
+          
+          // Base bounce strength - scales with impact speed
+          const baseBounceStrength = Math.min(15, 8 + relativeSpeed * 0.3);
+          
+          // Calculate bounce velocities based on collision normal
+          const playerBounceStrength = baseBounceStrength * 0.7; // Player gets moderate bounce
+          const metalBounceStrength = baseBounceStrength * 1.2;  // Metal gets stronger bounce
+          
+          // Apply bouncy collision - both objects bounce away from collision point
+          // Store collision velocity separately to avoid interfering with player input
+          player.collisionVx = (player.collisionVx || 0) + collisionNormalX * playerBounceStrength;
+          player.collisionVy = (player.collisionVy || 0) + collisionNormalY * playerBounceStrength;
+          
+          metal.vx = (metal.vx || 0) - collisionNormalX * metalBounceStrength;
+          metal.vy = (metal.vy || 0) - collisionNormalY * metalBounceStrength;
+          
+          // Add some rotational spin to metal for fun physics
+          const spinDirection = Math.sign(relativeVx * collisionNormalY - relativeVy * collisionNormalX);
+          const spinStrength = Math.min(0.15, relativeSpeed * 0.02);
+          metal.angularVelocity = (metal.angularVelocity || 0) + spinDirection * spinStrength;
+          
+          // Limit maximum velocities to prevent things flying off screen
+          const maxPlayerSpeed = 12;
+          const maxMetalSpeed = 20;
+          
+          const playerSpeed = Math.sqrt((player.collisionVx || 0) * (player.collisionVx || 0) + (player.collisionVy || 0) * (player.collisionVy || 0));
+          if (playerSpeed > maxPlayerSpeed) {
+            player.collisionVx = (player.collisionVx / playerSpeed) * maxPlayerSpeed;
+            player.collisionVy = (player.collisionVy / playerSpeed) * maxPlayerSpeed;
           }
+          
+          const metalSpeed = Math.sqrt(metal.vx * metal.vx + metal.vy * metal.vy);
+          if (metalSpeed > maxMetalSpeed) {
+            metal.vx = (metal.vx / metalSpeed) * maxMetalSpeed;
+            metal.vy = (metal.vy / metalSpeed) * maxMetalSpeed;
+          }
+          
+          // Cap angular velocity to prevent crazy spinning
+          if (Math.abs(metal.angularVelocity) > 0.3) {
+            metal.angularVelocity = Math.sign(metal.angularVelocity) * 0.3;
+          }
+          
+          // Visual and audio feedback for bumper cars effect
+          this.game.effects.createExplosion(collisionPointX, collisionPointY, 3, 1.5);
+          this.game.audio.play(this.game.audio.sounds.hit);
         }
         break; // Process only one collision per frame for stability
       }
@@ -1037,10 +1019,11 @@ export class CollisionManager {
 
   handleContinuousLaserCollisions() {
     // Check boss for active continuous laser beams
-    if (this.entities.boss && this.entities.boss instanceof Boss) {
+    if (this.entities.boss && this.entities.boss.type === "boss") {
       const boss = this.entities.boss;
-      if (boss.leftArm && boss.leftArm.activeLaser) {
-        const laser = boss.leftArm.activeLaser;
+      const activeLasers = boss.getActiveLasers ? boss.getActiveLasers() : [];
+      
+      for (const laser of activeLasers) {
 
         // Player collision
         if (
@@ -1078,6 +1061,8 @@ export class CollisionManager {
                 this.game.player.x,
                 this.game.player.y
               );
+              // Log what killed the player for debugging
+              console.log('Player killed by: continuous laser beam (boss laser)');
               this.game.death.start();
               return;
             }
@@ -1140,40 +1125,722 @@ export class CollisionManager {
       return false;
     }
 
-    // Special collision handling for boss - use precise hitbox detection
-    if (obj2 instanceof Boss) {
-      // Check if bullet hits any boss part using boss's getHitPart method
-      return obj2.getHitPart(obj1.x, obj1.y) !== null;
-    }
-
-    const dx = obj1.x - obj2.x;
-    const dy = obj1.y - obj2.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    return distance < obj1.size + obj2.size;
+    // Use generic collision detection that supports different entity types
+    return this.checkEntityCollision(obj1, obj2);
   }
 
-  checkLaserCollision(laser, target) {
-    // Special collision handling for boss - check if laser intersects boss parts
-    if (target instanceof Boss) {
-      const laserStartX = laser.x;
-      const laserStartY = laser.y;
-      const laserEndX = laser.x + Math.cos(laser.angle) * laser.length;
-      const laserEndY = laser.y + Math.sin(laser.angle) * laser.length;
-
-      // Check multiple points along the laser line
-      const steps = 20;
-      for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        const checkX = laserStartX + t * (laserEndX - laserStartX);
-        const checkY = laserStartY + t * (laserEndY - laserStartY);
-
-        if (target.getHitPart(checkX, checkY) !== null) {
+  // Generic entity collision detection 
+  checkEntityCollision(entity1, entity2) {
+    // Handle multi-part entities (like bosses)
+    if (entity2.parts && entity2.parts.size > 0) {
+      // Check collision against each enabled part
+      for (const part of entity2.parts.values()) {
+        if (!part.enabled || part.destroyed) continue;
+        
+        if (this.checkCircleCollision(entity1, part)) {
           return true;
         }
       }
       return false;
     }
+    
+    if (entity1.parts && entity1.parts.size > 0) {
+      // Check collision against each enabled part
+      for (const part of entity1.parts.values()) {
+        if (!part.enabled || part.destroyed) continue;
+        
+        if (this.checkCircleCollision(part, entity2)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Both are single entities - use simple circle collision
+    return this.checkCircleCollision(entity1, entity2);
+  }
 
+  // Standard circular collision between two entities
+  checkCircleCollision(entity1, entity2) {
+    // Basic validation
+    if (!entity1 || !entity2 || 
+        typeof entity1.x !== 'number' || typeof entity1.y !== 'number' ||
+        typeof entity2.x !== 'number' || typeof entity2.y !== 'number') {
+      return false;
+    }
+    
+    const dx = entity1.x - entity2.x;
+    const dy = entity1.y - entity2.y;
+    const distanceSquared = dx * dx + dy * dy; // Avoid sqrt for performance
+    
+    // Get collision radius for each entity with sensible fallbacks
+    let radius1, radius2;
+    
+    // Entity 1 radius
+    if (entity1.getCollisionSize && typeof entity1.getCollisionSize === 'function') {
+      radius1 = entity1.getCollisionSize();
+    } else if (entity1.size) {
+      radius1 = entity1.size;
+    } else if (entity1.radius) {
+      radius1 = entity1.radius;
+    } else if (entity1.hitboxSize) {
+      radius1 = entity1.hitboxSize;
+    } else {
+      radius1 = 15; // Default radius
+    }
+    
+    // Entity 2 radius  
+    if (entity2.getCollisionSize && typeof entity2.getCollisionSize === 'function') {
+      radius2 = entity2.getCollisionSize();
+    } else if (entity2.size) {
+      radius2 = entity2.size;
+    } else if (entity2.radius) {
+      radius2 = entity2.radius;
+    } else if (entity2.hitboxSize) {
+      radius2 = entity2.hitboxSize;
+    } else {
+      radius2 = 15; // Default radius
+    }
+    
+    // Ensure radii are positive numbers
+    radius1 = Math.max(0, radius1 || 15);
+    radius2 = Math.max(0, radius2 || 15);
+    
+    const radiusSum = radius1 + radius2;
+    const radiusSumSquared = radiusSum * radiusSum;
+    
+    return distanceSquared < radiusSumSquared;
+  }
+
+  // Simple, reliable collision detection using circles
+  checkShapeCollision(entity1, entity2) {
+    // Use reliable circle collision for all entities
+    return this.checkCircleCollision(entity1, entity2);
+  }
+
+  // Shape-based collision detection: check if entity's actual shape intersects with player's hitbox circle
+  shapeCircleCollision(entity, player) {
+    // Use sweep-line collision detection for bosses and minibosses with custom SVG paths
+    if (this.shouldUseSweepLineCollision(entity)) {
+      return this.sweepLineCollision(entity, player);
+    }
+    
+    // Use traditional collision detection for other entities
+    const entityBoundary = this.getEntityCollisionBoundary(entity);
+    const playerCircle = { x: player.x, y: player.y, radius: player.hitboxSize };
+    
+    return this.intersectShapeWithCircle(entityBoundary, playerCircle);
+  }
+
+  // Determine if entity should use sweep-line collision detection
+  shouldUseSweepLineCollision(entity) {
+    // Use sweep-line for bosses and minibosses with custom SVG sprites
+    if (entity.type === 'boss' || entity.type === 'miniboss' || 
+        entity.constructor.name === 'Boss' || entity.constructor.name === 'MiniBoss') {
+      
+      // Check if entity has custom SVG sprite
+      if (entity.svgAssetName || entity.customSprite) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
+  // Sweep-line collision detection for complex SVG shapes
+  sweepLineCollision(entity, player) {
+    const playerCircle = { x: player.x, y: player.y, radius: player.hitboxSize };
+    
+    // Try to get polygon from entity's SVG data
+    let polygon = this.getEntitySVGPolygon(entity);
+    
+    if (!polygon || !polygon.segments || polygon.segments.length === 0) {
+      // Fallback to circle collision if we can't get polygon data
+      console.log('Sweep-line collision: falling back to circle collision for', entity.constructor.name);
+      return this.checkCircleCollision(entity, player);
+    }
+    
+    // Debug log for sweep-line usage
+    if (Math.random() < 0.01) { // Log occasionally to avoid spam
+      console.log('Using sweep-line collision for', entity.constructor.name, 'with', polygon.segments.length, 'segments');
+    }
+    
+    // Use sweep-line algorithm for collision detection
+    return sweepLineDetector.checkCirclePolygonCollision(playerCircle, polygon);
+  }
+
+  // Extract polygon data from entity's SVG information
+  getEntitySVGPolygon(entity) {
+    // For now, create a simple polygon based on entity shape as fallback
+    // This can be extended to parse actual SVG paths when SVG asset data is available
+    
+    // Check if cached polygon is still valid (entity hasn't moved significantly)
+    if (entity._cachedPolygon && 
+        Math.abs(entity.x - (entity._lastPolygonX || 0)) < 1 &&
+        Math.abs(entity.y - (entity._lastPolygonY || 0)) < 1 &&
+        Math.abs((entity.angle || 0) - (entity._lastPolygonAngle || 0)) < 0.1) {
+      return entity._cachedPolygon;
+    }
+    
+    // Create simple polygon based on entity type and shape
+    let polygon = null;
+    
+    if (entity.config && entity.config.shape) {
+      const transform = {
+        translateX: entity.x,
+        translateY: entity.y,
+        rotation: entity.angle || 0,
+        scaleX: entity.spriteScale || 1,
+        scaleY: entity.spriteScale || 1
+      };
+      
+      // Create polygon from simple shape
+      const SweepLineCollisionDetector = sweepLineDetector.constructor;
+      polygon = SweepLineCollisionDetector.createSimplePolygon(
+        entity.config.shape,
+        entity.x,
+        entity.y,
+        entity.size || 50,
+        entity.angle || 0
+      );
+      
+      // Cache the polygon for performance (update when entity moves)
+      entity._cachedPolygon = polygon;
+      entity._lastPolygonX = entity.x;
+      entity._lastPolygonY = entity.y;
+      entity._lastPolygonAngle = entity.angle;
+    }
+    
+    return polygon;
+  }
+
+  // Get collision boundary for any entity using common interface
+  getEntityCollisionBoundary(entity) {
+    // Check if entity provides its own collision boundary method
+    if (entity.getCollisionBoundary && typeof entity.getCollisionBoundary === 'function') {
+      return entity.getCollisionBoundary();
+    }
+    
+    // Check if entity provides collision shape method  
+    if (entity.getCollisionShape && typeof entity.getCollisionShape === 'function') {
+      return entity.getCollisionShape();
+    }
+    
+    // Fallback: generate boundary from entity properties
+    return this.generateDefaultCollisionBoundary(entity);
+  }
+
+  // Generate default collision boundary for entities without custom collision methods
+  generateDefaultCollisionBoundary(entity) {
+    // Try to get collision size first
+    let radius;
+    if (entity.getCollisionSize && typeof entity.getCollisionSize === 'function') {
+      radius = entity.getCollisionSize();
+    } else {
+      radius = entity.hitboxSize || entity.size || entity.radius || 15;
+    }
+
+    // Default to circle boundary
+    return {
+      type: 'circle',
+      x: entity.x,
+      y: entity.y,
+      radius: radius
+    };
+  }
+
+  // Universal shape-circle intersection method
+  intersectShapeWithCircle(shape, circle) {
+    switch (shape.type) {
+      case 'circle':
+        return this.circleCircleIntersection(shape, circle);
+      case 'polygon':
+        return this.polygonCircleIntersection(shape, circle);
+      case 'path2d':
+        return this.path2dCircleIntersection(shape, circle);
+      case 'triangle':
+        return this.triangleCircleCollision(shape, circle);
+      case 'rectangle':
+        return this.rectangleCircleCollision(shape, circle);
+      default:
+        // Unknown shape type - fallback to circle
+        const distance = Math.sqrt(
+          Math.pow(shape.x - circle.x, 2) + Math.pow(shape.y - circle.y, 2)
+        );
+        const shapeRadius = shape.radius || shape.size || 15;
+        return distance < shapeRadius + circle.radius;
+    }
+  }
+
+  // Triangle-circle collision detection
+  triangleCircleCollision(triangle, circle) {
+    // Transform triangle points to world coordinates
+    const worldPoints = triangle.points.map(point => {
+      const cos = Math.cos(triangle.angle);
+      const sin = Math.sin(triangle.angle);
+      return {
+        x: triangle.x + point.x * cos - point.y * sin,
+        y: triangle.y + point.x * sin + point.y * cos
+      };
+    });
+
+    // Check if circle center is inside triangle
+    if (this.pointInTriangle(circle.x, circle.y, worldPoints[0], worldPoints[1], worldPoints[2])) {
+      return true;
+    }
+
+    // Check if circle intersects any triangle edge
+    for (let i = 0; i < 3; i++) {
+      const p1 = worldPoints[i];
+      const p2 = worldPoints[(i + 1) % 3];
+      if (this.lineSegmentCircleIntersection(p1, p2, circle.x, circle.y, circle.radius)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Rectangle-circle collision detection
+  rectangleCircleCollision(rect, circle) {
+    // Get rectangle corners in world coordinates
+    const cos = Math.cos(rect.angle);
+    const sin = Math.sin(rect.angle);
+    const halfWidth = rect.width / 2;
+    const halfHeight = rect.height / 2;
+    
+    const corners = [
+      { x: rect.x + (-halfWidth * cos - (-halfHeight) * sin), y: rect.y + (-halfWidth * sin + (-halfHeight) * cos) },
+      { x: rect.x + (halfWidth * cos - (-halfHeight) * sin), y: rect.y + (halfWidth * sin + (-halfHeight) * cos) },
+      { x: rect.x + (halfWidth * cos - halfHeight * sin), y: rect.y + (halfWidth * sin + halfHeight * cos) },
+      { x: rect.x + (-halfWidth * cos - halfHeight * sin), y: rect.y + (-halfWidth * sin + halfHeight * cos) }
+    ];
+
+    // Check if circle center is inside rectangle
+    if (this.pointInPolygon(circle.x, circle.y, corners)) {
+      return true;
+    }
+
+    // Check if circle intersects any rectangle edge
+    for (let i = 0; i < 4; i++) {
+      const p1 = corners[i];
+      const p2 = corners[(i + 1) % 4];
+      if (this.lineSegmentCircleIntersection(p1, p2, circle.x, circle.y, circle.radius)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Circle-circle collision detection (renamed for consistency)
+  circleCircleIntersection(circle1, circle2) {
+    const distance = Math.sqrt(
+      Math.pow(circle1.x - circle2.x, 2) + Math.pow(circle1.y - circle2.y, 2)
+    );
+    return distance < circle1.radius + circle2.radius;
+  }
+
+  // Legacy method for backward compatibility
+  circleCircleCollision(circle1, circle2) {
+    return this.circleCircleIntersection(circle1, circle2);
+  }
+
+  // Polygon-circle intersection detection
+  polygonCircleIntersection(polygon, circle) {
+    // Transform polygon points to world coordinates if needed
+    let worldPoints = polygon.points;
+    if (polygon.x !== undefined || polygon.y !== undefined || polygon.angle !== undefined) {
+      const cos = Math.cos(polygon.angle || 0);
+      const sin = Math.sin(polygon.angle || 0);
+      const offsetX = polygon.x || 0;
+      const offsetY = polygon.y || 0;
+      
+      worldPoints = polygon.points.map(point => ({
+        x: offsetX + point.x * cos - point.y * sin,
+        y: offsetY + point.x * sin + point.y * cos
+      }));
+    }
+
+    // Check if circle center is inside polygon
+    if (this.pointInPolygon(circle.x, circle.y, worldPoints)) {
+      return true;
+    }
+
+    // Check if circle intersects any polygon edge
+    for (let i = 0; i < worldPoints.length; i++) {
+      const p1 = worldPoints[i];
+      const p2 = worldPoints[(i + 1) % worldPoints.length];
+      if (this.lineSegmentCircleIntersection(p1, p2, circle.x, circle.y, circle.radius)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Path2D-circle intersection detection (for SVG collision)
+  path2dCircleIntersection(pathShape, circle) {
+    // For Path2D collision, we need to sample points around the circle and test if they're inside the path
+    // This is an approximation method for complex SVG shapes
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Transform the path to world coordinates
+    ctx.save();
+    ctx.translate(pathShape.x || 0, pathShape.y || 0);
+    ctx.rotate(pathShape.angle || 0);
+    ctx.scale(pathShape.scaleX || 1, pathShape.scaleY || 1);
+    
+    // Sample points around the circle's circumference
+    const sampleCount = Math.max(8, Math.ceil(circle.radius / 2)); // More samples for larger circles
+    for (let i = 0; i < sampleCount; i++) {
+      const angle = (i / sampleCount) * Math.PI * 2;
+      const sampleX = circle.x + Math.cos(angle) * circle.radius;
+      const sampleY = circle.y + Math.sin(angle) * circle.radius;
+      
+      // Transform sample point to path coordinate system
+      const localX = sampleX - (pathShape.x || 0);
+      const localY = sampleY - (pathShape.y || 0);
+      
+      if (ctx.isPointInPath(pathShape.path, localX, localY)) {
+        ctx.restore();
+        return true;
+      }
+    }
+    
+    // Also check if circle center is inside the path
+    const centerX = circle.x - (pathShape.x || 0);
+    const centerY = circle.y - (pathShape.y || 0);
+    const centerInside = ctx.isPointInPath(pathShape.path, centerX, centerY);
+    
+    ctx.restore();
+    return centerInside;
+  }
+
+  // Check if a point is inside a triangle using barycentric coordinates
+  pointInTriangle(px, py, p1, p2, p3) {
+    const denom = (p2.y - p3.y) * (p1.x - p3.x) + (p3.x - p2.x) * (p1.y - p3.y);
+    const a = ((p2.y - p3.y) * (px - p3.x) + (p3.x - p2.x) * (py - p3.y)) / denom;
+    const b = ((p3.y - p1.y) * (px - p3.x) + (p1.x - p3.x) * (py - p3.y)) / denom;
+    const c = 1 - a - b;
+    return a >= 0 && b >= 0 && c >= 0;
+  }
+
+  // Check if a point is inside a polygon using ray casting
+  pointInPolygon(px, py, vertices) {
+    let inside = false;
+    for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+      if (((vertices[i].y > py) !== (vertices[j].y > py)) &&
+          (px < (vertices[j].x - vertices[i].x) * (py - vertices[i].y) / (vertices[j].y - vertices[i].y) + vertices[i].x)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  // Check if a line segment intersects with a circle
+  lineSegmentCircleIntersection(lineStart, lineEnd, circleX, circleY, circleRadius) {
+    // Vector from line start to line end
+    const dx = lineEnd.x - lineStart.x;
+    const dy = lineEnd.y - lineStart.y;
+    
+    // Vector from line start to circle center
+    const fx = lineStart.x - circleX;
+    const fy = lineStart.y - circleY;
+    
+    // Quadratic formula coefficients for line-circle intersection
+    const a = dx * dx + dy * dy;
+    const b = 2 * (fx * dx + fy * dy);
+    const c = (fx * fx + fy * fy) - circleRadius * circleRadius;
+    
+    const discriminant = b * b - 4 * a * c;
+    
+    // No intersection if discriminant is negative
+    if (discriminant < 0) {
+      return false;
+    }
+    
+    // Calculate intersection parameters
+    const sqrt_discriminant = Math.sqrt(discriminant);
+    const t1 = (-b - sqrt_discriminant) / (2 * a);
+    const t2 = (-b + sqrt_discriminant) / (2 * a);
+    
+    // Check if intersection occurs within the line segment (t between 0 and 1)
+    return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1) || (t1 < 0 && t2 > 1);
+  }
+
+
+  // Transform a point from world coordinates to canvas coordinates
+  transformPoint(worldX, worldY, entityX, entityY, canvasX, canvasY) {
+    return {
+      x: worldX - entityX + canvasX,
+      y: worldY - entityY + canvasY
+    };
+  }
+
+  // Helper to add rounded rectangle to path
+  addRoundedRect(path, x, y, width, height, radius) {
+    path.moveTo(x + radius, y);
+    path.lineTo(x + width - radius, y);
+    path.quadraticCurveTo(x + width, y, x + width, y + radius);
+    path.lineTo(x + width, y + height - radius);
+    path.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    path.lineTo(x + radius, y + height);
+    path.quadraticCurveTo(x, y + height, x, y + height - radius);
+    path.lineTo(x, y + radius);
+    path.quadraticCurveTo(x, y, x + radius, y);
+  }
+
+  // Get the collision shape for an entity
+  getEntityShape(entity) {
+    // Handle bullets
+    if (entity.constructor.name === 'Bullet' || entity.type === 'bullet') {
+      if (entity.isPlayerBullet) {
+        // Player bullets are triangular (pointy)
+        const baseWidth = entity.size * 0.6;
+        const height = entity.size * 1.8;
+        return {
+          type: 'triangle',
+          x: entity.x,
+          y: entity.y,
+          angle: entity.angle,
+          points: [
+            { x: height * 0.9, y: 0 }, // Tip
+            { x: 0, y: -baseWidth / 2 }, // Bottom left
+            { x: 0, y: baseWidth / 2 }  // Bottom right
+          ]
+        };
+      } else {
+        // Enemy bullets are rectangular with rounded end
+        const width = entity.size * 2;
+        const height = entity.size;
+        return {
+          type: 'rectangle',
+          x: entity.x,
+          y: entity.y,
+          angle: entity.angle,
+          width: width,
+          height: height
+        };
+      }
+    }
+    
+    // Handle enemies
+    if (entity.constructor.name === 'Enemy' || entity.type === 'enemy') {
+      const shape = entity.config?.shape || 'triangle';
+      
+      switch (shape) {
+        case 'circle':
+          return {
+            type: 'circle',
+            x: entity.x,
+            y: entity.y,
+            radius: entity.size * 0.5
+          };
+          
+        case 'square':
+        case 'rounded-square':
+          return {
+            type: 'rectangle',
+            x: entity.x,
+            y: entity.y,
+            angle: entity.angle || 0,
+            width: entity.size * 1.2,
+            height: entity.size * 1.2
+          };
+          
+        case 'triangle':
+        case 'equal-triangle':
+        case 'sharp-triangle':
+        default:
+          // Standard triangle pointing right
+          return {
+            type: 'triangle',
+            x: entity.x,
+            y: entity.y,
+            angle: entity.angle || 0,
+            points: [
+              { x: entity.size, y: 0 }, // Front tip
+              { x: -entity.size * 0.5, y: -entity.size * 0.5 }, // Back top
+              { x: -entity.size * 0.5, y: entity.size * 0.5 }   // Back bottom
+            ]
+          };
+          
+        case 'two-circles':
+          // Treat as rectangle for collision purposes
+          return {
+            type: 'rectangle',
+            x: entity.x,
+            y: entity.y,
+            angle: entity.angle || 0,
+            width: entity.size * 1.2,
+            height: entity.size * 2.4
+          };
+          
+        case 'ring':
+          return {
+            type: 'circle',
+            x: entity.x,
+            y: entity.y,
+            radius: entity.size * 0.8
+          };
+      }
+    }
+    
+    // Handle minibosses and bosses - treat as circles for now (they have custom collision methods)
+    if (entity.constructor.name === 'MiniBoss' || entity.type === 'miniboss' || entity.type === 'boss') {
+      return {
+        type: 'circle',
+        x: entity.x,
+        y: entity.y,
+        radius: entity.size || 50
+      };
+    }
+    
+    // Default: treat as circle
+    const radius = entity.size || entity.radius || entity.hitboxSize || 10;
+    return {
+      type: 'circle',
+      x: entity.x,
+      y: entity.y,
+      radius: radius
+    };
+  }
+
+  // Circle-Circle collision
+  checkCircleCircleCollision(shape1, shape2) {
+    const dx = shape1.x - shape2.x;
+    const dy = shape1.y - shape2.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    return distance < shape1.radius + shape2.radius;
+  }
+
+  // Rectangle-Rectangle collision (Axis-Aligned Bounding Box)
+  checkRectangleRectangleCollision(shape1, shape2) {
+    // For rotated rectangles, we'd need Oriented Bounding Box collision
+    // For now, use expanded circle collision as approximation
+    const dx = shape1.x - shape2.x;
+    const dy = shape1.y - shape2.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const radius1 = Math.sqrt(shape1.width * shape1.width + shape1.height * shape1.height) / 2;
+    const radius2 = Math.sqrt(shape2.width * shape2.width + shape2.height * shape2.height) / 2;
+    return distance < radius1 + radius2;
+  }
+
+  // Circle-Rectangle collision
+  checkCircleRectangleCollision(shape1, shape2) {
+    let circle, rect;
+    if (shape1.type === 'circle') {
+      circle = shape1;
+      rect = shape2;
+    } else {
+      circle = shape2;
+      rect = shape1;
+    }
+    
+    // Simplified: treat rectangle as circle
+    const dx = circle.x - rect.x;
+    const dy = circle.y - rect.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const rectRadius = Math.sqrt(rect.width * rect.width + rect.height * rect.height) / 2;
+    return distance < circle.radius + rectRadius;
+  }
+
+  // Triangle-Triangle collision (approximate using bounding circles)
+  checkTriangleTriangleCollision(shape1, shape2) {
+    // Calculate approximate radius for each triangle
+    const radius1 = this.getTriangleBoundingRadius(shape1);
+    const radius2 = this.getTriangleBoundingRadius(shape2);
+    
+    const dx = shape1.x - shape2.x;
+    const dy = shape1.y - shape2.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    return distance < radius1 + radius2;
+  }
+
+  // Circle-Triangle collision
+  checkCircleTriangleCollision(shape1, shape2) {
+    let circle, triangle;
+    if (shape1.type === 'circle') {
+      circle = shape1;
+      triangle = shape2;
+    } else {
+      circle = shape2;
+      triangle = shape1;
+    }
+    
+    // Approximate triangle as circle
+    const triangleRadius = this.getTriangleBoundingRadius(triangle);
+    const dx = circle.x - triangle.x;
+    const dy = circle.y - triangle.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    return distance < circle.radius + triangleRadius;
+  }
+
+  // Rectangle-Triangle collision
+  checkRectangleTriangleCollision(shape1, shape2) {
+    let rect, triangle;
+    if (shape1.type === 'rectangle') {
+      rect = shape1;
+      triangle = shape2;
+    } else {
+      rect = shape2;
+      triangle = shape1;
+    }
+    
+    // Approximate both as circles
+    const rectRadius = Math.sqrt(rect.width * rect.width + rect.height * rect.height) / 2;
+    const triangleRadius = this.getTriangleBoundingRadius(triangle);
+    
+    const dx = rect.x - triangle.x;
+    const dy = rect.y - triangle.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    return distance < rectRadius + triangleRadius;
+  }
+
+  // Calculate bounding radius for a triangle
+  getTriangleBoundingRadius(triangle) {
+    let maxDistance = 0;
+    for (const point of triangle.points) {
+      const distance = Math.sqrt(point.x * point.x + point.y * point.y);
+      maxDistance = Math.max(maxDistance, distance);
+    }
+    return maxDistance;
+  }
+
+  checkLaserCollision(laser, target) {
+    // For laser collision, we need line-to-shape collision detection
+    if (target.parts && target.parts.size > 0) {
+      // Multi-part entity: check laser against each part using part-specific collision detection
+      for (const part of target.parts.values()) {
+        if (!part.enabled || part.destroyed) continue;
+        
+        // Use the part's own laser collision method for accurate detection
+        if (part.checkLaserCollision && typeof part.checkLaserCollision === 'function') {
+          if (part.checkLaserCollision(laser)) {
+            return true;
+          }
+        } else {
+          // Fallback to generic line collision if part doesn't have specific method
+          if (this.checkLaserLineCollision(laser, part)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    
+    // Single entity: standard laser-circle collision
+    return this.checkLaserLineCollision(laser, target);
+  }
+
+  // Check collision between a laser line and a circular entity
+  checkLaserLineCollision(laser, target) {
     const laserStartX = laser.x;
     const laserStartY = laser.y;
     const laserEndX = laser.x + Math.cos(laser.angle) * laser.length;
@@ -1181,18 +1848,20 @@ export class CollisionManager {
 
     const circleX = target.x;
     const circleY = target.y;
-    const circleRadius = target.size;
+    const circleRadius = target.size || target.radius || 10;
 
     const dx = laserEndX - laserStartX;
     const dy = laserEndY - laserStartY;
     const lengthSq = dx * dx + dy * dy;
-    let t = 0;
-    if (lengthSq !== 0) {
-      t =
-        ((circleX - laserStartX) * dx + (circleY - laserStartY) * dy) /
-        lengthSq;
-      t = Math.max(0, Math.min(1, t)); // Clamp t between 0 and 1
+    
+    if (lengthSq === 0) {
+      // Laser has no length, check point collision
+      const distSq = (circleX - laserStartX) ** 2 + (circleY - laserStartY) ** 2;
+      return distSq <= circleRadius ** 2;
     }
+    
+    let t = ((circleX - laserStartX) * dx + (circleY - laserStartY) * dy) / lengthSq;
+    t = Math.max(0, Math.min(1, t)); // Clamp t between 0 and 1
 
     const closestX = laserStartX + t * dx;
     const closestY = laserStartY + t * dy;
@@ -1201,7 +1870,7 @@ export class CollisionManager {
     const distDy = circleY - closestY;
     const distance = Math.sqrt(distDx * distDx + distDy * distDy);
 
-    return distance < circleRadius + laser.width / 2;
+    return distance < circleRadius + (laser.width || 2) / 2;
   }
 
   checkPlayerCollision(player, obj) {
@@ -1386,16 +2055,7 @@ export class CollisionManager {
     return distance <= circleRadius;
   }
 
-  // Handle player-metal collisions with equal mass physics
-  handlePlayerMetalCollisions() {
-    for (const metal of this.entities.metals) {
-      const collisionSegment = metal.checkPlayerCollision(this.game.player);
-      if (collisionSegment) {
-        // Use metal's new collision handling method
-        metal.handlePlayerCollision(this.game.player, collisionSegment);
-      }
-    }
-  }
+  // Duplicate method removed - using bumper cars implementation above
 
   // Handle enemy-metal collisions with 50% dampened effect
   handleEnemyMetalCollisions() {

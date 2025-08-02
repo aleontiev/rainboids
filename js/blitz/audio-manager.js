@@ -102,9 +102,21 @@ export class AudioManager {
         synthdef.sound_vol = 0.04; // Extremely subtle volume
         break;
       case "powerUp":
-        synthdef = params.powerUp();
-        synthdef.sound_vol = 0.18; // Reduced volume
-        synthdef.p_env_sustain = 0.1; // Shorter duration
+        // Soft, soothing powerup sound - gentle and pleasant
+        synthdef = new Params(); // Start fresh
+        synthdef.wave_type = 2; // SINE wave for smooth, gentle sound
+        synthdef.p_base_freq = 0.35; // Slightly lower, warmer frequency
+        synthdef.p_env_attack = 0.08; // Softer, gentler attack
+        synthdef.p_env_sustain = 0.25; // Longer sustain for smoother feel
+        synthdef.p_env_decay = 0.6; // Much longer decay for gentle fade
+        synthdef.p_freq_ramp = 0.2; // Very gentle upward sweep
+        synthdef.p_freq_dramp = 0.05; // Minimal acceleration
+        synthdef.p_arp_speed = 0.1; // Slower, more relaxed arpeggio
+        synthdef.p_arp_mod = 0.15; // Subtle arpeggio modulation
+        synthdef.p_lpf_freq = 0.6; // Heavy low-pass filtering for warmth
+        synthdef.p_vib_strength = 0.03; // Very gentle vibrato
+        synthdef.p_vib_speed = 0.3; // Slow, relaxing vibrato
+        synthdef.sound_vol = 0.08; // Quieter, more subtle volume
         break;
       case "continuousLaser":
         // Pleasant yet powerful continuous laser sound
@@ -248,11 +260,83 @@ export class AudioManager {
   }
 
   initBackgroundMusic() {
-    if (!this.backgroundMusic) {
-      this.backgroundMusic = new Audio("bgm.mp3");
-      this.backgroundMusic.loop = true;
-      this.backgroundMusic.volume = 0.3;
+    // Get audio config from level
+    const audioConfig = this.getAudioConfig();
+    const musicConfig = audioConfig?.backgroundMusic;
+    
+    if (!this.backgroundMusic && musicConfig) {
+      this.backgroundMusic = new Audio(musicConfig.file);
+      this.backgroundMusic.loop = musicConfig.loop !== false; // Default to true
+      this.backgroundMusic.volume = musicConfig.volume || 0.3;
+      
+      // Set start position if specified
+      if (musicConfig.offset > 0) {
+        this.backgroundMusic.currentTime = musicConfig.offset;
+      }
+      
       this.toggleBackgroundMusic(this.musicMuted);
+    }
+  }
+
+  // Get current audio configuration (level + phase overrides)
+  getAudioConfig() {
+    const level = this.game?.level;
+    if (!level?.config?.audio) return null;
+
+    const levelAudio = level.config.audio;
+    const currentPhase = level.getCurrentPhase?.();
+    const phaseAudio = currentPhase?.audio;
+
+    // Merge level audio with phase overrides
+    return {
+      backgroundMusic: {
+        ...levelAudio.backgroundMusic,
+        ...phaseAudio?.backgroundMusic
+      },
+      soundEffects: {
+        ...levelAudio.soundEffects,
+        ...phaseAudio?.soundEffects
+      }
+    };
+  }
+
+  // Load new music when phase changes
+  loadPhaseMusic(phaseConfig) {
+    const audioConfig = this.getAudioConfig();
+    const musicConfig = audioConfig?.backgroundMusic;
+    
+    if (!musicConfig) return;
+
+    // Check if we need to change music
+    const currentSrc = this.backgroundMusic?.src;
+    const newSrc = new URL(musicConfig.file, window.location.origin).href;
+    
+    if (currentSrc !== newSrc) {
+      // Stop current music
+      if (this.backgroundMusic) {
+        this.backgroundMusic.pause();
+        this.backgroundMusic = null;
+      }
+      
+      // Load new music
+      this.backgroundMusic = new Audio(musicConfig.file);
+      this.backgroundMusic.loop = musicConfig.loop !== false;
+      this.backgroundMusic.volume = musicConfig.volume || 0.3;
+      
+      if (musicConfig.offset > 0) {
+        this.backgroundMusic.currentTime = musicConfig.offset;
+      }
+      
+      this.toggleBackgroundMusic(this.musicMuted);
+      
+      // Auto-start if not muted
+      if (!this.musicMuted) {
+        this.startBackgroundMusic();
+      }
+    } else if (this.backgroundMusic) {
+      // Same file, just update properties
+      this.backgroundMusic.volume = musicConfig.volume || 0.3;
+      this.backgroundMusic.loop = musicConfig.loop !== false;
     }
   }
 
@@ -296,7 +380,16 @@ export class AudioManager {
 
   play(sound) {
     if (!this.soundMuted && sound && sound.play) {
-      sound.play();
+      // Apply sound effects volume from config
+      const audioConfig = this.getAudioConfig();
+      const sfxVolume = audioConfig?.soundEffects?.volume || 1.0;
+      const sfxEnabled = audioConfig?.soundEffects?.enabled !== false;
+      
+      if (sfxEnabled) {
+        const originalVolume = sound.volume || 1.0;
+        sound.volume = originalVolume * sfxVolume;
+        sound.play();
+      }
     }
   }
 

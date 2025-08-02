@@ -1,4 +1,4 @@
-// Enemy entities for Rainboids: Blitz - Data-driven configuration system
+// Enemy entities for BlitzRain - Data-driven configuration system
 import { Bullet } from "./bullet.js";
 import { Laser } from "./laser.js";
 import { CircularBullet } from "./circular-bullet.js";
@@ -37,7 +37,10 @@ export class Enemy {
 
     // Attack properties (support both old and new format)
     this.shootCooldown = 0;
-    this.canShoot = this.config.attack?.canShoot ?? this.config.canShoot ?? true;
+    
+    // Set canShoot - default to true unless explicitly disabled
+    // Only set to false if attack.canShoot is explicitly false (for dive enemies that shouldn't shoot)
+    this.canShoot = this.config.attack?.canShoot !== false;
 
     // Handle clone fade-in effect
     this.fadeInTimer = isClone ? 0 : this.config.fadeInTime;
@@ -62,14 +65,34 @@ export class Enemy {
     this.initializeCloningProperties();
   }
 
-  // Merge provided config with defaults
+  // Merge provided config with defaults using deep merge
   mergeWithDefaults(config) {
     const defaults = this.game?.level?.getEnemyConfig("*");
+    
+    if (!defaults) return config;
+    if (!config) return defaults;
 
-    return {
-      ...defaults,
-      ...config,
-    };
+    return this.deepMerge(defaults, config);
+  }
+
+  // Deep merge utility to properly merge nested objects like attack config
+  deepMerge(target, source) {
+    const result = { ...target };
+    
+    for (const key in source) {
+      if (source.hasOwnProperty(key)) {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key]) &&
+            target[key] && typeof target[key] === 'object' && !Array.isArray(target[key])) {
+          // Both are objects, merge recursively
+          result[key] = this.deepMerge(target[key], source[key]);
+        } else {
+          // Use source value (primitive, array, or null)
+          result[key] = source[key];
+        }
+      }
+    }
+    
+    return result;
   }
 
   // Check if this enemy is vulnerable
@@ -169,10 +192,7 @@ export class Enemy {
         break;
 
       case "spreading":
-        this.spreadBulletSize = attackConfig.spreadBulletSize || 8;
-        this.spreadBulletSpeed = attackConfig.spreadBulletSpeed || 3;
-        this.spreadBulletCount = attackConfig.spreadBulletCount || 8;
-        this.spreadExplosionTime = attackConfig.spreadExplosionTime || 120;
+        // Spreading bullet configuration now handled via nested bullet config
         break;
     }
   }
@@ -486,7 +506,7 @@ export class Enemy {
         break;
 
       case "spreading":
-        this.handleSpreadingAttack(bullets, player);
+        this.handleSimpleAttack(bullets, player);
         break;
 
       case "laser":
@@ -510,12 +530,11 @@ export class Enemy {
   handleSimpleAttack(bullets, player) {
     this.shootCooldown++;
     const attack = this.config.attack || {};
-    const cooldown = attack.cooldown ?? this.config.shootCooldown ?? 60;
+    const cooldown = attack.cooldown ?? 60;
     
     if (this.shootCooldown > cooldown) {
       this.shootCooldown = 0;
       const angle = Math.atan2(player.y - this.y, player.x - this.x);
-
       this.createBullet(bullets, this.x, this.y, angle);
     }
   }
@@ -523,7 +542,7 @@ export class Enemy {
   handleBurstAttack(bullets, player) {
     this.shootCooldown++;
     const attack = this.config.attack || {};
-    const cooldown = attack.cooldown ?? this.config.shootCooldown ?? 60;
+    const cooldown = attack.cooldown ?? 60;
     
     if (this.shootCooldown > cooldown) {
       this.shootCooldown = 0;
@@ -565,7 +584,7 @@ export class Enemy {
   handleCircularAttack(bullets, player) {
     this.shootCooldown++;
     const attack = this.config.attack || {};
-    const cooldown = attack.cooldown ?? this.config.shootCooldown ?? 60;
+    const cooldown = attack.cooldown ?? 60;
     
     if (this.shootCooldown > cooldown) {
       this.shootCooldown = 0;
@@ -579,40 +598,6 @@ export class Enemy {
     }
   }
 
-  handleSpreadingAttack(bullets, player) {
-    this.shootCooldown++;
-    const attack = this.config.attack || {};
-    const cooldown = attack.cooldown ?? this.config.shootCooldown ?? 60;
-    
-    if (this.shootCooldown > cooldown) {
-      this.shootCooldown = 0;
-      const angle = Math.atan2(player.y - this.y, player.x - this.x);
-
-      // Support both old and new config structure for bullet properties
-      const bulletSize = attack.bulletSize ?? this.config.bulletSize ?? 6;
-      const bulletSpeed = attack.bulletSpeed ?? this.config.bulletSpeed ?? 3;
-      const bulletColor = attack.bulletColor ?? this.config.bulletColor ?? this.color;
-
-      bullets.push(
-        new SpreadingBullet(
-          this.x,
-          this.y,
-          angle,
-          bulletSize,
-          bulletColor,
-          this.isPortrait,
-          bulletSpeed,
-          this.spreadExplosionTime,
-          this.game,
-          {
-            count: this.spreadBulletCount,
-            speed: this.spreadBulletSpeed,
-            size: this.spreadBulletSize,
-          }
-        )
-      );
-    }
-  }
 
   handleLaserAttack(lasers, player) {
     // Handle laser state machine
@@ -652,7 +637,7 @@ export class Enemy {
           // Create laser projectile
           const attack = this.config.attack || {};
           const laserSpeed = attack.laserSpeed ?? 80;
-          const bulletColor = attack.bulletColor ?? this.config.bulletColor ?? "#ff0000";
+          const bulletColor = attack.bullet?.color ?? "#ff0000";
           
           lasers.push(
             new Laser(
@@ -690,14 +675,17 @@ export class Enemy {
     }
   }
 
-  createBullet(bullets, x, y, angle) {
-    // Support both old and new config structure for bullet properties
+  createBullet(bullets, x, y, angle, bulletConfig = null) {
+    // Use provided bulletConfig or get from attack config
     const attack = this.config.attack || {};
-    const bulletColor = attack.bulletColor ?? this.config.bulletColor ?? this.color;
-    const bulletType = attack.bulletType ?? this.config.bulletType ?? "normal";
-    const bulletSize = attack.bulletSize ?? this.config.bulletSize ?? 6;
-    const bulletSpeed = attack.bulletSpeed ?? this.config.bulletSpeed ?? 3;
-    const bulletDamage = attack.bulletDamage ?? this.config.bulletDamage ?? 1;
+    const bullet = bulletConfig || attack.bullet || {};
+    
+    // Get bullet properties from nested structure
+    const bulletColor = bullet.color ?? this.color;
+    const bulletType = bullet.type ?? "normal";
+    const bulletSize = bullet.size ?? 6;
+    const bulletSpeed = bullet.speed ?? 3;
+    const bulletDamage = bullet.damage ?? 1;
 
     switch (bulletType) {
       case "circular":
@@ -709,7 +697,26 @@ export class Enemy {
             bulletSize,
             bulletColor,
             this.isPortrait,
-            bulletSpeed
+            bulletSpeed,
+            false, // isPlayerBullet
+            this.game // game reference
+          )
+        );
+        break;
+
+      case "spreading":
+        bullets.push(
+          new SpreadingBullet(
+            x,
+            y,
+            angle,
+            bulletSize,
+            bulletColor,
+            this.isPortrait,
+            bulletSpeed,
+            bullet.delay ?? 120, // Use delay from config (replaces spreadExplosionTime)
+            this.game,
+            bullet.bullet || null // Recursive bullet config for spreading
           )
         );
         break;
@@ -731,6 +738,68 @@ export class Enemy {
           )
         );
         break;
+    }
+  }
+
+  // Get collision boundary for precise shape-based collision detection
+  getCollisionBoundary() {
+    const shape = this.config?.shape || 'triangle';
+    
+    switch (shape) {
+      case 'circle':
+        return {
+          type: 'circle',
+          x: this.x,
+          y: this.y,
+          radius: this.size * 0.5
+        };
+        
+      case 'square':
+      case 'rounded-square':
+        return {
+          type: 'rectangle',
+          x: this.x,
+          y: this.y,
+          angle: this.angle || 0,
+          width: this.size * 1.2,
+          height: this.size * 1.2
+        };
+        
+      case 'triangle':
+      case 'equal-triangle':
+      case 'sharp-triangle':
+      default:
+        // Standard triangle pointing right
+        return {
+          type: 'triangle',
+          x: this.x,
+          y: this.y,
+          angle: this.angle || 0,
+          points: [
+            { x: this.size, y: 0 }, // Front tip
+            { x: -this.size * 0.5, y: -this.size * 0.5 }, // Back top
+            { x: -this.size * 0.5, y: this.size * 0.5 }   // Back bottom
+          ]
+        };
+        
+      case 'two-circles':
+        // Treat as rectangle for collision purposes
+        return {
+          type: 'rectangle',
+          x: this.x,
+          y: this.y,
+          angle: this.angle || 0,
+          width: this.size * 1.2,
+          height: this.size * 2.4
+        };
+        
+      case 'ring':
+        return {
+          type: 'circle',
+          x: this.x,
+          y: this.y,
+          radius: this.size * 0.8
+        };
     }
   }
 
@@ -765,8 +834,8 @@ export class Enemy {
     ctx.globalAlpha = this.opacity || 1.0;
 
     // Apply visual rotation if configured
-    if (this.config.visualConfig?.rotationSpeed) {
-      ctx.rotate(this.time * this.config.visualConfig.rotationSpeed);
+    if (this.config.rotation) {
+      ctx.rotate(this.time * this.config.rotation);
     }
 
     // Draw charging effects for laser enemies
@@ -799,7 +868,7 @@ export class Enemy {
     if (!enemyMesh) {
       // Create geometry based on enemy shape
       let geometry;
-      const shape = this.config.visualConfig?.shape || 'triangle';
+      const shape = this.config.shape || 'triangle';
       
       switch (shape) {
         case 'circle':
@@ -835,8 +904,8 @@ export class Enemy {
     enemyMesh.rotation.z = -this.angle; // Flip rotation for screen coordinates
     
     // Apply visual rotation if configured
-    if (this.config.visualConfig?.rotationSpeed) {
-      enemyMesh.rotation.z -= this.time * this.config.visualConfig.rotationSpeed;
+    if (this.config.rotation) {
+      enemyMesh.rotation.z -= this.time * this.config.rotation;
     }
     
     // Update material properties
@@ -934,6 +1003,9 @@ export class Enemy {
     ctx.fillStyle = this.color;
     ctx.strokeStyle = this.config.strokeColor;
     ctx.lineWidth = this.config.strokeWidth;
+    
+    // Set fill rule to nonzero (default)
+    ctx.fillRule = 'nonzero';
 
     switch (this.config.shape) {
       case "triangle":
@@ -981,14 +1053,14 @@ export class Enemy {
     ctx.lineTo(-this.size * 0.3, 0);
     ctx.lineTo(-this.size * 0.5, this.size * 0.5);
     ctx.closePath();
-    ctx.fill();
+    ctx.fill('nonzero');
     if (this.config.strokeWidth > 0) ctx.stroke();
   }
 
   renderCircle(ctx) {
     ctx.beginPath();
     ctx.arc(0, 0, this.size * 0.5, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fill('nonzero');
     if (this.config.strokeWidth > 0) ctx.stroke();
 
     // Add laser cannon for laser enemies
@@ -1000,7 +1072,7 @@ export class Enemy {
         this.size * 0.8,
         this.size * 0.16
       );
-      ctx.fill();
+      ctx.fill('nonzero');
       ctx.stroke();
 
       ctx.beginPath();
@@ -1010,7 +1082,7 @@ export class Enemy {
         this.size * 0.1,
         this.size * 0.2
       );
-      ctx.fill();
+      ctx.fill('nonzero');
       ctx.stroke();
     }
   }
@@ -1023,7 +1095,7 @@ export class Enemy {
       this.size * 1.2,
       this.size * 1.2
     );
-    ctx.fill();
+    ctx.fill('nonzero');
     if (this.config.strokeWidth > 0) ctx.stroke();
   }
 
@@ -1045,7 +1117,7 @@ export class Enemy {
     ctx.lineTo(x, y + radius);
     ctx.quadraticCurveTo(x, y, x + radius, y);
     ctx.closePath();
-    ctx.fill();
+    ctx.fill('nonzero');
     if (this.config.strokeWidth > 0) ctx.stroke();
   }
 
@@ -1055,7 +1127,7 @@ export class Enemy {
     ctx.lineTo(-this.size * 0.6, this.size * 0.35);
     ctx.lineTo(this.size * 0.6, this.size * 0.35);
     ctx.closePath();
-    ctx.fill();
+    ctx.fill('nonzero');
     if (this.config.strokeWidth > 0) ctx.stroke();
   }
 
@@ -1065,7 +1137,7 @@ export class Enemy {
     ctx.lineTo(-this.size * 0.8, -this.size * 0.4);
     ctx.lineTo(-this.size * 0.8, this.size * 0.4);
     ctx.closePath();
-    ctx.fill();
+    ctx.fill('nonzero');
     if (this.config.strokeWidth > 0) ctx.stroke();
   }
 
@@ -1073,13 +1145,13 @@ export class Enemy {
     // Top circle
     ctx.beginPath();
     ctx.arc(0, -this.size * 0.6, this.size * 0.6, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fill('nonzero');
     if (this.config.strokeWidth > 0) ctx.stroke();
 
     // Bottom circle
     ctx.beginPath();
     ctx.arc(0, this.size * 0.6, this.size * 0.6, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fill('nonzero');
     if (this.config.strokeWidth > 0) ctx.stroke();
   }
 
@@ -1087,13 +1159,13 @@ export class Enemy {
     // Outer ring
     ctx.beginPath();
     ctx.arc(0, 0, this.size * 0.8, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fill('nonzero');
 
     // Inner hole
     ctx.fillStyle = "#000000";
     ctx.beginPath();
     ctx.arc(0, 0, this.size * 0.5, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fill('nonzero');
 
     // Stroke both rings
     if (this.config.strokeWidth > 0) {
@@ -1116,7 +1188,7 @@ export class Enemy {
         ctx.fillStyle = "#00ddff";
         ctx.beginPath();
         ctx.arc(x, y, this.size * 0.15, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fill('nonzero');
       }
     }
   }

@@ -8,7 +8,9 @@ export class CircularBullet {
     size,
     color,
     isPortrait,
-    speed = 8 // Default bullet speed
+    speed = 8, // Default bullet speed
+    isPlayerBullet = false,
+    game = null // Optional game reference for level manager
   ) {
     this.x = x;
     this.y = y;
@@ -16,12 +18,21 @@ export class CircularBullet {
     this.speed = speed; // Use passed speed or default
     this.size = size;
     this.color = color;
-    this.life = 300;
+    this.life = this.getBulletLife();
     this.isPortrait = isPortrait;
+    this.game = game;
     
     // Velocity tracking (dx/dy per second)
     this.dx = 0;
     this.dy = 0;
+  }
+
+  getBulletLife() {
+    try {
+      return this.game?.level?.config?.world?.bulletLife || 90000; // Default to 25 minutes (effectively unlimited)
+    } catch (e) {
+      return 90000;
+    }
   }
 
   update(slowdownFactor = 1.0) {
@@ -43,6 +54,16 @@ export class CircularBullet {
            this.y > -50 && 
            this.y < window.innerHeight + 50 && 
            this.life > 0;
+  }
+
+  // Get collision boundary for precise shape-based collision detection
+  getCollisionBoundary() {
+    return {
+      type: 'circle',
+      x: this.x,
+      y: this.y,
+      radius: this.size
+    };
   }
 
   // Legacy render method for backward compatibility
@@ -70,6 +91,14 @@ export class CircularBullet {
     ctx.beginPath();
     ctx.arc(0, 0, this.size, 0, Math.PI * 2); // Draw a perfect circle
     ctx.fill();
+    
+    // Add configurable stroke for circular bullets
+    const strokeColor = this.game?.level?.config?.world?.bulletStrokeColor || "#ffffff";
+    const strokeWidth = this.game?.level?.config?.world?.bulletStrokeWidth || 1;
+    
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.stroke();
     
     ctx.restore();
   }

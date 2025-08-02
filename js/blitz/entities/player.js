@@ -1,4 +1,4 @@
-// Player entity for Rainboids: Blitz
+// Player entity for BlitzRain
 import { Autoplayer } from "../autoplayer.js";
 import { Autoaimer } from "../autoaimer.js";
 
@@ -11,6 +11,23 @@ export class Player {
     this.hitboxSize = this.getPlayerHitbox();
     this.speed = this.getPlayerSpeed();
     this.angle = 0;
+    
+    // Shape configuration
+    this.shape = this.getPlayerShape();
+    this.svgPath = null;
+    this.svgImage = null;
+    this.svgBounds = null;
+    
+    // Cached Path2D objects for performance
+    this.cachedMainShipPath = null;
+    this.cachedMainShipSize = 0;
+    this.cachedCompanionShipPath = null;
+    this.cachedCompanionShipSize = 0;
+    
+    // Load SVG if shape is a URL
+    if (this.shape && (this.shape.startsWith('http') || this.shape.endsWith('.svg'))) {
+      this.loadSVGShape();
+    }
     this.shootCooldown = 0;
     this.sideWeaponCooldown = 0; // Separate cooldown for side weapons
     this.secondShipCooldown = 0; // Separate cooldown for second ship
@@ -39,6 +56,11 @@ export class Player {
     // Color animation
     this.colorTimer = 0;
     this.colorCycleSpeed = 0.003; // How fast to cycle through colors
+
+    // Powerup pickup pulsing effect
+    this.powerupPulseActive = false;
+    this.powerupPulseTimer = 0;
+    this.powerupPulseMaxDuration = 60; // 1 second at 60fps
 
     // Initialize autoplayer and autoaimer
     this.autoplayer = new Autoplayer(this);
@@ -111,6 +133,14 @@ export class Player {
       }
     }
 
+    // Handle powerup pulse effect timer
+    if (this.powerupPulseActive) {
+      this.powerupPulseTimer++;
+      if (this.powerupPulseTimer >= this.powerupPulseMaxDuration) {
+        this.powerupPulseActive = false;
+      }
+    }
+
     // Get current speed (decreased during shield, time slow, or manual slow)
     let currentSpeed = this.speed;
     if (this.isShielding) {
@@ -119,9 +149,9 @@ export class Player {
     if (timeSlowActive) {
       currentSpeed *= 0.5; // 50% speed during time slow
     }
-    // Manual slow movement when holding shift but shield is not available
-    if (keys.shift && !this.isShielding && this.shield <= 0) {
-      currentSpeed *= 0.5; // 50% speed when holding shift without shield
+    // Manual slow movement when holding shift (regardless of shield state)
+    if (keys.shift) {
+      currentSpeed *= 0.5; // 50% speed when holding shift
     }
 
     // Handle movement - autoplay overrides manual input
@@ -175,6 +205,18 @@ export class Player {
       this.y = window.innerHeight - margin;
       this.vy = -Math.abs(this.vy) * bounceMultiplier; // Bounce up
     }
+
+    // Apply collision velocity from bumper cars effect (stored from previous frame)
+    this.x += this.collisionVx || 0;
+    this.y += this.collisionVy || 0;
+    
+    // Apply drag to collision velocity
+    this.collisionVx = (this.collisionVx || 0) * 0.85;
+    this.collisionVy = (this.collisionVy || 0) * 0.85;
+    
+    // Clear very small velocities to prevent infinite drift
+    if (Math.abs(this.collisionVx) < 0.1) this.collisionVx = 0;
+    if (Math.abs(this.collisionVy) < 0.1) this.collisionVy = 0;
 
     // Update velocity tracking for predictive aiming
     this.vx = this.x - this.prevX;
@@ -236,16 +278,25 @@ export class Player {
 
     // Update second ship positions (above/below or left/right based on orientation)
     this.secondShip.forEach((ship) => {
-      if (ship.isHorizontal) {
-        // Portrait mode: left/right positioning
-        ship.x = this.x + (ship.offset || 40);
-        ship.y = this.y;
+      if (ship.currentOrbitAngle !== undefined) {
+        // New orbital system - ships orbit around the player
+        ship.currentOrbitAngle += ship.orbitSpeed || 0.02;
+        ship.x = this.x + Math.cos(ship.currentOrbitAngle) * ship.radius;
+        ship.y = this.y + Math.sin(ship.currentOrbitAngle) * ship.radius;
+        ship.initialAngle = this.angle; // Make companion ship face same direction as player
       } else {
-        // Landscape mode: above/below positioning
-        ship.x = this.x;
-        ship.y = this.y + (ship.offset || 40);
+        // Legacy positioning system for backwards compatibility
+        if (ship.isHorizontal) {
+          // Portrait mode: left/right positioning
+          ship.x = this.x + (ship.offset || 40);
+          ship.y = this.y;
+        } else {
+          // Landscape mode: above/below positioning
+          ship.x = this.x;
+          ship.y = this.y + (ship.offset || 40);
+        }
+        ship.initialAngle = this.angle; // Make companion ship face same direction as player
       }
-      ship.initialAngle = this.angle; // Make companion ship face same direction as player
     });
   }
 
@@ -436,26 +487,27 @@ export class Player {
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle + this.rollAngle);
-    const visualSize = this.size * 2.5; // 2.5x larger visual size
+    
+    // Base visual size with powerup pulsing effect
+    let visualSize = this.size * 2.5; // 2.5x larger visual size
+    if (this.powerupPulseActive) {
+      // Create pulsing effect - stronger at start, fading out
+      const progress = this.powerupPulseTimer / this.powerupPulseMaxDuration;
+      const pulseIntensity = (1 - progress) * 0.3; // Start at 30% extra size, fade to 0
+      const pulseWave = Math.sin(this.powerupPulseTimer * 0.5) * pulseIntensity;
+      visualSize *= (1 + pulseWave);
+    }
 
-    // Define ship shape path (used for both fill and stroke)
-    const drawShipPath = () => {
-      ctx.beginPath();
-      ctx.moveTo(visualSize, 0); // Arrow tip
-      ctx.lineTo(-visualSize / 2, -visualSize / 2); // Top left
-      ctx.lineTo(-visualSize / 4, 0); // Middle left
-      ctx.lineTo(-visualSize / 2, visualSize / 2); // Bottom left
-      ctx.closePath();
-    };
+    // Get cached ship path for performance
+    const shipPath = this.getCachedMainShipPath(visualSize);
 
     if (this.isShielding) {
-      // SHIELDING MODE: Only render thick gold stroke outline - nothing else
+      // SHIELDING MODE: Only render thick stroke outline - nothing else
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = "#ffd700"; // Gold stroke
+      ctx.strokeStyle = this.timeSlowActive ? "#00ff00" : "#ffd700"; // Green during time slow, gold otherwise
       ctx.lineWidth = 5; // Thick stroke
 
-      drawShipPath();
-      ctx.stroke();
+      this.renderShipShape(ctx, shipPath, visualSize, false, true);
       
     } else {
       // NORMAL MODE: Render full ship with all effects
@@ -479,15 +531,20 @@ export class Player {
         gradient.addColorStop(0.75, `hsl(${(time * 60 + 270) % 360}, 100%, 50%)`);
         gradient.addColorStop(1, `hsl(${(time * 60 + 360) % 360}, 100%, 50%)`);
         ctx.fillStyle = gradient;
-      } else if (this.timeSlowActive) {
-        ctx.fillStyle = "#00ff00"; // Bright green during time slow
       } else {
         // Default: slowly cycling color gradient
         ctx.fillStyle = this.createColorGradient(ctx, visualSize);
       }
 
-      drawShipPath();
-      ctx.fill();
+      this.renderShipShape(ctx, shipPath, visualSize, true, false);
+
+      // Add green stroke outline during time slow
+      if (this.timeSlowActive) {
+        ctx.globalAlpha = 0.8;
+        ctx.strokeStyle = "#00ff00"; // Bright green stroke
+        ctx.lineWidth = 3; // Medium stroke width
+        this.renderShipShape(ctx, shipPath, visualSize, false, true);
+      }
 
       // Draw shield if active (passive shield powerup)
       if (this.shield > 0) {
@@ -496,8 +553,7 @@ export class Player {
         ctx.strokeStyle = "#0099ff"; // Bright blue
         ctx.lineWidth = 3;
 
-        drawShipPath();
-        ctx.stroke();
+        this.renderShipShape(ctx, shipPath, visualSize, false, true);
 
         // Additional shield strokes for multiple shields
         if (this.shield > 1) {
@@ -506,15 +562,10 @@ export class Player {
             ctx.strokeStyle = "#0099ff";
             ctx.lineWidth = 3;
 
-            // Draw larger outline for each additional shield
+            // Draw larger outline for each additional shield using ship shape
             const extraSize = visualSize + i * 3;
-            ctx.beginPath();
-            ctx.moveTo(extraSize, 0);
-            ctx.lineTo(-extraSize / 2, -extraSize / 2);
-            ctx.lineTo(-extraSize / 4, 0);
-            ctx.lineTo(-extraSize / 2, extraSize / 2);
-            ctx.closePath();
-            ctx.stroke();
+            const extraShipPath = this.getCachedMainShipPath(extraSize);
+            this.renderShipShape(ctx, extraShipPath, extraSize, false, true);
           }
         }
       }
@@ -526,23 +577,17 @@ export class Player {
         ctx.strokeStyle = "#ffcc00"; // Bright gold
         ctx.lineWidth = 4;
 
-        drawShipPath();
-        ctx.stroke();
+        this.renderShipShape(ctx, shipPath, visualSize, false, true);
 
         // Additional golden shield layers
         ctx.globalAlpha = 0.7;
         ctx.strokeStyle = "#ffdd44"; // Lighter gold
         ctx.lineWidth = 3;
 
-        // Draw larger outline for second layer
+        // Draw larger outline for second layer using ship shape
         const extraSize = visualSize + 4;
-        ctx.beginPath();
-        ctx.moveTo(extraSize, 0);
-        ctx.lineTo(-extraSize / 2, -extraSize / 2);
-        ctx.lineTo(-extraSize / 4, 0);
-        ctx.lineTo(-extraSize / 2, extraSize / 2);
-        ctx.closePath();
-        ctx.stroke();
+        const extraShipPath = this.getCachedMainShipPath(extraSize);
+        this.renderShipShape(ctx, extraShipPath, extraSize, false, true);
 
         // Subtle pulsing outer layer
         const pulseIntensity = 0.7 + 0.3 * Math.sin(Date.now() * 0.005);
@@ -550,15 +595,10 @@ export class Player {
         ctx.strokeStyle = "#ffaa00"; // Deeper gold
         ctx.lineWidth = 5;
 
-        // Draw even larger outline for third layer
+        // Draw even larger outline for third layer using ship shape
         const outerSize = visualSize + 8;
-        ctx.beginPath();
-        ctx.moveTo(outerSize, 0);
-        ctx.lineTo(-outerSize / 2, -outerSize / 2);
-        ctx.lineTo(-outerSize / 4, 0);
-        ctx.lineTo(-outerSize / 2, outerSize / 2);
-        ctx.closePath();
-        ctx.stroke();
+        const outerShipPath = this.getCachedMainShipPath(outerSize);
+        this.renderShipShape(ctx, outerShipPath, outerSize, false, true);
       }
 
       // Draw simple teal-green glow (only when not shielding)
@@ -585,19 +625,22 @@ export class Player {
         ctx.translate(ship.x, ship.y);
         ctx.rotate(ship.initialAngle); // Use initialAngle for rendering
 
-        ctx.globalAlpha = 0.7;
-        ctx.strokeStyle = "#8844ff"; // Cool purple
-        ctx.lineWidth = 2;
-
-        // Simplified second ship design (using same visual size scaling)
-        const secondShipVisualSize = this.size * 2.5 * 0.8; // Same scaling as main ship
-        ctx.beginPath();
-        ctx.moveTo(secondShipVisualSize, 0);
-        ctx.lineTo(-secondShipVisualSize, -secondShipVisualSize / 2.4);
-        ctx.lineTo(-secondShipVisualSize * 0.5, 0);
-        ctx.lineTo(-secondShipVisualSize, secondShipVisualSize / 2.4);
-        ctx.closePath();
-        ctx.stroke();
+        ctx.globalAlpha = 0.8;
+        
+        // Make companion ships filled style and wider to match player
+        const secondShipVisualSize = this.size * 2.5; // Same full size as main ship
+        
+        // Get cached companion ship path for performance
+        const companionShipPath = this.getCachedCompanionShipPath(secondShipVisualSize);
+        
+        // Fill the ship first
+        ctx.fillStyle = "#6644cc"; // Slightly darker purple fill
+        this.renderShipShape(ctx, companionShipPath, secondShipVisualSize, true, false);
+        
+        // Add a subtle stroke for definition
+        ctx.strokeStyle = "#8844ff"; // Lighter purple stroke
+        ctx.lineWidth = 1.5;
+        this.renderShipShape(ctx, companionShipPath, secondShipVisualSize, false, true);
 
         ctx.restore();
       });
@@ -750,6 +793,359 @@ export class Player {
     }
   }
 
+  getPlayerShape() {
+    try {
+      return this.game?.level?.config?.player?.shape || "arrow";
+    } catch (e) {
+      return "arrow";
+    }
+  }
+
+  async loadSVGShape() {
+    if (this.game?.entities?.svgAssetManager) {
+      try {
+        const svgContent = await this.game.entities.svgAssetManager.loadSVG(this.shape);
+        if (svgContent) {
+          // Create an Image object from SVG data URL for scaling calculations
+          // Don't apply color override - keep original SVG colors
+          const svgDataURL = await this.game.entities.svgAssetManager.getSVGDataURL(this.shape, null);
+          if (svgDataURL) {
+            this.svgImage = new Image();
+            this.svgImage.src = svgDataURL;
+            await new Promise((resolve) => {
+              this.svgImage.onload = resolve;
+              this.svgImage.onerror = resolve; // Don't fail on image load errors
+            });
+          }
+          
+          // Convert SVG to Path2D for collision detection
+          this.svgPath = this.game.entities.svgToPath2D(svgContent);
+          
+          // Parse SVG viewBox for proper path scaling
+          this.svgViewBox = this.parseSVGViewBox(svgContent);
+          
+          // Calculate the geometric center of the SVG paths
+          this.svgShapeCenter = this.calculateSVGShapeCenter(svgContent);
+        }
+      } catch (error) {
+        console.warn(`Failed to load SVG for player ship:`, error);
+        // Fallback to default arrow shape
+        this.shape = "arrow";
+      }
+    }
+  }
+
+  // Calculate the geometric center of SVG paths/shapes
+  calculateSVGShapeCenter(svgContent) {
+    try {
+      // Parse the SVG content to find path elements and their bounding boxes
+      const parser = new DOMParser();
+      const svgDoc = parser.parseFromString(svgContent, 'image/svg+xml');
+      const svgElement = svgDoc.querySelector('svg');
+      
+      if (!svgElement) {
+        return { x: 0, y: 0 }; // Fallback to center
+      }
+      
+      // Get all path and shape elements
+      const shapeElements = svgElement.querySelectorAll('path, rect, circle, ellipse, polygon, polyline, g');
+      
+      if (shapeElements.length === 0) {
+        return { x: 0, y: 0 }; // Fallback to center
+      }
+      
+      // Create a temporary canvas to measure the bounding box of the shapes
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let hasValidBounds = false;
+      
+      // Calculate weighted center based on area of each element (visual center, not geometric center)
+      let totalArea = 0;
+      let weightedX = 0;
+      let weightedY = 0;
+      
+      shapeElements.forEach(element => {
+        const tagName = element.tagName.toLowerCase();
+        let elementBounds = null;
+        
+        try {
+          if (tagName === 'path') {
+            const d = element.getAttribute('d');
+            if (d) {
+              elementBounds = this.updateBoundsFromPath(d);
+            }
+          } else if (tagName === 'rect') {
+            const x = parseFloat(element.getAttribute('x') || 0);
+            const y = parseFloat(element.getAttribute('y') || 0);
+            const width = parseFloat(element.getAttribute('width') || 0);
+            const height = parseFloat(element.getAttribute('height') || 0);
+            
+            elementBounds = { minX: x, minY: y, maxX: x + width, maxY: y + height };
+          } else if (tagName === 'circle') {
+            const cx = parseFloat(element.getAttribute('cx') || 0);
+            const cy = parseFloat(element.getAttribute('cy') || 0);
+            const r = parseFloat(element.getAttribute('r') || 0);
+            
+            elementBounds = { minX: cx - r, minY: cy - r, maxX: cx + r, maxY: cy + r };
+          }
+          
+          // Calculate area-weighted center for this element
+          if (elementBounds && elementBounds.minX < Infinity) {
+            const width = elementBounds.maxX - elementBounds.minX;
+            const height = elementBounds.maxY - elementBounds.minY;
+            const area = width * height;
+            
+            if (area > 0) {
+              const centerX = elementBounds.minX + width / 2;
+              const centerY = elementBounds.minY + height / 2;
+              
+              totalArea += area;
+              weightedX += centerX * area;
+              weightedY += centerY * area;
+              hasValidBounds = true;
+              
+              // Also update overall bounds for fallback
+              minX = Math.min(minX, elementBounds.minX);
+              minY = Math.min(minY, elementBounds.minY);
+              maxX = Math.max(maxX, elementBounds.maxX);
+              maxY = Math.max(maxY, elementBounds.maxY);
+            }
+          }
+        } catch (e) {
+          // Skip invalid elements
+        }
+      });
+      
+      if (hasValidBounds && totalArea > 0) {
+        // Return the area-weighted center (visual center)
+        return {
+          x: weightedX / totalArea,
+          y: weightedY / totalArea
+        };
+      } else if (hasValidBounds && minX < maxX && minY < maxY) {
+        // Fallback to geometric center if area calculation fails
+        return {
+          x: (minX + maxX) / 2,
+          y: (minY + maxY) / 2
+        };
+      }
+      
+      // Fallback: try to get viewBox center
+      const viewBox = svgElement.getAttribute('viewBox');
+      if (viewBox) {
+        const [vx, vy, vw, vh] = viewBox.split(' ').map(Number);
+        return {
+          x: vx + vw / 2,
+          y: vy + vh / 2
+        };
+      }
+      
+      // Final fallback
+      return { x: 0, y: 0 };
+      
+    } catch (error) {
+      console.warn('Failed to calculate SVG shape center:', error);
+      return { x: 0, y: 0 };
+    }
+  }
+
+  // Helper method to extract bounds from SVG path data (simplified)
+  updateBoundsFromPath(pathData) {
+    // Simple approach: extract coordinate pairs from path data
+    const coords = pathData.match(/[-+]?[0-9]*\.?[0-9]+/g);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
+    if (coords) {
+      for (let i = 0; i < coords.length; i += 2) {
+        if (i + 1 < coords.length) {
+          const x = parseFloat(coords[i]);
+          const y = parseFloat(coords[i + 1]);
+          if (!isNaN(x) && !isNaN(y)) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          }
+        }
+      }
+    }
+    return { minX, minY, maxX, maxY };
+  }
+
+  // Get collision boundary for the player (using the rainbow circle hitbox)
+  getCollisionBoundary() {
+    return {
+      type: 'circle',
+      x: this.x,
+      y: this.y,
+      radius: this.hitboxSize
+    };
+  }
+
+  getCachedMainShipPath(visualSize) {
+    // Only recreate if size changed significantly (more than 5% difference) or path doesn't exist
+    if (!this.cachedMainShipPath || Math.abs(visualSize - this.cachedMainShipSize) > visualSize * 0.05) {
+      if (this.svgPath) {
+        // For SVG shapes, use the existing SVG path
+        this.cachedMainShipPath = this.svgPath;
+      } else {
+        // For built-in shapes, create cached Path2D
+        const path = new Path2D();
+        
+        switch (this.shape) {
+          case "triangle":
+            path.moveTo(0, -visualSize);
+            path.lineTo(-visualSize / 2, visualSize / 2);
+            path.lineTo(visualSize / 2, visualSize / 2);
+            path.closePath();
+            break;
+            
+          case "circle":
+            path.arc(0, 0, visualSize / 2, 0, Math.PI * 2);
+            break;
+            
+          case "arrow":
+          default:
+            path.moveTo(visualSize, 0); // Arrow tip
+            path.lineTo(-visualSize / 2, -visualSize / 2); // Top left
+            path.lineTo(-visualSize / 4, 0); // Middle left
+            path.lineTo(-visualSize / 2, visualSize / 2); // Bottom left
+            path.closePath();
+            break;
+        }
+        this.cachedMainShipPath = path;
+      }
+      this.cachedMainShipSize = visualSize;
+    }
+    return this.cachedMainShipPath;
+  }
+
+  getCachedCompanionShipPath(visualSize) {
+    // Only recreate if size changed significantly (more than 5% difference) or path doesn't exist
+    if (!this.cachedCompanionShipPath || Math.abs(visualSize - this.cachedCompanionShipSize) > visualSize * 0.05) {
+      if (this.svgPath) {
+        // For SVG shapes, use the existing SVG path
+        this.cachedCompanionShipPath = this.svgPath;
+      } else {
+        // For built-in shapes, create cached Path2D
+        const path = new Path2D();
+        
+        switch (this.shape) {
+          case "triangle":
+            path.moveTo(0, -visualSize);
+            path.lineTo(-visualSize / 2, visualSize / 2);
+            path.lineTo(visualSize / 2, visualSize / 2);
+            path.closePath();
+            break;
+            
+          case "circle":
+            path.arc(0, 0, visualSize / 2, 0, Math.PI * 2);
+            break;
+            
+          case "arrow":
+          default:
+            path.moveTo(visualSize, 0);
+            path.lineTo(-visualSize / 2, -visualSize / 2);
+            path.lineTo(-visualSize / 4, 0);
+            path.lineTo(-visualSize / 2, visualSize / 2);
+            path.closePath();
+            break;
+        }
+        this.cachedCompanionShipPath = path;
+      }
+      this.cachedCompanionShipSize = visualSize;
+    }
+    return this.cachedCompanionShipPath;
+  }
+
+  renderShipShape(ctx, shipPath, visualSize, fill = true, stroke = false) {
+    if (this.svgPath && this.svgImage) {
+      // For SVG shapes, render as image to preserve original colors
+      // Context is already translated to player position and rotated to player angle
+      // We just need to draw the SVG centered at (0,0) with the right size
+      
+      if (fill) {
+        // Calculate scale to match visualSize and make it 3x larger for better visibility
+        const scale = (visualSize / Math.max(this.svgImage.width, this.svgImage.height)) * 3;
+        
+        // Rotate -90 degrees to fix orientation (ship facing right -> facing up)
+        ctx.save();
+        ctx.rotate(-Math.PI / 2);
+        
+        // Draw the SVG image centered at (0,0)
+        const drawWidth = this.svgImage.width * scale;
+        const drawHeight = this.svgImage.height * scale;
+        
+        ctx.drawImage(
+          this.svgImage,
+          -drawWidth / 2,   // Center horizontally
+          -drawHeight / 2,  // Center vertically  
+          drawWidth,
+          drawHeight
+        );
+        
+        ctx.restore();
+      }
+      
+      if (stroke) {
+        // Draw a simple ring effect around the player
+        ctx.save();
+        
+        // Calculate ring size based on visual size
+        const ringRadius = visualSize * 1.5; // Ring extends beyond ship
+        const ringWidth = 8; // Ring thickness
+        
+        // Set ring properties
+        ctx.strokeStyle = ctx.strokeStyle; // Use the shield color
+        ctx.lineWidth = ringWidth;
+        ctx.globalAlpha = 0.7; // Semi-transparent
+        ctx.lineCap = 'round';
+        
+        // Draw the ring
+        ctx.beginPath();
+        ctx.arc(0, 0, ringRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        ctx.restore();
+      }
+    } else {
+      // For built-in shapes, just use the path directly
+      if (fill) {
+        ctx.fill(shipPath);
+      }
+      if (stroke) {
+        ctx.stroke(shipPath);
+      }
+    }
+  }
+
+  parseSVGViewBox(svgContent) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(svgContent, "image/svg+xml");
+      const svgElement = doc.querySelector("svg");
+      
+      if (svgElement) {
+        const viewBox = svgElement.getAttribute("viewBox");
+        if (viewBox) {
+          const [x, y, width, height] = viewBox.split(/\s+/).map(Number);
+          return { x, y, width, height };
+        }
+        
+        // Fallback to width/height attributes
+        const width = parseFloat(svgElement.getAttribute("width")) || 100;
+        const height = parseFloat(svgElement.getAttribute("height")) || 100;
+        return { x: 0, y: 0, width, height };
+      }
+    } catch (error) {
+      console.warn("Failed to parse SVG viewBox:", error);
+    }
+    
+    return null;
+  }
+
   getBulletSpeed(level = null) {
     try {
       const weaponLevel = level || this.mainWeaponLevel;
@@ -812,5 +1208,11 @@ export class Player {
     } catch (e) {
       return 60;
     }
+  }
+
+  // Trigger pulsing effect when picking up powerup
+  triggerPowerupPulse() {
+    this.powerupPulseActive = true;
+    this.powerupPulseTimer = 0;
   }
 }

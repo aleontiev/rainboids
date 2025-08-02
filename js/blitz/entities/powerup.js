@@ -59,6 +59,7 @@ export class Powerup {
 
     const pulse = 0.8 + 0.2 * Math.sin(this.pulseTimer);
 
+    // Fill the background circle with the powerup color
     if (this.type === "rainbowStar") {
       // Rainbow gradient for rainbow star
       const gradient = ctx.createLinearGradient(-this.size, -this.size, this.size, this.size);
@@ -69,59 +70,33 @@ export class Powerup {
       gradient.addColorStop(0.75, `hsl(${(time * 60 + 270) % 360}, 100%, 50%)`);
       gradient.addColorStop(1, `hsl(${(time * 60 + 360) % 360}, 100%, 50%)`);
       
-      // Draw glowing outer circle
-      ctx.strokeStyle = gradient;
-      ctx.lineWidth = 4;
-      ctx.globalAlpha = pulse;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.size, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Draw inner glow circle
-      ctx.globalAlpha = pulse * 0.6;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.size * 0.7, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.fillStyle = gradient;
     } else {
-      // Regular powerup rendering
-      const color = this.colors[this.type];
-      
-      // Draw outer circle
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.globalAlpha = pulse;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.size, 0, Math.PI * 2);
-      ctx.stroke();
-
-      // Draw inner circle
-      ctx.globalAlpha = pulse * 0.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.size * 0.7, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.fillStyle = this.colors[this.type];
     }
+    
+    // Draw filled background circle
+    ctx.globalAlpha = pulse * 0.7;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+    ctx.fill();
 
-    // Draw icon
+    // Add large green stroke around the powerup
     ctx.globalAlpha = 1;
-    if (this.type === "rainbowStar") {
-      // Use rainbow gradient for the star icon
-      const gradient = ctx.createLinearGradient(-this.size, -this.size, this.size, this.size);
-      const time = Date.now() * 0.005;
-      gradient.addColorStop(0, `hsl(${(time * 60) % 360}, 100%, 50%)`);
-      gradient.addColorStop(0.25, `hsl(${(time * 60 + 90) % 360}, 100%, 50%)`);
-      gradient.addColorStop(0.5, `hsl(${(time * 60 + 180) % 360}, 100%, 50%)`);
-      gradient.addColorStop(0.75, `hsl(${(time * 60 + 270) % 360}, 100%, 50%)`);
-      gradient.addColorStop(1, `hsl(${(time * 60 + 360) % 360}, 100%, 50%)`);
-      ctx.strokeStyle = gradient;
-    } else {
-      ctx.strokeStyle = this.colors[this.type];
-    }
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#00ff00'; // Bright green
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.size + 2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Draw icon as cutout (transparent areas that show background through)
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'destination-out'; // Create cutout effect
+    ctx.fillStyle = 'rgba(0,0,0,1)'; // Use transparent black for cutout, avoiding pure black fill
 
     switch (this.type) {
       case "shield":
-        // Shield icon (Lucide style)
+        // Shield icon (filled cutout)
         ctx.beginPath();
         ctx.moveTo(0, -this.size * 0.4);
         ctx.lineTo(this.size * 0.3, -this.size * 0.2);
@@ -130,11 +105,11 @@ export class Powerup {
         ctx.lineTo(-this.size * 0.3, this.size * 0.2);
         ctx.lineTo(-this.size * 0.3, -this.size * 0.2);
         ctx.closePath();
-        ctx.stroke();
+        ctx.fill();
         break;
 
       case "mainWeapon":
-        // Flame icon (Lucide style)
+        // Flame icon (filled cutout)
         ctx.beginPath();
         ctx.moveTo(0, this.size * 0.4);
         ctx.quadraticCurveTo(
@@ -161,7 +136,7 @@ export class Powerup {
           0,
           this.size * 0.4
         );
-        ctx.stroke();
+        ctx.fill();
         // Inner flame
         ctx.beginPath();
         ctx.moveTo(0, this.size * 0.2);
@@ -177,55 +152,51 @@ export class Powerup {
           0,
           this.size * 0.2
         );
-        ctx.stroke();
+        ctx.fill();
         break;
 
       case "sideWeapon":
-        // Triangle icon (Lucide style)
+        // Triangle icon (filled cutout)
         ctx.beginPath();
         ctx.moveTo(0, -this.size * 0.3);
         ctx.lineTo(this.size * 0.3, this.size * 0.3);
         ctx.lineTo(-this.size * 0.3, this.size * 0.3);
         ctx.closePath();
-        ctx.stroke();
+        ctx.fill();
         break;
 
       case "secondShip":
-        // Rocket icon (Lucide style)
+        // Rocket icon (filled cutout)
         ctx.beginPath();
         ctx.moveTo(0, -this.size * 0.4);
         ctx.lineTo(this.size * 0.1, -this.size * 0.2);
         ctx.lineTo(this.size * 0.2, this.size * 0.2);
+        ctx.lineTo(this.size * 0.3, this.size * 0.3);
         ctx.lineTo(this.size * 0.1, this.size * 0.4);
         ctx.lineTo(-this.size * 0.1, this.size * 0.4);
+        ctx.lineTo(-this.size * 0.3, this.size * 0.3);
         ctx.lineTo(-this.size * 0.2, this.size * 0.2);
         ctx.lineTo(-this.size * 0.1, -this.size * 0.2);
         ctx.closePath();
-        ctx.stroke();
-        // Rocket fins
-        ctx.beginPath();
-        ctx.moveTo(-this.size * 0.2, this.size * 0.2);
-        ctx.lineTo(-this.size * 0.3, this.size * 0.3);
-        ctx.moveTo(this.size * 0.2, this.size * 0.2);
-        ctx.lineTo(this.size * 0.3, this.size * 0.3);
-        ctx.stroke();
+        ctx.fill();
         break;
 
       case "bomb":
-        // Bomb icon (keep existing design)
+        // Bomb icon (filled cutout)
         ctx.beginPath();
         ctx.arc(0, this.size * 0.1, this.size * 0.3, 0, Math.PI * 2);
-        ctx.stroke();
-        // Fuse
+        ctx.fill();
+        // Fuse - create triangular fuse area
         ctx.beginPath();
         ctx.moveTo(0, -this.size * 0.2);
         ctx.lineTo(-this.size * 0.1, -this.size * 0.4);
         ctx.lineTo(this.size * 0.1, -this.size * 0.3);
-        ctx.stroke();
+        ctx.closePath();
+        ctx.fill();
         break;
 
       case "rainbowStar":
-        // 5-pointed star icon
+        // 5-pointed star icon (filled cutout)
         ctx.beginPath();
         for (let i = 0; i < 5; i++) {
           const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
@@ -238,10 +209,13 @@ export class Powerup {
           }
         }
         ctx.closePath();
-        ctx.stroke();
+        ctx.fill();
         break;
     }
 
+    // Reset composite operation back to normal
+    ctx.globalCompositeOperation = 'source-over';
+    
     ctx.restore();
   }
 

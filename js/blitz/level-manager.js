@@ -1,9 +1,11 @@
 // Level- Handles game phases, spawning, and level progression
 import level1Config from './levels/level1-config.js';
+import { level2Config } from './levels/level2-config.js';
 
 export class LevelManager {
-  constructor(game) {
+  constructor(game, levelNumber = 1) {
     this.game = game;
+    this.levelNumber = levelNumber;
 
     // Phase tracking
     this.currentPhaseIndex = 0;
@@ -24,8 +26,26 @@ export class LevelManager {
     this.powerupSpawnTimer = 0;
     this.metalSpawnTimer = 0;
 
-    // Load level configuration
-    this.config = level1Config;
+    // Load level configuration based on level number
+    const levelConfigs = {
+      1: level1Config,
+      2: level2Config
+    };
+    this.config = levelConfigs[levelNumber] || level1Config;
+    
+    // Preload SVG assets for this level
+    this.preloadLevelAssets();
+  }
+
+  // Preload SVG assets for the level
+  async preloadLevelAssets() {
+    if (this.game && this.game.entities) {
+      try {
+        await this.game.entities.preloadLevelSVGs(this.config);
+      } catch (error) {
+        console.warn('Failed to preload level SVG assets:', error);
+      }
+    }
   }
 
   reset() {
@@ -48,6 +68,14 @@ export class LevelManager {
     // Initialize game state with current level and phase
     this.game.state.level = 1; // Currently hardcoded to level 1
     this.game.state.phase = this.getCurrentPhase().id;
+    
+    // Trigger initial phase background (if phase 1 has custom background)
+    const currentPhase = this.getCurrentPhase();
+    if (currentPhase.background && this.game.background) {
+      const transitionDuration = currentPhase.backgroundTransitionDuration || 3000;
+      this.game.background.transitionToBackground(currentPhase.background, transitionDuration);
+      console.log(`Level start: Setting phase ${currentPhase.id} background`);
+    }
   }
 
   // Initialize tracking for all phases
@@ -67,11 +95,42 @@ export class LevelManager {
     const baseConfig = this.config.enemies[enemyName];
     if (!baseConfig) return null;
     
-    // Merge with defaults
-    return {
-      ...(this.config.enemies['*'] || {}),
-      ...baseConfig
-    };
+    // Get current phase
+    const currentPhase = this.getCurrentPhase();
+    const phaseEnemyConfig = currentPhase?.enemies?.[enemyName];
+    
+    // Deep merge: defaults -> base config -> phase overrides
+    const mergedConfig = this.deepMerge(
+      this.config.enemies['*'] || {},
+      baseConfig,
+      phaseEnemyConfig || {}
+    );
+    
+    return mergedConfig;
+  }
+
+  // Helper method for deep merging objects
+  deepMerge(target, ...sources) {
+    if (!sources.length) return target;
+    const source = sources.shift();
+
+    if (this.isObject(target) && this.isObject(source)) {
+      for (const key in source) {
+        if (this.isObject(source[key])) {
+          if (!target[key]) Object.assign(target, { [key]: {} });
+          this.deepMerge(target[key], source[key]);
+        } else {
+          Object.assign(target, { [key]: source[key] });
+        }
+      }
+    }
+
+    return this.deepMerge(target, ...sources);
+  }
+
+  // Helper method to check if value is an object
+  isObject(item) {
+    return item && typeof item === 'object' && !Array.isArray(item);
   }
 
   // Get player weapon configuration for a specific level
@@ -436,6 +495,20 @@ export class LevelManager {
     // Update game state to sync with UI display
     this.game.state.phase = newPhase.id;
     
+    // Trigger background transition if the new phase has a custom background
+    if (newPhase.background && this.game.background) {
+      const transitionDuration = newPhase.backgroundTransitionDuration || 5000;
+      this.game.background.transitionToBackground(newPhase.background, transitionDuration);
+      console.log(`Phase ${newPhase.id}: Starting background transition`);
+    }
+    
+    // Trigger audio transition if the new phase has custom audio
+    if (newPhase.audio && this.game.audio) {
+      this.game.audio.loadPhaseMusic(newPhase.audio);
+      console.log(`Phase ${newPhase.id}: Loading phase music`);
+    }
+    
+    console.log(`Transitioned from phase ${oldPhase.id} to phase ${newPhase.id}`);
   }
 
   handleSpecialPhaseLogic(deltaTime) {

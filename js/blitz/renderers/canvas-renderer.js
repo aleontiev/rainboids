@@ -83,10 +83,9 @@ export class CanvasRenderer extends BaseRenderer {
     this.animationFrame++;
     this.incrementFrame();
     
-    // Reset alpha and clear screen first
+    // Reset alpha and clear screen with configurable background
     ctx.globalAlpha = 1.0;
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.renderConfigurableBackground(ctx);
 
     // Draw background
     this.game.background.render(ctx);
@@ -121,6 +120,9 @@ export class CanvasRenderer extends BaseRenderer {
 
       // Draw explosions (on top of everything)
       this.game.explosions.forEach(renderer);
+
+      // Draw floating score text
+      this.game.effects.renderFloatingTexts(ctx);
 
       // Draw text particles (score popups, etc.)
       this.game.textParticles.forEach(renderer);
@@ -238,12 +240,12 @@ export class CanvasRenderer extends BaseRenderer {
         }
       }
 
-      // Set crosshair color based on whether it's over a target
+      // Set crosshair color based on whether it's over a target and background color
       if (isOverTarget) {
         ctx.strokeStyle = "#ff6666"; // Red when over target
         ctx.lineWidth = 3;
       } else {
-        ctx.strokeStyle = "#ffffff"; // White when not over target
+        ctx.strokeStyle = this.getDynamicCrosshairColor(); // Dynamic color based on background
         ctx.lineWidth = 2;
       }
 
@@ -569,24 +571,27 @@ export class CanvasRenderer extends BaseRenderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     
-    // Render RAINBOIDS with slow gradient animation
-    const rainboidsText = "RAINBOIDS";
+    // Render RAIN with tricolor gradient animation and rain overlay
+    const rainText = "RAIN";
     const blitzText = "BLITZ";
     
     if (isPortrait) {
       // Portrait mode: stack vertically
       const lineSpacing = fontSize + 10;
       
-      // RAINBOIDS on first line
-      const rainbowOffset = (this.animationFrame * 0.5) % 360;
+      // RAIN on first line with smooth tricolor gradient
+      const tricolorOffset = (this.animationFrame * 0.1) % 3; // Much slower animation
       const gradient1 = ctx.createLinearGradient(x - 150, y - lineSpacing/2, x + 150, y - lineSpacing/2);
-      const colors = this.getRainbowColors(rainbowOffset);
+      const colors = this.getTricolorRainColors(tricolorOffset);
       colors.forEach((color, i) => {
         gradient1.addColorStop(i / (colors.length - 1), color);
       });
       
       ctx.fillStyle = gradient1;
-      ctx.fillText(rainboidsText, x, y - lineSpacing/2);
+      ctx.fillText(rainText, x, y - lineSpacing/2);
+      
+      // Add subtle rain overlay effect in front of text
+      this.renderRainOverlay(ctx, x, y - lineSpacing/2, rainText, fontSize);
       
       // BLITZ on second line with fast per-letter animation
       const letters = blitzText.split('');
@@ -601,27 +606,30 @@ export class CanvasRenderer extends BaseRenderer {
       });
       
     } else {
-      // Desktop mode: "RAINBOIDS:" and "BLITZ" as separate elements with letter-sized gap
-      const rainboidsText = "RAINBOIDS:";
+      // Desktop mode: "RAIN:" and "BLITZ" as separate elements with letter-sized gap
+      const rainText = "RAIN:";
       const blitzText = "BLITZ";
-      const rainboidsWidth = ctx.measureText(rainboidsText).width;
+      const rainWidth = ctx.measureText(rainText).width;
       const blitzWidth = ctx.measureText(blitzText).width;
       const letterWidth = ctx.measureText("M").width; // Single letter width as gap
-      const totalWidth = rainboidsWidth + letterWidth + blitzWidth;
+      const totalWidth = rainWidth + letterWidth + blitzWidth;
       
-      // RAINBOIDS: with slow animated gradient
-      const rainbowOffset = (this.animationFrame * 0.5) % 360;
-      const gradient1 = ctx.createLinearGradient(x - totalWidth/2, y, x - totalWidth/2 + rainboidsWidth, y);
-      const colors = this.getRainbowColors(rainbowOffset);
+      // RAIN: with smooth animated tricolor gradient
+      const tricolorOffset = (this.animationFrame * 0.1) % 3; // Much slower animation
+      const gradient1 = ctx.createLinearGradient(x - totalWidth/2, y, x - totalWidth/2 + rainWidth, y);
+      const colors = this.getTricolorRainColors(tricolorOffset);
       colors.forEach((color, i) => {
         gradient1.addColorStop(i / (colors.length - 1), color);
       });
       
       ctx.fillStyle = gradient1;
-      ctx.fillText(rainboidsText, x - totalWidth/2 + rainboidsWidth/2, y);
+      ctx.fillText(rainText, x - totalWidth/2 + rainWidth/2, y);
+      
+      // Add subtle rain overlay effect in front of text
+      this.renderRainOverlay(ctx, x - totalWidth/2 + rainWidth/2, y, rainText, fontSize);
       
       // BLITZ with fast per-letter color animation
-      const blitzStartX = x - totalWidth/2 + rainboidsWidth + letterWidth;
+      const blitzStartX = x - totalWidth/2 + rainWidth + letterWidth;
       const letters = blitzText.split('');
       let currentX = blitzStartX;
       
@@ -631,6 +639,102 @@ export class CanvasRenderer extends BaseRenderer {
         ctx.fillText(letter, currentX, y);
         currentX += ctx.measureText(letter).width;
       });
+    }
+    
+    ctx.restore();
+  }
+  
+  getTricolorRainColors(offset) {
+    // Teal, blue, green cycling colors (as requested)
+    const baseColors = [
+      "#20B2AA", // Teal
+      "#4A90E2", // Blue
+      "#50C878"  // Green
+    ];
+    
+    // Create smooth transition between colors based on offset
+    const colorIndex = Math.floor(offset);
+    const colorMix = offset - colorIndex;
+    
+    // Generate gradient colors with smooth transitions
+    const colors = [];
+    for (let i = 0; i < 4; i++) {
+      const baseIndex = (colorIndex + i) % baseColors.length;
+      const nextIndex = (baseIndex + 1) % baseColors.length;
+      
+      // Mix current and next color based on animation offset
+      const currentColor = baseColors[baseIndex];
+      const nextColor = baseColors[nextIndex];
+      const mixedColor = this.mixColors(currentColor, nextColor, colorMix);
+      
+      colors.push(mixedColor);
+    }
+    
+    return colors;
+  }
+  
+  mixColors(color1, color2, ratio) {
+    const rgb1 = this.hexToRgb(color1);
+    const rgb2 = this.hexToRgb(color2);
+    
+    if (!rgb1 || !rgb2) return color1;
+    
+    const r = Math.round(rgb1.r + (rgb2.r - rgb1.r) * ratio);
+    const g = Math.round(rgb1.g + (rgb2.g - rgb1.g) * ratio);
+    const b = Math.round(rgb1.b + (rgb2.b - rgb1.b) * ratio);
+    
+    return this.rgbToHex(r, g, b);
+  }
+  
+  renderRainOverlay(ctx, textX, textY, text, fontSize) {
+    // Initialize rain drops if not exists
+    if (!this.rainDrops) {
+      this.rainDrops = [];
+    }
+    
+    // Get text dimensions for rain area
+    const textWidth = ctx.measureText(text).width;
+    const textHeight = fontSize;
+    
+    // Add new raindrops less frequently for subtlety
+    if (this.animationFrame % 15 === 0) {
+      this.rainDrops.push({
+        x: textX - textWidth/2 + Math.random() * textWidth,
+        y: textY - textHeight/2 - 30,
+        speed: 1 + Math.random() * 2, // Slower speed
+        size: 0.5 + Math.random() * 1, // Smaller size
+        opacity: 0.15 + Math.random() * 0.2 // More subtle opacity
+      });
+    }
+    
+    // Update and render raindrops in front of text (no blend mode)
+    ctx.save();
+    // No globalCompositeOperation - render normally in front of text
+    
+    for (let i = this.rainDrops.length - 1; i >= 0; i--) {
+      const drop = this.rainDrops[i];
+      
+      // Update position
+      drop.y += drop.speed;
+      drop.opacity -= 0.003; // Slower fade
+      
+      // Remove if off screen or faded
+      if (drop.y > textY + textHeight/2 + 30 || drop.opacity <= 0) {
+        this.rainDrops.splice(i, 1);
+        continue;
+      }
+      
+      // Render drops across entire text area (not just within bounds)
+      if (drop.x >= textX - textWidth/2 - 10 && drop.x <= textX + textWidth/2 + 10) {
+        
+        ctx.fillStyle = `rgba(0, 0, 0, ${drop.opacity})`;
+        ctx.beginPath();
+        ctx.arc(drop.x, drop.y, drop.size, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Very subtle rain streak
+        ctx.fillRect(drop.x - 0.3, drop.y + drop.size, 0.6, drop.size * 2);
+      }
     }
     
     ctx.restore();
@@ -1283,5 +1387,470 @@ export class CanvasRenderer extends BaseRenderer {
     ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
     ctx.lineTo(x, y + radius);
     ctx.quadraticCurveTo(x, y, x + radius, y);
+  }
+
+  renderConfigurableBackground(ctx) {
+    // Get the current background config (including any ongoing transitions)
+    const backgroundConfig = this.game.background?.getCurrentTransitionedBackground() || 
+                            this.game.level?.config?.world?.background || {
+      type: "solid",
+      color: "#000000"
+    };
+    
+    switch (backgroundConfig.type) {
+      case "gradient":
+        this.renderGradientBackground(ctx, backgroundConfig);
+        break;
+      case "radial":
+        this.renderRadialBackground(ctx, backgroundConfig);
+        break;
+      case "animated":
+        this.renderAnimatedBackground(ctx, backgroundConfig);
+        break;
+      case "layered":
+        this.renderLayeredBackground(ctx, backgroundConfig);
+        break;
+      case "solid":
+      default:
+        ctx.fillStyle = backgroundConfig.color || "#000000";
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        break;
+    }
+  }
+  
+  renderGradientBackground(ctx, config) {
+    const gradient = ctx.createLinearGradient(
+      config.gradient.direction === "horizontal" ? 0 : 0,
+      config.gradient.direction === "vertical" ? 0 : config.gradient.direction === "diagonal" ? 0 : 0,
+      config.gradient.direction === "horizontal" ? this.canvas.width : config.gradient.direction === "diagonal" ? this.canvas.width : 0,
+      config.gradient.direction === "vertical" ? this.canvas.height : config.gradient.direction === "diagonal" ? this.canvas.height : 0
+    );
+    
+    // Support multicolor gradients
+    if (config.gradient.colors && Array.isArray(config.gradient.colors)) {
+      // Multicolor gradient with explicit stops
+      config.gradient.colors.forEach((colorStop, index) => {
+        if (typeof colorStop === 'object' && colorStop.color && colorStop.stop !== undefined) {
+          gradient.addColorStop(colorStop.stop, colorStop.color);
+        } else {
+          // Auto-distribute colors evenly
+          const stop = index / (config.gradient.colors.length - 1);
+          gradient.addColorStop(stop, typeof colorStop === 'string' ? colorStop : colorStop.color);
+        }
+      });
+    } else {
+      // Legacy two-color gradient
+      gradient.addColorStop(0, config.gradient.start);
+      gradient.addColorStop(1, config.gradient.end);
+    }
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+  
+  renderRadialBackground(ctx, config) {
+    const centerX = config.gradient.centerX !== undefined ? config.gradient.centerX * this.canvas.width : this.canvas.width / 2;
+    const centerY = config.gradient.centerY !== undefined ? config.gradient.centerY * this.canvas.height : this.canvas.height / 2;
+    const radius = config.gradient.radius !== undefined ? config.gradient.radius : Math.max(this.canvas.width, this.canvas.height) / 2;
+    
+    const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+    
+    // Support multicolor radial gradients
+    if (config.gradient.colors && Array.isArray(config.gradient.colors)) {
+      config.gradient.colors.forEach((colorStop, index) => {
+        if (typeof colorStop === 'object' && colorStop.color && colorStop.stop !== undefined) {
+          gradient.addColorStop(colorStop.stop, colorStop.color);
+        } else {
+          const stop = index / (config.gradient.colors.length - 1);
+          gradient.addColorStop(stop, typeof colorStop === 'string' ? colorStop : colorStop.color);
+        }
+      });
+    } else {
+      // Legacy two-color gradient
+      gradient.addColorStop(0, config.gradient.start);
+      gradient.addColorStop(1, config.gradient.end);
+    }
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  renderAnimatedBackground(ctx, config) {
+    const time = Date.now() * 0.001; // Current time in seconds
+    const animConfig = config.animation || {};
+    
+    // Create base gradient
+    let gradient;
+    if (config.gradient.type === "radial") {
+      const centerX = this.canvas.width / 2;
+      const centerY = this.canvas.height / 2;
+      const radius = Math.max(this.canvas.width, this.canvas.height) / 2;
+      gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+    } else {
+      gradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+    }
+    
+    // Animate colors by shifting hue or interpolating between color sets
+    if (config.gradient.colors && Array.isArray(config.gradient.colors)) {
+      const speed = animConfig.speed || 0.5;
+      const offset = (time * speed) % 1;
+      
+      config.gradient.colors.forEach((colorStop, index) => {
+        let color = typeof colorStop === 'string' ? colorStop : colorStop.color;
+        const stop = typeof colorStop === 'object' ? colorStop.stop : index / (config.gradient.colors.length - 1);
+        
+        // Apply hue shift animation
+        if (animConfig.type === "hue_shift") {
+          color = this.shiftHue(color, offset * 360);
+        } else if (animConfig.type === "pulse") {
+          // Pulse brightness
+          const brightness = 0.8 + 0.4 * Math.sin(time * (animConfig.pulseSpeed || 2) + index);
+          color = this.adjustBrightness(color, brightness);
+        }
+        
+        gradient.addColorStop(stop, color);
+      });
+    }
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Add animated overlays
+    if (animConfig.overlays) {
+      this.renderAnimatedOverlays(ctx, animConfig.overlays, time);
+    }
+  }
+
+  renderLayeredBackground(ctx, config) {
+    const layers = config.layers || [];
+    
+    layers.forEach(layer => {
+      ctx.save();
+      ctx.globalAlpha = layer.opacity || 1.0;
+      
+      switch (layer.type) {
+        case "gradient":
+          this.renderGradientBackground(ctx, { gradient: layer.gradient });
+          break;
+        case "radial":
+          this.renderRadialBackground(ctx, { gradient: layer.gradient });
+          break;
+        case "nebula":
+          this.renderNebulaLayer(ctx, layer);
+          break;
+        case "particles":
+          this.renderParticleLayer(ctx, layer);
+          break;
+      }
+      
+      ctx.restore();
+    });
+  }
+
+  renderNebulaLayer(ctx, layer) {
+    const time = Date.now() * 0.001;
+    const centerX = this.canvas.width / 2;
+    const centerY = this.canvas.height / 2;
+    
+    // Create multiple overlapping radial gradients for nebula effect
+    const nebulaCount = layer.count || 3;
+    for (let i = 0; i < nebulaCount; i++) {
+      const angle = (i / nebulaCount) * Math.PI * 2 + time * (layer.rotationSpeed || 0.1);
+      const distance = (layer.distance || 0.3) * Math.min(this.canvas.width, this.canvas.height);
+      
+      const x = centerX + Math.cos(angle) * distance;
+      const y = centerY + Math.sin(angle) * distance;
+      const radius = (layer.radius || 0.4) * Math.min(this.canvas.width, this.canvas.height);
+      
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      const colors = layer.colors || ["rgba(255,100,100,0.3)", "rgba(100,100,255,0.2)", "transparent"];
+      
+      colors.forEach((color, index) => {
+        gradient.addColorStop(index / (colors.length - 1), color);
+      });
+      
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+  }
+
+  renderParticleLayer(ctx, layer) {
+    // Simple particle effect overlay
+    const particleCount = layer.count || 50;
+    const time = Date.now() * 0.001;
+    
+    ctx.fillStyle = layer.color || "rgba(255,255,255,0.1)";
+    
+    for (let i = 0; i < particleCount; i++) {
+      const seed = i * 1234.5; // Consistent seed for each particle
+      const x = ((seed * 123.456) % 1) * this.canvas.width;
+      const y = ((seed * 789.012) % 1) * this.canvas.height;
+      const size = 1 + ((seed * 345.678) % 1) * (layer.maxSize || 3);
+      const speed = layer.speed || 0.1;
+      
+      // Animate position
+      const animatedY = (y + time * speed * this.canvas.height) % (this.canvas.height + 20);
+      
+      ctx.beginPath();
+      ctx.arc(x, animatedY, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  renderAnimatedOverlays(ctx, overlays, time) {
+    overlays.forEach(overlay => {
+      ctx.save();
+      ctx.globalAlpha = overlay.opacity || 0.5;
+      
+      if (overlay.type === "wave") {
+        this.renderWaveOverlay(ctx, overlay, time);
+      } else if (overlay.type === "shimmer") {
+        this.renderShimmerOverlay(ctx, overlay, time);
+      }
+      
+      ctx.restore();
+    });
+  }
+
+  renderWaveOverlay(ctx, overlay, time) {
+    const amplitude = overlay.amplitude || 20;
+    const frequency = overlay.frequency || 0.01;
+    const speed = overlay.speed || 1;
+    
+    ctx.strokeStyle = overlay.color || "rgba(255,255,255,0.1)";
+    ctx.lineWidth = overlay.width || 2;
+    
+    ctx.beginPath();
+    for (let x = 0; x <= this.canvas.width; x += 2) {
+      const y = this.canvas.height / 2 + Math.sin(x * frequency + time * speed) * amplitude;
+      if (x === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  renderShimmerOverlay(ctx, overlay, time) {
+    const gradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
+    const shimmerPos = (time * (overlay.speed || 0.5)) % 2 - 1; // -1 to 1
+    
+    gradient.addColorStop(Math.max(0, shimmerPos - 0.1), "transparent");
+    gradient.addColorStop(Math.max(0, shimmerPos), overlay.color || "rgba(255,255,255,0.3)");
+    gradient.addColorStop(Math.min(1, shimmerPos + 0.1), "transparent");
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  // Utility methods for color manipulation
+  shiftHue(hexColor, degrees) {
+    const rgb = this.hexToRgb(hexColor);
+    if (!rgb) return hexColor;
+    
+    const hsl = this.rgbToHsl(rgb.r, rgb.g, rgb.b);
+    hsl.h = (hsl.h + degrees / 360) % 1;
+    const newRgb = this.hslToRgb(hsl.h, hsl.s, hsl.l);
+    
+    return this.rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+  }
+
+  adjustBrightness(hexColor, brightness) {
+    const rgb = this.hexToRgb(hexColor);
+    if (!rgb) return hexColor;
+    
+    const newRgb = {
+      r: Math.min(255, Math.max(0, Math.round(rgb.r * brightness))),
+      g: Math.min(255, Math.max(0, Math.round(rgb.g * brightness))),
+      b: Math.min(255, Math.max(0, Math.round(rgb.b * brightness)))
+    };
+    
+    return this.rgbToHex(newRgb.r, newRgb.g, newRgb.b);
+  }
+
+  hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  }
+
+  rgbToHex(r, g, b) {
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+
+    if (max === min) {
+      h = s = 0;
+    } else {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      h /= 6;
+    }
+    return { h, s, l };
+  }
+
+  hslToRgb(h, s, l) {
+    let r, g, b;
+    if (s === 0) {
+      r = g = b = l;
+    } else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q - p) * 6 * t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1/3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1/3);
+    }
+    return {
+      r: Math.round(r * 255),
+      g: Math.round(g * 255),
+      b: Math.round(b * 255)
+    };
+  }
+
+  getDynamicCrosshairColor() {
+    // Get the current background config (including any ongoing transitions)
+    const backgroundConfig = this.game.background?.getCurrentTransitionedBackground() || 
+                            this.game.level?.config?.world?.background || {
+      type: "solid",
+      color: "#000000"
+    };
+    
+    // Determine the dominant background color
+    let backgroundColor;
+    switch (backgroundConfig.type) {
+      case "gradient":
+      case "radial":
+        // Handle both old format (start/end) and new multicolor format
+        if (backgroundConfig.gradient.colors && Array.isArray(backgroundConfig.gradient.colors)) {
+          // New multicolor format - get the average of all colors
+          backgroundColor = this.getMultiColorAverage(backgroundConfig.gradient.colors);
+        } else if (backgroundConfig.gradient.start && backgroundConfig.gradient.end) {
+          // Legacy two-color format
+          backgroundColor = this.getAverageColor(backgroundConfig.gradient.start, backgroundConfig.gradient.end);
+        } else {
+          // Fallback
+          backgroundColor = "#000000";
+        }
+        break;
+      case "animated":
+      case "layered":
+        // For complex backgrounds, use a neutral approach
+        backgroundColor = "#444444"; // Medium gray
+        break;
+      case "solid":
+      default:
+        backgroundColor = backgroundConfig.color || "#000000";
+        break;
+    }
+    
+    // Calculate brightness of background color
+    const brightness = this.getColorBrightness(backgroundColor);
+    
+    // Return black crosshair for light backgrounds, white for dark backgrounds
+    // Threshold of 0.5 (50% brightness) - adjust as needed
+    return brightness > 0.5 ? "#000000" : "#ffffff";
+  }
+
+  getMultiColorAverage(colors) {
+    if (!colors || colors.length === 0) return "#000000";
+    
+    let totalR = 0, totalG = 0, totalB = 0;
+    let validColors = 0;
+    
+    colors.forEach(colorStop => {
+      const color = typeof colorStop === 'string' ? colorStop : colorStop.color;
+      const rgb = this.hexToRgb(color);
+      if (rgb) {
+        totalR += rgb.r;
+        totalG += rgb.g;
+        totalB += rgb.b;
+        validColors++;
+      }
+    });
+    
+    if (validColors === 0) return "#000000";
+    
+    const avgR = Math.round(totalR / validColors);
+    const avgG = Math.round(totalG / validColors);
+    const avgB = Math.round(totalB / validColors);
+    
+    return this.rgbToHex(avgR, avgG, avgB);
+  }
+
+  getAverageColor(color1, color2) {
+    // Convert hex colors to RGB
+    const rgb1 = this.hexToRgb(color1);
+    const rgb2 = this.hexToRgb(color2);
+    
+    if (!rgb1 || !rgb2) return "#000000"; // Fallback
+    
+    // Calculate average RGB values
+    const avgR = Math.round((rgb1.r + rgb2.r) / 2);
+    const avgG = Math.round((rgb1.g + rgb2.g) / 2);
+    const avgB = Math.round((rgb1.b + rgb2.b) / 2);
+    
+    // Convert back to hex
+    return this.rgbToHex(avgR, avgG, avgB);
+  }
+
+  getColorBrightness(hexColor) {
+    const rgb = this.hexToRgb(hexColor);
+    if (!rgb) return 0; // Fallback for invalid color
+    
+    // Calculate relative luminance using the standard formula
+    // https://en.wikipedia.org/wiki/Relative_luminance
+    const r = rgb.r / 255;
+    const g = rgb.g / 255;
+    const b = rgb.b / 255;
+    
+    return 0.299 * r + 0.587 * g + 0.114 * b;
+  }
+
+  hexToRgb(hex) {
+    // Remove # if present
+    hex = hex.replace('#', '');
+    
+    // Handle 3-digit hex colors
+    if (hex.length === 3) {
+      hex = hex.split('').map(char => char + char).join('');
+    }
+    
+    if (hex.length !== 6) return null;
+    
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    return isNaN(r) || isNaN(g) || isNaN(b) ? null : { r, g, b };
+  }
+
+  rgbToHex(r, g, b) {
+    const toHex = (n) => {
+      const hex = Math.max(0, Math.min(255, Math.round(n))).toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    };
+    
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   }
 }

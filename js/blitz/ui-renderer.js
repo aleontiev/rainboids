@@ -7,6 +7,89 @@ export class UIRenderer {
     this.hoveredButton = null;
     this.clickedButton = null;
     this.animationFrame = 0;
+    
+    // Rain particle system for RAIN text effect
+    this.rainParticles = [];
+    this.initRainParticles();
+  }
+  
+  initRainParticles() {
+    // Create rain particles for text clipping effect
+    for (let i = 0; i < 100; i++) {
+      this.rainParticles.push({
+        x: Math.random() * 800, // Will be adjusted per text bounds
+        y: Math.random() * 600,
+        speed: 2 + Math.random() * 3,
+        length: 8 + Math.random() * 12,
+        opacity: 0.6 + Math.random() * 0.4
+      });
+    }
+  }
+  
+  updateRainParticles(canvasHeight) {
+    // Update rain particle positions
+    for (const particle of this.rainParticles) {
+      particle.y += particle.speed;
+      
+      // Reset particle when it goes off screen
+      if (particle.y > canvasHeight + particle.length) {
+        particle.y = -particle.length;
+        particle.x = Math.random() * 800; // Will be adjusted per text bounds
+      }
+    }
+  }
+  
+  renderRainOnText(ctx, text, x, y, fontSize) {
+    ctx.save();
+    
+    // Calculate RAIN text bounds (text is just "RAIN")
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    const rainWidth = ctx.measureText(text).width;
+    const rainStartX = x - rainWidth/2;
+    const rainEndX = x + rainWidth/2;
+    const textHeight = fontSize;
+    const rainTopY = y - textHeight/2;
+    const rainBottomY = y + textHeight/2;
+    
+    // Update particle positions to match RAIN text bounds
+    for (const particle of this.rainParticles) {
+      if (particle.x < rainStartX || particle.x > rainEndX) {
+        particle.x = rainStartX + Math.random() * rainWidth;
+      }
+      if (particle.y < rainTopY - 100) {
+        particle.y = rainTopY - Math.random() * 100;
+      }
+    }
+    
+    // Create clipping path for RAIN text
+    ctx.beginPath();
+    ctx.fillStyle = 'white';
+    ctx.textAlign = "center";
+    ctx.fillText(text, x, y);
+    
+    // Set composite operation for clipping
+    ctx.globalCompositeOperation = 'source-in';
+    
+    // Draw rain particles clipped to RAIN text
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    
+    for (const particle of this.rainParticles) {
+      if (particle.x >= rainStartX && particle.x <= rainEndX && 
+          particle.y >= rainTopY - particle.length && particle.y <= rainBottomY + 20) {
+        ctx.globalAlpha = particle.opacity;
+        ctx.beginPath();
+        ctx.moveTo(particle.x, particle.y);
+        ctx.lineTo(particle.x, particle.y + particle.length);
+        ctx.stroke();
+      }
+    }
+    
+    ctx.restore();
   }
 
   updateMousePosition(x, y) {
@@ -579,6 +662,9 @@ export class UIRenderer {
   renderAnimatedTitle(ctx, x, y) {
     ctx.save();
     
+    // Update rain particles
+    this.updateRainParticles(ctx.canvas.height);
+    
     // Check orientation
     const isPortrait = ctx.canvas.height > ctx.canvas.width;
     const fontSize = isPortrait ? 36 : 48;
@@ -586,68 +672,55 @@ export class UIRenderer {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     
-    // Render RAINBOIDS with slow gradient animation
-    const rainboidsText = "RAINBOIDS";
+    // Render BLITZ RAIN as two words
     const blitzText = "BLITZ";
+    const rainText = "RAIN";
+    const spaceWidth = ctx.measureText(" ").width;
+    const blitzWidth = ctx.measureText(blitzText).width;
+    const rainWidth = ctx.measureText(rainText).width;
+    const totalWidth = blitzWidth + spaceWidth + rainWidth;
     
     if (isPortrait) {
-      // Portrait mode: stack vertically
-      const lineSpacing = fontSize + 10;
-      
-      // RAINBOIDS on first line
-      const rainbowOffset = (this.animationFrame * 0.5) % 360;
-      const gradient1 = ctx.createLinearGradient(x - 150, y - lineSpacing/2, x + 150, y - lineSpacing/2);
+      // Portrait mode: single line with both words
+      const rainbowOffset = (this.animationFrame * 0.05) % 360;
+      const gradient = ctx.createLinearGradient(x - totalWidth/2, y, x + totalWidth/2, y);
       const colors = this.getRainbowColors(rainbowOffset);
       colors.forEach((color, i) => {
-        gradient1.addColorStop(i / (colors.length - 1), color);
+        gradient.addColorStop(i / (colors.length - 1), color);
       });
       
-      ctx.fillStyle = gradient1;
-      ctx.fillText(rainboidsText, x, y - lineSpacing/2);
+      // Render BLITZ
+      ctx.fillStyle = gradient;
+      const blitzX = x - totalWidth/2 + blitzWidth/2;
+      ctx.fillText(blitzText, blitzX, y);
       
-      // BLITZ on second line with fast per-letter animation
-      const letters = blitzText.split('');
-      const blitzWidth = ctx.measureText(blitzText).width;
-      let currentX = x - blitzWidth/2;
+      // Render RAIN  
+      const rainX = x - totalWidth/2 + blitzWidth + spaceWidth + rainWidth/2;
+      ctx.fillText(rainText, rainX, y);
       
-      letters.forEach((letter, i) => {
-        const letterOffset = (this.animationFrame * 5 + i * 60) % 360;
-        ctx.fillStyle = this.hslToHex(letterOffset, 100, 50);
-        ctx.fillText(letter, currentX, y + lineSpacing/2);
-        currentX += ctx.measureText(letter).width;
-      });
+      // Add rain particle effect over RAIN portion only
+      this.renderRainOnText(ctx, rainText, rainX, y, fontSize);
       
     } else {
-      // Desktop mode: "RAINBOIDS:" and "BLITZ" as separate elements with letter-sized gap
-      const rainboidsText = "RAINBOIDS:";
-      const blitzText = "BLITZ";
-      const rainboidsWidth = ctx.measureText(rainboidsText).width;
-      const blitzWidth = ctx.measureText(blitzText).width;
-      const letterWidth = ctx.measureText("M").width; // Single letter width as gap
-      const totalWidth = rainboidsWidth + letterWidth + blitzWidth;
-      
-      // RAINBOIDS: with slow animated gradient
-      const rainbowOffset = (this.animationFrame * 0.5) % 360;
-      const gradient1 = ctx.createLinearGradient(x - totalWidth/2, y, x - totalWidth/2 + rainboidsWidth, y);
+      // Desktop mode: single line with both words
+      const rainbowOffset = (this.animationFrame * 0.05) % 360;
+      const gradient = ctx.createLinearGradient(x - totalWidth/2, y, x + totalWidth/2, y);
       const colors = this.getRainbowColors(rainbowOffset);
       colors.forEach((color, i) => {
-        gradient1.addColorStop(i / (colors.length - 1), color);
+        gradient.addColorStop(i / (colors.length - 1), color);
       });
       
-      ctx.fillStyle = gradient1;
-      ctx.fillText(rainboidsText, x - totalWidth/2 + rainboidsWidth/2, y);
+      // Render BLITZ
+      ctx.fillStyle = gradient;
+      const blitzX = x - totalWidth/2 + blitzWidth/2;
+      ctx.fillText(blitzText, blitzX, y);
       
-      // BLITZ with fast per-letter color animation
-      const blitzStartX = x - totalWidth/2 + rainboidsWidth + letterWidth;
-      const letters = blitzText.split('');
-      let currentX = blitzStartX;
+      // Render RAIN
+      const rainX = x - totalWidth/2 + blitzWidth + spaceWidth + rainWidth/2;
+      ctx.fillText(rainText, rainX, y);
       
-      letters.forEach((letter, i) => {
-        const letterOffset = (this.animationFrame * 5 + i * 60) % 360;
-        ctx.fillStyle = this.hslToHex(letterOffset, 100, 50);
-        ctx.fillText(letter, currentX, y);
-        currentX += ctx.measureText(letter).width;
-      });
+      // Add rain particle effect over RAIN portion only
+      this.renderRainOnText(ctx, rainText, rainX, y, fontSize);
     }
     
     ctx.restore();

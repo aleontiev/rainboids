@@ -43,6 +43,7 @@ export class GameLoopManager {
 
     // Update effects and explosions
     this.game.effects.updateExplosions(slowdownFactor);
+    this.game.effects.updateFloatingTexts(slowdownFactor);
 
     // Check collisions
     this.game.collisions.update();
@@ -62,10 +63,16 @@ export class GameLoopManager {
 
     // Update game logic only when playing or during death animation
     if (state.state === "PLAYING") {
-      const slowdownFactor = state.timeSlowActive ? 0.2 : 1.0;
+      // Get game speed multiplier from level config
+      const gameSpeed = this.game.level?.config?.world?.gameSpeed || 1.0;
+      const baseSpeed = state.timeSlowActive ? 0.2 : 1.0;
+      const slowdownFactor = baseSpeed * gameSpeed;
       this.update(deltaTime, slowdownFactor);
     } else if (state.state === "DYING") {
-      this.update(deltaTime, 0.2); // Update even during death animation
+      // Also apply game speed during death animation
+      const gameSpeed = this.game.level?.config?.world?.gameSpeed || 1.0;
+      const slowdownFactor = 0.2 * gameSpeed;
+      this.update(deltaTime, slowdownFactor);
     } else {
       // Update background animations for title screen and other states
       this.game.background.update();

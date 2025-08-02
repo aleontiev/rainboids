@@ -1,6 +1,5 @@
-// Rainboids: Blitz - A bullet hell space shooter
+// BlitzRain - A bullet hell space shooter
 import { Player } from "./blitz/entities/player.js";
-import { Boss } from "./blitz/entities/boss.js";
 import { InputHandler } from "./blitz/input.js";
 import { ProgressView } from "./blitz/progress-view.js";
 import { ActionsView } from "./blitz/actions-view.js";
@@ -48,7 +47,10 @@ class BlitzGame {
     this.input = new InputHandler(this.canvas, this);
     this.progress = new ProgressView(this);
     this.actions = new ActionsView(this);
-    this.level = new LevelManager(this);
+    // Check URL parameters for level selection
+    const urlParams = new URLSearchParams(window.location.search);
+    const levelNumber = parseInt(urlParams.get('level')) || 1;
+    this.level = new LevelManager(this, levelNumber);
     this.death = new DeathManager(this);
     this.background = new BackgroundManager(this);
     this.cheats = new CheatManager(this);
@@ -367,7 +369,7 @@ class BlitzGame {
 
   handleEnemyDamage(enemy, damage, bulletX = enemy.x, bulletY = enemy.y) {
     // Handle damage based on enemy type
-    if (enemy instanceof Boss) {
+    if (enemy.type === "boss") {
       // New boss system with bullet coordinates
       const result = enemy.takeDamage(damage, bulletX, bulletY);
       
@@ -379,11 +381,16 @@ class BlitzGame {
         this.effects.createEnemyExplosion(bulletX, bulletY);
         this.audio.play(this.audio.sounds.hit); // Different sound for invulnerable hit
         return "invulnerable";
-      } else if (result === "destroyed") {
-        // Boss is defeated
+      } else if (result === "body_destroyed") {
+        // Boss body destroyed, transitioning to head phase
         this.effects.createEnemyExplosion(bulletX, bulletY);
         this.audio.play(this.audio.sounds.enemyExplosion);
-        this.startBossDeathSequence();
+        return "body_destroyed";
+      } else if (result === "destroyed") {
+        // Boss is defeated (head destroyed)
+        this.effects.createEnemyExplosion(bulletX, bulletY);
+        this.audio.play(this.audio.sounds.enemyExplosion);
+        this.state.startBossDeathSequence();
         return "destroyed";
       } else if (result === "damaged") {
         // Successfully damaged vulnerable part
@@ -414,7 +421,7 @@ class BlitzGame {
         // Award score based on enemy type
         if (enemy.maxHealth > 1000) {
           // Boss
-          this.startBossDeathSequence();
+          this.state.startBossDeathSequence();
         } else if (enemy.maxHealth > 50) {
           // Mini-boss
           if (!this.cheats.used) {

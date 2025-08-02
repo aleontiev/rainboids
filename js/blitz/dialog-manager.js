@@ -38,7 +38,17 @@ export class DialogManager {
   }
 
   getCurrentMessage() {
-    if (!this.isActive || this.dialogState >= this.dialogMessages.length) {
+    if (!this.isActive) {
+      return null;
+    }
+    
+    // Check if we have a boss dialog to show
+    if (this.isBossDialog && this.bossDialog) {
+      return this.bossDialog;
+    }
+    
+    // Otherwise use regular dialog messages
+    if (this.dialogState >= this.dialogMessages.length) {
       return null;
     }
     return this.dialogMessages[this.dialogState];
@@ -46,6 +56,14 @@ export class DialogManager {
 
   advance() {
     if (!this.isActive) return;
+    
+    // Handle boss dialog advancement
+    if (this.isBossDialog) {
+      this.hide();
+      this.isBossDialog = false;
+      this.bossDialog = null;
+      return;
+    }
 
     if (this.dialogState === 0) {
       // From "..." to "......"

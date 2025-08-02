@@ -121,9 +121,6 @@ export class State {
       this.state = "PAUSED";
       // Pause UI now handled by canvas renderer
 
-      // Update background for title screen
-      this.game.background.setup();
-
       // Hide power buttons during pause
       this.game.actions.hide();
 
@@ -138,9 +135,6 @@ export class State {
   resume() {
     this.state = "PLAYING";
     // Resume UI now handled by canvas renderer
-
-    // Update background for gameplay
-    this.game.background.setup();
 
     // Show power buttons again
     this.game.actions.show();
@@ -189,10 +183,15 @@ export class State {
       this.fadeToLevelCleared();
     }, 3000);
   }
-  addScore(points) {
+  addScore(points, x = null, y = null, isBoss = false, enemyColor = null) {
     if (!this.game.cheats.used) {
       this.score += points;
       this.game.progress.update();
+      
+      // Create score popup if position is provided
+      if (x !== null && y !== null && this.game.effects) {
+        this.game.effects.createScorePopup(x, y, points, isBoss, enemyColor);
+      }
     }
   }
 }

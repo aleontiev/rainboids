@@ -1,10 +1,11 @@
-// Effects and explosion system for Rainboids: Blitz
-import { Debris, RainbowParticle, GrayParticle } from "./entities/particle.js";
+// Effects and explosion system for BlitzRain
+import { Debris, RainbowParticle, GrayParticle, FloatingText } from "./entities/particle.js";
 import { RainbowExplosion } from "./entities/explosion.js";
 
 export class EffectsManager {
   constructor(game) {
     this.game = game;
+    this.floatingTexts = []; // Array to store floating score texts
   }
 
   createChainExplosion() {
@@ -140,6 +141,20 @@ export class EffectsManager {
     this.createExplosion(x, y);
   }
 
+  createImpactParticles(x, y, damage = 1) {
+    // Create impact particles at the collision point
+    const particleCount = Math.min(8, 3 + damage); // More particles for higher damage
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2 + Math.random() * 0.5;
+      const distance = 5 + Math.random() * 15;
+      const particleX = x + Math.cos(angle) * distance;
+      const particleY = y + Math.sin(angle) * distance;
+
+      // Create orange/red impact particles
+      this.game.entities.particles.push(new RainbowParticle(particleX, particleY, "#ff4400"));
+    }
+  }
+
   updateExplosions(slowdownFactor = 1.0) {
     // Update explosion animations
     for (let i = this.game.explosions.length - 1; i >= 0; i--) {
@@ -173,6 +188,33 @@ export class EffectsManager {
       ctx.arc(explosion.x, explosion.y, currentSize, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+    });
+  }
+
+  // SCORE POPUP SYSTEM
+  createScorePopup(x, y, points, isBoss = false, enemyColor = null) {
+    const text = `+${points}`;
+    const floatingText = new FloatingText(x, y, text, isBoss, enemyColor, this.game);
+    this.floatingTexts.push(floatingText);
+  }
+
+  updateFloatingTexts(slowdownFactor = 1.0) {
+    // Update all floating texts
+    for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+      const text = this.floatingTexts[i];
+      text.update(slowdownFactor);
+      
+      // Remove expired texts
+      if (text.life <= 0) {
+        this.floatingTexts.splice(i, 1);
+      }
+    }
+  }
+
+  renderFloatingTexts(ctx, scene, materials) {
+    // Render all floating texts
+    this.floatingTexts.forEach(text => {
+      text.render(ctx, scene, materials);
     });
   }
 }

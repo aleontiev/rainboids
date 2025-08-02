@@ -8,7 +8,8 @@ export class PowerupManager {
     switch (powerup.type) {
       case "shield":
         this.game.player.shield = Math.min(this.game.player.shield + 1, 5); // Max 5 shields
-        this.game.audio.play(this.game.audio.sounds.powerup);
+        this.game.audio.play(this.game.audio.sounds.powerUp);
+        this.game.player.triggerPowerupPulse();
         this.game.state.addScore(25);
         break;
 
@@ -17,7 +18,8 @@ export class PowerupManager {
           this.game.player.mainWeaponLevel + 1,
           5
         );
-        this.game.audio.play(this.game.audio.sounds.powerup);
+        this.game.audio.play(this.game.audio.sounds.powerUp);
+        this.game.player.triggerPowerupPulse();
         this.game.state.addScore(50);
         break;
 
@@ -26,45 +28,45 @@ export class PowerupManager {
           this.game.player.sideWeaponLevel + 1,
           3
         );
-        this.game.audio.play(this.game.audio.sounds.powerup);
+        this.game.audio.play(this.game.audio.sounds.powerUp);
+        this.game.player.triggerPowerupPulse();
         this.game.state.addScore(50);
         break;
 
       case "secondShip":
-        if (this.game.player.secondShip.length < 2) {
-          // Max 2 companion ships
-          const shipCount = this.game.player.secondShip.length;
-
-          if (this.game.isPortrait) {
-            // Portrait mode: left/right positioning
-            const offset = shipCount === 0 ? -40 : 40;
+        if (this.game.player.secondShip.length < 5) {
+          // Add new ship and then reposition all ships for optimal spacing
+          const newShipCount = this.game.player.secondShip.length + 1;
+          const radius = 60; // Distance from player
+          
+          // Clear existing ships and recreate with optimal spacing
+          this.game.player.secondShip = [];
+          
+          for (let i = 0; i < newShipCount; i++) {
+            const angleStep = (Math.PI * 2) / newShipCount; // Evenly distributed
+            const baseAngle = i * angleStep;
+            
             this.game.player.secondShip.push({
-              x: this.game.player.x + offset,
-              y: this.game.player.y,
+              x: this.game.player.x + Math.cos(baseAngle) * radius,
+              y: this.game.player.y + Math.sin(baseAngle) * radius,
               initialAngle: this.game.player.angle,
-              offset: offset,
-              isHorizontal: true,
-            });
-          } else {
-            // Landscape mode: above/below positioning
-            const offset = shipCount === 0 ? -40 : 40;
-            this.game.player.secondShip.push({
-              x: this.game.player.x,
-              y: this.game.player.y + offset,
-              initialAngle: this.game.player.angle,
-              offset: offset,
-              isHorizontal: false,
+              baseAngle: baseAngle, // Store the base angle for orbiting
+              radius: radius, // Store radius for orbiting
+              orbitSpeed: 0.02, // Rotation speed for orbiting
+              currentOrbitAngle: baseAngle, // Current angle in orbit
             });
           }
 
-          this.game.audio.play(this.game.audio.sounds.powerup);
+          this.game.audio.play(this.game.audio.sounds.powerUp);
+          this.game.player.triggerPowerupPulse();
           this.game.state.addScore(100);
         }
         break;
 
       case "bomb":
         this.game.state.bombs = Math.min(this.game.state.bombs + 1, 3); // Max 3 bombs
-        this.game.audio.play(this.game.audio.sounds.powerup);
+        this.game.audio.play(this.game.audio.sounds.powerUp);
+        this.game.player.triggerPowerupPulse();
         this.game.state.addScore(75);
         break;
 

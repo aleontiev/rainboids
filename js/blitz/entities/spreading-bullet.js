@@ -1,4 +1,5 @@
 import { Bullet } from "./bullet.js";
+import { CircularBullet } from "./circular-bullet.js";
 
 export class SpreadingBullet {
   constructor(
@@ -9,9 +10,9 @@ export class SpreadingBullet {
     color,
     isPortrait,
     speed = 8, // Default bullet speed
-    explosionTime = 120, // 2 seconds at 60fps
+    delay = 120, // Time before splitting (replaces explosionTime)
     game = null,
-    spreadConfig = null // Configuration for spread bullets when exploding
+    childBulletConfig = null // Recursive bullet configuration for bullets that spawn from this one
   ) {
     this.x = x;
     this.y = y;
@@ -19,18 +20,26 @@ export class SpreadingBullet {
     this.speed = speed;
     this.size = size; // Initial size
     this.color = color;
-    this.life = 300; // Standard bullet life
+    this.life = this.getBulletLife(); // Use config bullet life
     this.isPortrait = isPortrait;
-    this.explosionTime = explosionTime;
+    this.delay = delay; // Time before splitting (replaces explosionTime)
     this.time = 0;
     this.exploded = false;
     this.health = 1; // Can be damaged by player
     this.game = game;
-    this.spreadConfig = spreadConfig;
+    this.childBulletConfig = childBulletConfig; // Recursive bullet config
     
     // Velocity tracking (dx/dy per second)
     this.dx = 0;
     this.dy = 0;
+  }
+
+  getBulletLife() {
+    try {
+      return this.game?.level?.config?.world?.bulletLife || 90000; // Default to 25 minutes (effectively unlimited)
+    } catch (e) {
+      return 90000;
+    }
   }
 
   update(slowdownFactor = 1.0, addEnemyBulletCallback) {
@@ -50,7 +59,7 @@ export class SpreadingBullet {
     this.dy = (this.y - prevY) * 60;
 
     // Explode if time is up or health is 0
-    if (this.time >= this.explosionTime || this.health <= 0) {
+    if (this.time >= this.delay || this.health <= 0) {
       if (typeof addEnemyBulletCallback === 'function') {
         this.explode(addEnemyBulletCallback);
       } else {
@@ -68,6 +77,16 @@ export class SpreadingBullet {
            this.life > 0;
   }
 
+  // Get collision boundary for precise shape-based collision detection
+  getCollisionBoundary() {
+    return {
+      type: 'circle',
+      x: this.x,
+      y: this.y,
+      radius: this.size
+    };
+  }
+
   explode(addEnemyBulletCallback) {
     this.exploded = true;
     
@@ -77,25 +96,93 @@ export class SpreadingBullet {
       return;
     }
     
-    // Use provided spread config or defaults
-    const numBullets = this.spreadConfig?.count || 8;
-    const bulletSpeed = this.spreadConfig?.speed || 4;
-    const bulletSize = this.spreadConfig?.size || this.size * 0.3;
+    // If no child bullet config, create default spreading bullets
+    if (!this.childBulletConfig) {
+      // Default spreading behavior: create 8 normal bullets
+      const numBullets = 8;
+      const bulletSpeed = 4;
+      const bulletSize = this.size * 0.3;
+
+      for (let i = 0; i < numBullets; i++) {
+        const angle = (i / numBullets) * Math.PI * 2; // Evenly spaced around circle
+        const bullet = new Bullet(
+          this.x,
+          this.y,
+          angle,
+          bulletSize,
+          this.color,
+          this.isPortrait,
+          bulletSpeed,
+          false,
+          this.game
+        );
+        addEnemyBulletCallback(bullet);
+      }
+      return;
+    }
+
+    // Use recursive bullet configuration
+    const childConfig = this.childBulletConfig;
+    const numBullets = childConfig.count || 8;
+    const bulletSize = childConfig.size || this.size * 0.3;
+    const bulletSpeed = childConfig.speed || 4;
+    const bulletColor = childConfig.color || this.color;
+    const bulletType = childConfig.type || "normal";
 
     for (let i = 0; i < numBullets; i++) {
       const angle = (i / numBullets) * Math.PI * 2; // Evenly spaced around circle
-      const bullet = new Bullet(
-        this.x,
-        this.y,
-        angle,
-        bulletSize,
-        this.color,
-        this.isPortrait,
-        bulletSpeed,
-        false,
-        this.game
-      );
-      addEnemyBulletCallback(bullet);
+      
+      // Create different bullet types based on config
+      switch (bulletType) {
+        case "spreading":
+          // Recursive spreading bullet
+          const spreadingBullet = new SpreadingBullet(
+            this.x,
+            this.y,
+            angle,
+            bulletSize,
+            bulletColor,
+            this.isPortrait,
+            bulletSpeed,
+            childConfig.delay || 120,
+            this.game,
+            childConfig.bullet || null // Next level of recursion
+          );
+          addEnemyBulletCallback(spreadingBullet);
+          break;
+
+        case "circular":
+          const circularBullet = new CircularBullet(
+            this.x,
+            this.y,
+            angle,
+            bulletSize,
+            bulletColor,
+            this.isPortrait,
+            bulletSpeed,
+            false,
+            this.game
+          );
+          addEnemyBulletCallback(circularBullet);
+          break;
+
+        case "normal":
+        default:
+          const bullet = new Bullet(
+            this.x,
+            this.y,
+            angle,
+            bulletSize,
+            bulletColor,
+            this.isPortrait,
+            bulletSpeed,
+            false,
+            this.game,
+            childConfig.damage || 1
+          );
+          addEnemyBulletCallback(bullet);
+          break;
+      }
     }
   }
 
@@ -162,8 +249,16 @@ export class SpreadingBullet {
     ctx.closePath();
     ctx.fill();
     
+    // Add configurable stroke for spreading bullets
+    const strokeColor = this.game?.level?.config?.world?.bulletStrokeColor || "#ffffff";
+    const strokeWidth = this.game?.level?.config?.world?.bulletStrokeWidth || 1;
+    
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.stroke();
+    
     // Add warning glow effect as it approaches explosion
-    const timeRatio = this.time / this.explosionTime;
+    const timeRatio = this.time / this.delay;
     if (timeRatio > 0.7) {
       ctx.save();
       ctx.globalAlpha = (timeRatio - 0.7) / 0.3; // Fade in during last 30%
@@ -217,7 +312,7 @@ export class SpreadingBullet {
     bulletMesh.material.color.set(this.color || '#ff4444');
     
     // Add warning glow effect as it approaches explosion
-    const timeRatio = this.time / this.explosionTime;
+    const timeRatio = this.time / this.delay;
     if (timeRatio > 0.7) {
       const glowIntensity = (timeRatio - 0.7) / 0.3; // Fade in during last 30%
       bulletMesh.material.emissive.set(this.color || '#ff4444');

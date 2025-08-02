@@ -6,6 +6,12 @@ import { HomingMissile } from "./entities/homing-missile.js";
 export class PlayerManager {
   constructor(game) {
     this.game = game;
+    // Track previous input states for detecting fresh key presses
+    this.previousInput = {
+      shift: false,
+      f: false,
+      z: false
+    };
   }
 
   update(deltaTime, slowdownFactor) {
@@ -30,13 +36,14 @@ export class PlayerManager {
     }
 
     // Handle input (now includes autoplayer modifications)
-    if (input.shift) {
+    // Only trigger abilities on fresh key presses, not when held down
+    if (input.shift && !this.previousInput.shift) {
       this.game.powerup.activateShield();
     }
-    if (input.f) {
+    if (input.f && !this.previousInput.f) {
       this.game.powerup.activateTimeSlow();
     }
-    if (input.z) {
+    if (input.z && !this.previousInput.z) {
       this.game.powerup.activateBomb();
     }
 
@@ -103,5 +110,10 @@ export class PlayerManager {
       // Stop continuous laser sound when not firing
       this.game.audio.stopContinuousLaser();
     }
+    
+    // Update previous input state for next frame's fresh key press detection
+    this.previousInput.shift = input.shift;
+    this.previousInput.f = input.f;
+    this.previousInput.z = input.z;
   }
 }

@@ -376,3 +376,87 @@ export class TextParticle {
     this.webglMeshes.push(mesh);
   }
 }
+
+
+export class FloatingText {
+  constructor(x, y, text, isBoss = false, enemyColor = null, game = null) {
+    this.x = x;
+    this.y = y;
+    this.text = text;
+    this.isBoss = isBoss;
+    this.enemyColor = enemyColor;
+    this.game = game;
+    
+    // Get config values from level config
+    const config = this.game?.level?.config?.world;
+    this.life = config?.floatingTextLife || 120; // Use config or default to 120 (2 seconds at 60fps)
+    this.maxLife = this.life;
+    this.vy = -1; // Float upward
+    this.scale = isBoss ? 1.5 : 1.0;
+    this.animationFrame = 0;
+    
+    // Store config values for rendering
+    this.configColor = config?.floatingTextColor || "#00ff00";
+    this.configSize = config?.floatingTextSize || 32;
+  }
+
+  update(slowdownFactor = 1.0) {
+    this.y += this.vy * slowdownFactor;
+    this.life -= slowdownFactor;
+    this.animationFrame += slowdownFactor;
+  }
+
+  render(ctx, scene, materials) {
+    if (scene && materials) {
+      this.renderWebGL(scene, materials);
+    } else {
+      this.renderCanvas(ctx);
+    }
+  }
+
+  renderCanvas(ctx) {
+    ctx.save();
+    
+    const alpha = Math.min(1, this.life / this.maxLife);
+    const fontSize = Math.floor(this.configSize * this.scale); // Use config size
+    
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    if (this.isBoss || this.enemyColor === null) {
+      // Rainbow effect for boss/miniboss score (when enemyColor is null)
+      const hue = (this.animationFrame * 3) % 360;
+      ctx.fillStyle = `hsla(${hue}, 100%, 60%, ${alpha})`;
+    } else {
+      // Use config color for all score popups
+      if (this.configColor.startsWith('#')) {
+        // Convert hex to rgba
+        const hex = this.configColor.substring(1);
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      } else {
+        // Assume it's already in rgb/rgba format and add alpha
+        ctx.fillStyle = this.configColor.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
+        if (!this.configColor.includes('rgba')) {
+          ctx.fillStyle = this.configColor; // Fallback if conversion fails
+        }
+      }
+    }
+    
+    // Add outline for better visibility
+    ctx.strokeStyle = `rgba(0, 0, 0, ${alpha * 0.8})`;
+    ctx.lineWidth = 2;
+    ctx.strokeText(this.text, this.x, this.y);
+    ctx.fillText(this.text, this.x, this.y);
+    
+    ctx.restore();
+  }
+
+  renderWebGL(scene, materials) {
+    // For WebGL, we would need to create text textures - for now, skip WebGL rendering of text
+    // This would require more complex implementation with text-to-texture conversion
+  }
+}

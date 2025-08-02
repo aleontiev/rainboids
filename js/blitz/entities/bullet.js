@@ -34,7 +34,7 @@ export class Bullet {
 
   getBulletLife() {
     try {
-      return this.game?.level?.config?.bulletLife || 90000; // Default to 25 minutes (effectively unlimited)
+      return this.game?.level?.config?.world?.bulletLife || 90000; // Default to 25 minutes (effectively unlimited)
     } catch (e) {
       return 90000;
     }
@@ -59,6 +59,38 @@ export class Bullet {
            this.y > -50 && 
            this.y < window.innerHeight + 50 && 
            this.life > 0;
+  }
+
+  // Get collision boundary for precise shape-based collision detection
+  getCollisionBoundary() {
+    if (this.isPlayerBullet) {
+      // Player bullets are triangular (pointy)
+      const baseWidth = this.size * 0.6;
+      const height = this.size * 1.8;
+      return {
+        type: 'triangle',
+        x: this.x,
+        y: this.y,
+        angle: this.angle,
+        points: [
+          { x: height * 0.9, y: 0 }, // Tip
+          { x: 0, y: -baseWidth / 2 }, // Bottom left
+          { x: 0, y: baseWidth / 2 }  // Bottom right
+        ]
+      };
+    } else {
+      // Enemy bullets are rectangular with rounded end
+      const width = this.size * 2;
+      const height = this.size;
+      return {
+        type: 'rectangle',
+        x: this.x,
+        y: this.y,
+        angle: this.angle,
+        width: width,
+        height: height
+      };
+    }
   }
 
   // Legacy render method for backward compatibility
@@ -116,6 +148,14 @@ export class Bullet {
     }
 
     ctx.fill();
+    
+    // Add configurable stroke for all bullets  
+    const strokeColor = this.game?.level?.config?.world?.bulletStrokeColor || "#ffffff";
+    const strokeWidth = this.game?.level?.config?.world?.bulletStrokeWidth || 1;
+    
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.stroke();
     
     ctx.restore();
   }
